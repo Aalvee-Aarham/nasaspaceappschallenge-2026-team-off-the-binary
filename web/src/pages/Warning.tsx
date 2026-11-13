@@ -90,7 +90,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
               {ORDER.map((l) => <li key={l} className={l}><b className="num">{count(l)}</b><span>{LEVEL_LABEL[l]}</span></li>)}
             </ul>
             <div className="scroll-x" style={{ marginTop: 14 }}>
-              <table className="tbl click wl">
+              <table className="tbl click watch-tbl">
                 <thead><tr><th>Level</th><th>Area</th><th>This month vs earlier years</th><th>Usual next 4 weeks</th></tr></thead>
                 <tbody>
                   {all.alerts.map((a) => (

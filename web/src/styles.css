@@ -376,8 +376,8 @@ dl.prov dd { margin: 0; }
 .levels li.elevated { border-top-color: var(--ember); }
 .levels li.watch { border-top-color: var(--gold); }
 .levels li.quiet { border-top-color: var(--cold); }
-.wl tbody tr.sel td { background: var(--raised-2); }
-.wl tbody tr:focus-visible { outline-offset: -2px; }
+.watch-tbl tbody tr.sel td { background: var(--raised-2); }
+.watch-tbl tbody tr:focus-visible { outline-offset: -2px; }
 .ew-detail { background: var(--raised); border: 1px solid var(--line); border-left: 2px solid #2A3340; border-radius: var(--radius-m); padding: 24px 26px; margin-top: 18px; }
 .ew-detail h2 { font-size: 22px; }
 .ew-detail.elevated { border-left-color: var(--ember); }
