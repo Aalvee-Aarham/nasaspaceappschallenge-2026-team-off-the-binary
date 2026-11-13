@@ -108,27 +108,33 @@ def extra_sources(meta, start, end, sources, items):
         items += it
 
 
-def geocode(q):
-    """Free-text place -> name, country, a box of 0.5-4 degrees around it, languages (Nominatim, cached a year)."""
+def geocode(q, limit=8):
+    """Free-text place -> name, country, a box of 0.5-4 degrees around it, languages, candidates (Nominatim, cached a year)."""
     def fetch():
         with _nominatim_lock:
             time.sleep(1.1)
-            qs = urllib.parse.urlencode({"q": q, "format": "jsonv2", "limit": 1, "addressdetails": 1, "accept-language": "en"})
+            qs = urllib.parse.urlencode({"q": q, "format": "jsonv2", "limit": max(1, min(limit, 10)), "addressdetails": 1, "accept-language": "en"})
             res = json.loads(_get(f"https://nominatim.openstreetmap.org/search?{qs}"))
         if not res:
             return None
-        p = res[0]
-        s, n, w, e = map(float, p["boundingbox"])
         cl = lambda v: min(4.0, max(0.5, v))  # noqa: E731
-        lat, lon, hw, hh = (s + n) / 2, (w + e) / 2, cl(e - w) / 2, cl(n - s) / 2
-        a = p.get("address", {})
-        cc = (a.get("country_code") or "").lower()
-        name = ", ".join(str(p.get("display_name", q)).split(",")[:2]).strip()
-        places = list(dict.fromkeys([name.split(",")[0].strip(), *[v for v in (a.get("county"), a.get("state")) if v]]))
-        return {"name": name, "country": a.get("country"), "country_code": cc, "lat": round(lat, 4), "lon": round(lon, 4),
-                "bbox": [round(max(-180, lon - hw), 2), round(max(-90, lat - hh), 2), round(min(180, lon + hw), 2),
-                         round(min(90, lat + hh), 2)], "places": places, "lang": COUNTRY_LANG.get(cc, []) + ["en"]}
-    return _cached(f"geo:{q.strip().lower()}", 365 * 86400, fetch)
+        candidates = []
+        for p in res:
+            s, n, w, e = map(float, p["boundingbox"])
+            lat, lon, hw, hh = (s + n) / 2, (w + e) / 2, cl(e - w) / 2, cl(n - s) / 2
+            a = p.get("address", {})
+            cc = (a.get("country_code") or "").lower()
+            disp = str(p.get("display_name", q))
+            name = ", ".join(disp.split(",")[:2]).strip()
+            places = list(dict.fromkeys([name.split(",")[0].strip(), *[v for v in (a.get("county"), a.get("state")) if v]]))
+            candidates.append({"name": name, "display_name": disp, "country": a.get("country"), "country_code": cc,
+                               "lat": round(lat, 4), "lon": round(lon, 4),
+                               "bbox": [round(max(-180, lon - hw), 2), round(max(-90, lat - hh), 2),
+                                        round(min(180, lon + hw), 2), round(min(90, lat + hh), 2)],
+                               "places": places, "lang": COUNTRY_LANG.get(cc, []) + ["en"]})
+        first = dict(candidates[0])
+        return {**first, "candidates": candidates}
+    return _cached(f"geo2:{q.strip().lower()}:{limit}", 365 * 86400, fetch)
 
 
 def search_place(place, start, end):

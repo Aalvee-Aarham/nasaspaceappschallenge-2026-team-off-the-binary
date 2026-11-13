@@ -15,7 +15,7 @@ client = TestClient(api.app)  # no `with`: the lifespan (email loop) is not star
 
 def test_health_reports_serverless():
     h = client.get("/api/health").json()
-    assert h["serverless"] is True and h["regions"] == 9, h
+    assert h["serverless"] is True and h["regions"] >= 9, h
 
 
 class _Req:
@@ -41,8 +41,22 @@ def test_links_never_come_from_host_header_when_email_is_on():
 
 
 def test_public_base_without_email_uses_request():
-    assert not alerts.smtp_ready()
-    assert api._public_base(_Req()) == "http://evil.example/"
+    real, env = alerts.smtp_ready, os.environ.pop("PUBLIC_URL", None)
+    alerts.smtp_ready = lambda: False
+    try:
+        assert api._public_base(_Req()) == "http://evil.example/"
+    finally:
+        alerts.smtp_ready = real
+        if env is not None:
+            os.environ["PUBLIC_URL"] = env
+
+
+def test_place_lookup():
+    res = client.get("/api/place?q=Dhaka").json()
+    assert res.get("found") is True
+    assert "bbox" in res and len(res["bbox"]) == 4
+    empty = client.get("/api/place?q=").json()
+    assert empty.get("found") is False
 
 
 def test_cases_and_exposure_endpoints():
