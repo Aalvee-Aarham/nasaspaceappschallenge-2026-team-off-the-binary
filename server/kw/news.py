@@ -210,6 +210,8 @@ def assess(hist, n_items, sources):
         label, tone = "Not enough history to compare this period", "neutral"
     elif pct >= 90 and n_items:
         label, tone = "Unusually high compared with the same period in other years, with matching reports", "confirmed"
+    elif pct >= 90 and not searched:
+        label, tone = "Unusually high compared with the same period in other years; couldn't check the news: no source answered", "neutral"
     elif pct >= 90:
         label, tone = "Unusually high compared with the same period in other years; no matching reports found", "unverified"
     elif pct <= 10:
