@@ -197,11 +197,21 @@ def assemble(area, meta, monthly, grid, eonet_items, gdacs_items, press_counts, 
                                meta["name"], p, cell, _w(sat, cf, press=press_for(p)), ci,
                                "Found by the record itself. The cell shown is the one with the most hotspots that month."))
 
-    # Cap: newest first within a verdict; "the record missed it" gets at most two fifths so a month with dozens of
-    # small agency incidents cannot push every other kind of case out of the list.
-    newest = sorted(cases, key=lambda c: c["date"], reverse=True)
-    miss = [c for c in newest if c["verdict"] == "agency_only"]
-    rest = sorted((c for c in newest if c["verdict"] != "agency_only"), key=lambda c: SEVERITY[c["verdict"]])
+    # Cap: spread over the years (newest year first, the strongest cell signal first within a year), so a burst of
+    # small incidents in one season cannot push out the big fires of earlier years; "the record missed it" gets at
+    # most two fifths so it cannot crowd out every other kind of case either.
+    def spread(cs):
+        years = {}
+        for c in sorted(cs, key=lambda c: -(c["witnesses"]["satellite"]["cell_hotspots"] or 0)):
+            years.setdefault(c["date"][:4], []).append(c)
+        order, queues = [], [years[y] for y in sorted(years, reverse=True)]
+        while any(queues):
+            for q in queues:
+                if q:
+                    order.append(q.pop(0))
+        return order
+    miss = spread([c for c in cases if c["verdict"] == "agency_only"])
+    rest = spread([c for c in cases if c["verdict"] != "agency_only"])
     room = MAX_CASES * 2 // 5
     picked = miss[:room] + rest[:MAX_CASES - len(miss[:room])]
     picked += miss[room:][:MAX_CASES - len(picked)]
@@ -276,7 +286,7 @@ def build_cases(region_id, meta, monthly, grid, fetch=True):
         sources.append(_source("press", name="Google News RSS", searched=done > 0, count=done - len(errs), error=errs[0] if errs else None,
                                note="one query per record-derived case before 2017 (before GDELT coverage); counts queries answered"))
     if capped:
-        sources.append(_source("agency", name="case list", count=total, note=f"capped at {MAX_CASES} of {total} cases found ({', '.join(f'{v} {n}' for v, n in found.items() if n)}); newest first, 'record missed it' limited to two fifths"))
+        sources.append(_source("agency", name="case list", count=total, note=f"capped at {MAX_CASES} of {total} cases found ({', '.join(f'{v} {n}' for v, n in found.items() if n)}); spread over the years, strongest signal first, 'record missed it' limited to two fifths"))
     return {"built_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "area": region_id,
             "data_through": meta["data_through"], "counts": counts, "found": found, "sources": sources, "caveat": CAVEAT, "cases": kept}
 

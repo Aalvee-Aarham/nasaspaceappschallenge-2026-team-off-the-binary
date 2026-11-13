@@ -67,6 +67,11 @@ def regions():
     return {"regions": tools.list_regions()}
 
 
+@app.get("/api/casebook")
+def casebook():
+    return tools.casebook_overview()
+
+
 @app.get("/api/regions/{rid}/cases")
 def cases(rid: str, verdict: str | None = None, limit: int = 50):
     return _guard(tools.list_cases, rid, verdict, min(max(limit, 1), 200))

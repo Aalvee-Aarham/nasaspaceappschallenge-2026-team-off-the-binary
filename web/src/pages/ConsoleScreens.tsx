@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { LEVEL_LABEL, Warning, ordinal } from "../api";
+import { CaseVerdict, FireCase, LEVEL_LABEL, Warning, ordinal } from "../api";
+import { CellMap, COLOR, GROUP_OF, Icon, LABEL, VERDICTS, compact } from "../casebook";
 
 // Animated screens for the home page console. Everything shown comes from the API: the early-warning payload for one
 // built area and the same-days values of its earlier years (meta.current.prior). They replay each time `play` turns on.
@@ -139,6 +140,61 @@ export function AskScreen({ d, play }: { d: ConsoleData | null; play: boolean })
           <p className="note">The analyst may only quote numbers a tool returned. Re-enacted here with the live tool output.</p>
         </section>
       </div>
+    </div>
+  );
+}
+
+/** The home console's casebook screen: real cases of one built area pop onto its fire cells, the verdicts count up,
+ *  then one case shows what its witnesses said. Everything comes from /api/regions/<id>/cases and /exposure. */
+export type CasesData = { id: string; name: string; bbox: number[]; cases: FireCase[]; counts: Record<CaseVerdict, number>; people: number | null; hospitals: number | null; schools: number | null; named: string[]; cells: [number, number, number, number][] | null };
+
+export function CasesScreen({ d, play }: { d: CasesData | null; play: boolean }) {
+  const t = useClock(play);
+  if (!d) return <div className="scr cxs"><p className="wait">Loading the casebook…</p></div>;
+  const total = d.cases.length, shown = VERDICTS.filter((v) => d.counts[v] > 0), max = Math.max(1, ...shown.map((v) => d.counts[v]));
+  const pick = d.cases.find((c) => c.verdict === "agency_only") ?? d.cases.find((c) => c.verdict === "corroborated") ?? d.cases[0];
+  const w = pick?.witnesses;
+  return (
+    <div className={`scr cxs ${play ? "on" : ""}`}>
+      <header><i className="live" />Cases &amp; exposure<em>{d.name}</em><time>every fire, five witnesses</time></header>
+      <div className="cxs-body">
+        <figure className="cxs-map">{d.cells && <CellMap bbox={d.bbox} cells={d.cells} cases={d.cases} reveal={ramp(t, 900, 1900)} label={`${d.name}: fire cases on the area's fire cells`} />}</figure>
+        <aside>
+          <div className="near">
+            <p className="k">Near the fire</p>
+            <ul>
+              {d.hospitals != null && <li><b>{n0(d.hospitals * ramp(t, 300, 1400))}</b>hospitals</li>}
+              {d.schools != null && <li><b>{n0(d.schools * ramp(t, 450, 1400))}</b>schools</li>}
+              {d.people != null && <li className="ppl"><b>{compact(d.people * ramp(t, 600, 1400))}</b>people</li>}
+            </ul>
+            <p className="note">in the 11 km cells where satellites saw fire</p>
+            {d.named.length > 0 && <ul className="named">{d.named.map((n, i) => (
+              <li key={n} style={{ opacity: ramp(t, 1000 + i * 220, 400), transform: `translateX(${(1 - ramp(t, 1000 + i * 220, 500)) * -10}px)` }}><i aria-hidden>+</i>{n}</li>
+            ))}</ul>}
+          </div>
+          <div className="checked" style={{ opacity: ramp(t, 1500, 500) }}>
+            <p className="k"><b>{n0(total * ramp(t, 1500, 1200))}</b> fires checked against other sources</p>
+            <ul className="cxs-v">{shown.map((v, i) => (
+              <li key={v} style={{ opacity: ramp(t, 1700 + i * 160, 400) }}>
+                <span className="l"><Icon v={v} size={12} />{LABEL[v]}</span>
+                <span className="bar"><i style={{ width: `${(d.counts[v] / max) * 100 * ramp(t, 1800 + i * 160, 900)}%`, background: COLOR[GROUP_OF[v]] }} /></span>
+                <b>{d.counts[v]}</b>
+              </li>
+            ))}</ul>
+          </div>
+        </aside>
+      </div>
+      {pick && w && (
+        <div className="cxs-toast" style={{ opacity: ramp(t, 3300, 400), transform: `translateY(${(1 - ramp(t, 3300, 500)) * 16}px)` }}>
+          <p className="h"><Icon v={pick.verdict} size={12} />{LABEL[pick.verdict]}<span>{pick.date}</span></p>
+          <b>{pick.title}</b>
+          <ul>
+            <li className={w.satellite.state}>Satellites<em>{w.satellite.state === "fire" ? "saw fire" : w.satellite.state === "quiet" ? "saw no fire" : "could not see"}</em></li>
+            <li className={w.agency ? "fire" : "none"}>NASA EONET<em>{w.agency ? "event record" : "nothing"}</em></li>
+            <li className={w.press ? "fire" : "none"}>News<em>{w.press ? `${n0(w.press.count)} articles` : "nothing found"}</em></li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

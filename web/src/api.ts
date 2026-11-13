@@ -93,9 +93,20 @@ export type CasesResponse = {
 export type ExposureResponse = {
   region_id: string; period: string | null; fire_cells: number; population: number;
   population_source: { source: string; url: string; vintage: number | string; method: string; note: string };
-  hospitals: number | null; clinics: number | null; hospital_list: { name: string; lat: number; lon: number; cell: [number, number] }[];
+  hospitals: number | null; clinics: number | null; schools: number | null; hospital_list: { name: string; lat: number; lon: number; cell: [number, number] }[];
   major_roads: number | null; road_list: { name: string; kind: string; lat: number; lon: number; cells: [number, number][] }[];
   errors: Record<string, string>; truncated: Record<string, boolean> | null; scope: string | null; built_at: string; caveat: string;
+  // present only for the whole-record view (no period)
+  by_year?: { year: number; fire_cells: number; population: number; hospitals: number; schools: number | null }[];
+  map_cells?: [number, number, number, number][];   // lat, lon (SW corner), people, months with fire
+  top_cells?: { lat: number; lon: number; population: number; hospitals: number; clinics: number; schools: number | null; months_with_fire: number }[];
+  months_in_record?: number;
+};
+export type CasebookOverview = {
+  caveat: string;
+  areas: { id: string; name: string; country: string | null;
+    cases: { total: number; counts: Record<CaseVerdict, number>; found: Record<CaseVerdict, number> | null; failed_sources: string[] } | null;
+    exposure: { population: number; hospitals: number | null; clinics: number | null; schools?: number | null; major_roads: number | null; errors: Record<string, string>; built_at: string } | null }[];
 };
 export type Grid = { deg: number; cells: [number, number][]; months: Record<string, [number, number][]>; unit: string };
 export type StaticPts = { points: [number, number, number, number, number, number, number, number][] };
@@ -195,6 +206,8 @@ export const api = {
   meta: (id: string) => json<Meta>(`/data/regions/${id}/meta.json`),
   cases: (id: string, verdict?: string, limit = 200) =>
     json<CasesResponse>(`/api/regions/${id}/cases?limit=${limit}${verdict ? `&verdict=${verdict}` : ""}`),
+  casebook: () => json<CasebookOverview>("/api/casebook"),
+  case: (id: string, caseId: string) => json<FireCase>(`/api/regions/${id}/cases/${encodeURIComponent(caseId)}`),
   exposure: (id: string, period?: string) => json<ExposureResponse>(`/api/regions/${id}/exposure${period ? `?period=${period}` : ""}`),
   monthly: (id: string) => json<Block>(`/data/regions/${id}/monthly.json`),
   region: async (id: string): Promise<Region> => {

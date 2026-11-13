@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Analyst from "./Analyst";
-import { AgentReply, Cls, FireCase, Health, Outlook, Region, RegionItem, SCALE_LABEL, SHORT, Scale, View, Warnings, api, fmt, periodLabel } from "./api";
+import { AgentReply, CaseVerdict, Cls, FireCase, Health, Outlook, Region, RegionItem, SCALE_LABEL, SHORT, Scale, View, Warnings, api, fmt, periodLabel } from "./api";
 import Detail, { RangeNews } from "./Detail";
 import Loader, { STEPS } from "./Loader";
 import MapView, { Basemap, FIRE_LAYERS, Focus, Layers, OUTLOOK_COLOR, OUTLOOK_LABEL, Projection } from "./Map";
@@ -14,12 +14,14 @@ import Bangladesh from "./pages/Bangladesh";
 import { ALL_PAGES, LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
 import EarlyWarning from "./pages/Warning";
 import Timeline from "./Timeline";
-import { Cases } from "./Cases";
+import CasesPage from "./pages/CasesPage";
+import CasesPanel from "./CasesPanel";
+import { useCases } from "./casebook";
 
 const Landing = lazy(() => import("./pages/Home")); // three.js + gsap load only on the home page
 
-type Tab = "calendar" | "season" | "continuity" | "cases";
-const TABS: Tab[] = ["calendar", "season", "continuity", "cases"];
+type Tab = "calendar" | "season" | "continuity";
+const TABS: Tab[] = ["calendar", "season", "continuity"];
 const PAGE_IDS = ALL_PAGES as readonly string[];
 const SCALES: Scale[] = ["hotspots", "viirs", "celldays", "raw"];
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
@@ -45,8 +47,10 @@ export default function App() {
   const [tab, setTab] = useState<Tab>((TABS as string[]).includes(h0.t) ? (h0.t as Tab) : "calendar");
   const [view, setView] = useState<View>("value");
   const [period, setPeriod] = useState<string | null>(h0.p ?? null);
-  const [caseMap, setCaseMap] = useState<FireCase[] | null>(null);
-  const [selCase, setSelCase] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [casesOpen, setCasesOpen] = useState(h0.cases === "1");
+  const [caseFilter, setCaseFilter] = useState<CaseVerdict | null>(null);
+  const [selCase, setSelCase] = useState<FireCase | null>(null);
   const [date, setDate] = useState(clampDate(h0.d ?? yesterday()));
   const [layers, setLayers] = useState<Layers>({
     fires: { VIIRS_NOAA20_Thermal_Anomalies_375m_All: true, MODIS_Combined_Thermal_Anomalies_All: true },
@@ -104,9 +108,10 @@ export default function App() {
     if (cls !== "veg") q.set("c", cls);
     if (tab !== "calendar") q.set("t", tab);
     if (basemap !== "night") q.set("b", basemap);
+    if (casesOpen) q.set("cases", "1");
     if (projection !== "globe") q.set("pj", "flat");
     history.replaceState(null, "", "#" + q.toString());
-  }, [pg, regionId, period, date, granularity, scale, cls, tab, basemap, projection]);
+  }, [pg, regionId, period, date, granularity, scale, cls, tab, basemap, projection, casesOpen]);
 
   // custom-area build polling
   useEffect(() => {
@@ -158,6 +163,11 @@ export default function App() {
     for (const a of actions) {
       if (a.name === "ui_select_region") openRegion(a.args.region_id);
       if (a.name === "ui_select_period" && a.args.period) selectPeriod(a.args.period);
+      if (a.name === "ui_show_cases") {   // the analyst opens the Cases & exposure panel, optionally on one verdict or case
+        setPg("explore"); setCasesOpen(true);
+        setCaseFilter((a.args.verdict as CaseVerdict) || null);
+        if (a.args.case_id && regionId) api.case(regionId, a.args.case_id).then(pickCase).catch(() => undefined);
+      }
       if (a.name === "ui_set_view") {
         if (a.args.granularity) setGranularity(a.args.granularity as "month" | "week");
         if ((SCALES as string[]).includes(a.args.scale)) setScale(a.args.scale as Scale);
@@ -202,14 +212,18 @@ export default function App() {
     setDrawing(false); setRegionId(null); setPeriod(null); setDraft(b); setFocus({ bbox: b, n: Date.now() });
   };
 
-  const pageProps: PageProps = { regions, online, go: setPg, openRegion: (id) => openRegion(id), refresh: refreshRegions };
+  const cases = useCases(casesOpen && pg === "explore" ? regionId : null, online);
+  useEffect(() => { setSelCase(null); setCaseFilter(null); }, [regionId]);
+  const pickCase = (c: FireCase | null) => { setSelCase(c); if (c) setFocus({ center: [c.lon, c.lat], zoom: 9, n: Date.now() }); };
+  const caseDots = casesOpen && pg === "explore" ? (cases.data?.cases ?? []).filter((c) => !caseFilter || c.verdict === caseFilter) : null;
+  const pageProps: PageProps = { regions, online, go: setPg, openRegion: (id) => openRegion(id), refresh: refreshRegions, area: regionId };
   const area = draft ? Math.abs((draft[2] - draft[0]) * (draft[3] - draft[1])) : 0;
   const context = { region_id: regionId, region_name: region?.meta.name, period, granularity, scale, class: cls, map_date: date };
 
   if (pg === "home") return <Suspense fallback={<div className="h3d" />}><Landing {...pageProps} /></Suspense>;
 
   return (
-    <div className={`app ${analystOpen ? "with-analyst" : ""}`}>
+    <div className={`app ${analystOpen ? "with-analyst" : ""} ${panelOpen ? "" : "panel-closed"}`}>
       <header className="top">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); openRegion(null); setPg("home"); }}>
           <svg viewBox="0 0 32 32" aria-hidden><path d="M16 4c2.2 5.4 7.5 7.6 7.5 14a7.5 7.5 0 0 1-15 0c0-3.3 2.1-5.4 3.2-7.5 1.1 3.2 2.2 4.3 4.3 4.3C15 10.5 15 7.3 16 4z" fill="#EA7329" /><path d="M16 17c1 2.2 3 3 3 5.5a3 3 0 0 1-6 0c0-1.6 1-2.6 1.6-3.5.4 1.2.9 1.6 1.4 1.6-.4-1.2-.4-2.4 0-3.6z" fill="#F6C64F" /></svg>
@@ -249,6 +263,7 @@ export default function App() {
             {pg === "warning" && <EarlyWarning {...pageProps} />}
             {pg === "after" && <AfterModis {...pageProps} />}
             {pg === "bangladesh" && <Bangladesh {...pageProps} />}
+            {pg === "cases" && <CasesPage {...pageProps} />}
             {pg === "news" && <News {...pageProps} />}
             {pg === "download" && <Download {...pageProps} />}
             {pg === "create" && <Create {...pageProps} job={job} build={(b, n) => startBuild(b, n)} goDraw={() => { setPg("explore"); setDrawing(true); }} />}
@@ -262,7 +277,7 @@ export default function App() {
         <MapView regions={regions} region={region} month={month} date={date} layers={layers} basemap={basemap}
           projection={projection} outlook={outlook} onOutlookPick={pickAround}
           drawing={drawing} focus={focus} onPickRegion={openRegion}
-          cases={tab === "cases" ? caseMap : null} selCase={selCase} onPickCase={(id) => { setSelCase(id); setTab("cases"); }}
+          cases={caseDots} selCase={selCase?.id ?? null} onPickCase={(id) => pickCase(cases.data?.cases.find((c) => c.id === id) ?? null)}
           onDrawn={(b) => { setDrawing(false); setDraft(b); }} />
 
         {outlook && layers.outlook && !layersOpen && <MapKey o={outlook} />}
@@ -296,7 +311,19 @@ export default function App() {
           </aside>
         )}
 
-        <section className="panel" aria-label="Area record">
+        <div className="map-actions">
+          <button className={`btn ghost ${casesOpen ? "on" : ""}`} onClick={() => setCasesOpen(!casesOpen)} aria-expanded={casesOpen} aria-controls="cases-panel"
+            title="Fire cases checked against other sources, and who lives where fire was seen">Cases &amp; exposure</button>
+          <button className="btn ghost" onClick={() => setPanelOpen(!panelOpen)} aria-expanded={panelOpen} aria-controls="area-panel">
+            {panelOpen ? "Hide panel ›" : "‹ Show panel"}
+          </button>
+        </div>
+        {casesOpen && (
+          <CasesPanel name={region?.meta.name ?? null} regionId={regionId} online={online} data={cases.data} err={cases.err}
+            filter={caseFilter} onFilter={setCaseFilter} sel={selCase} onSel={pickCase}
+            onClose={() => setCasesOpen(false)} onPage={() => setPg("cases")} />
+        )}
+        <section className="panel" id="area-panel" aria-label="Area record" hidden={!panelOpen}>
           {job ? (
             <div className="pad">
               <h2>Building a record for your area</h2>
@@ -344,11 +371,11 @@ export default function App() {
               </header>
               {region.meta.story && <p className="story">{region.meta.story}</p>}
               <nav className="tabs" role="tablist">
-                {([["calendar", "Calendar"], ["season", "Season"], ["continuity", "Continuity"], ["cases", "Cases"]] as const).filter(([k]) => k !== "cases" || region.meta.features?.cases?.available).map(([k, l]) => (
+                {([["calendar", "Calendar"], ["season", "Season"], ["continuity", "Continuity"]] as const).map(([k, l]) => (
                   <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
                 ))}
               </nav>
-              {tab !== "season" && tab !== "cases" && (
+              {tab !== "season" && (
                 <div className="seg-row">
                   <Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Kilns & static heat"]]} />
                   {tab === "calendar" && <Seg value={granularity} onChange={(g) => { setGranularity(g); setPeriod(null); }} options={[["month", "Month"], ["week", "Week"]]} />}
@@ -380,7 +407,6 @@ export default function App() {
               )}
               {tab === "season" && <SeasonView r={region} />}
               {tab === "continuity" && <Continuity r={region} cls={cls} />}
-              {tab === "cases" && <Cases r={region} online={online} sel={selCase} onSel={setSelCase} onCases={setCaseMap} />}
             </div>
           )}
         </section>

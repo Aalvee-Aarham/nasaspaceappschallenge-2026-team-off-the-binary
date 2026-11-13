@@ -112,12 +112,28 @@ def get_fire_cases(region_id: str, verdict: str = "", limit: int = 20) -> dict:
     return tools.list_cases(region_id, verdict or None, max(1, min(limit, 200)))
 
 
+@mcp.tool(title="One fire case", annotations=RO)
+def get_fire_case(region_id: str, case_id: str) -> dict:
+    """One fire case with what every witness said (the harmonized record, the MODIS-vs-VIIRS check, NASA EONET, GDACS,
+    the press) and its verdict. case_id comes from get_fire_cases. A witness that could not see says so."""
+    return tools.get_case(region_id, case_id)
+
+
+@mcp.tool(title="Casebook and exposure overview", annotations=RO)
+def get_casebook_overview() -> dict:
+    """For every built area: number of fire cases, how many fires an agency recorded that the record does not show,
+    people, hospitals and named major roads in the cells with fire, and which sources failed. Missing data is null."""
+    return tools.casebook_overview()
+
+
 @mcp.tool(title="Exposure in the fire cells", annotations=RO)
 def get_exposure(region_id: str, period: str = "") -> dict:
     """Population, hospitals and major roads in the 0.1 degree cells where the harmonized record shows fire. A context
     layer, not an impact estimate: there is no fire perimeter, no smoke and no fire spread here, and population is
     modelled 2020 data (WorldPop). period is an optional 'YYYY-MM' month."""
-    return tools.exposure(region_id, period or None)
+    out = tools.exposure(region_id, period or None)
+    out.pop("map_cells", None)  # the per-cell map data is for the web page, not for a model's context
+    return out
 
 
 @mcp.tool(title="Early warning for an area", annotations=RO)

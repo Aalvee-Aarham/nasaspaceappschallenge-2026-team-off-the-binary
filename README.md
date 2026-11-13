@@ -126,7 +126,7 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 </tr>
 <tr>
 <td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
-<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 31 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 33-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 31 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 35-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
 </tr>
 </table>
 
@@ -227,7 +227,7 @@ None. NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
 | DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
 | FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
-| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 33-tool MCP server for Claude, Cursor and n8n |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 35-tool MCP server for Claude, Cursor and n8n |
 | Google Gemini API | [ai.google.dev](https://ai.google.dev) | Optional in-app analyst |
 | React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |
 | MapLibre GL JS | [maplibre.org](https://maplibre.org) | Map and globe |

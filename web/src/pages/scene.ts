@@ -56,15 +56,16 @@ kf({ cy: 0.45, cz: 3.5, ly: 1.2 });
 kf({ cy: 0.5, ly: 1.15 });
 // 10 console: a huge globe fills the lower half
 kf({ cy: 0.62, cz: 2.25, ly: 1.02, earth: 1 });
-// 11-13 explore / warn / ask: the camera drifts under the floating screen
+// 11-14 explore / warn / cases / ask: the camera drifts under the floating screen
 kf({ cx: -0.32, cy: 0.7, cz: 2.0, lx: 0.1, ly: 0.82 });
 kf({ cx: 0.34, cy: 0.66, cz: 2.0, lx: -0.1, ly: 0.8 });
+kf({ cx: -0.26, cy: 0.58, cz: 1.95, lx: 0.08, ly: 0.76 });
 kf({ cx: 0.12, cy: 0.5, cz: 1.9, lx: 0, ly: 0.7 });
-// 14 news: globe to the left, live EONET wildfire events on it
+// 15 news: globe to the left, live EONET wildfire events on it
 kf({ cx: 0, cy: 0.35, cz: 2.75, lx: 0.95, ly: 0.2, lz: 0, ev: 1 });
-// 15 connect: globe low on the right
+// 16 connect: globe low on the right
 kf({ cx: 0, cy: 0.95, cz: 2.8, lx: -0.75, ly: 1.0, lz: 0, ev: 0 });
-// 16 finale: Aqua reassembles above the globe
+// 17 finale: Aqua reassembles above the globe
 kf({ cx: 0.55, cy: 1.72, cz: 4.35, lx: 0.55, ly: 1.12, lz: 0.75, aO: 1, aT: 0, dr: 0.5, ev: 1 });
 export const BEATS = KF.length;
 
