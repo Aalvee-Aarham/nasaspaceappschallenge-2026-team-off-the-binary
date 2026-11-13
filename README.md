@@ -35,7 +35,7 @@
   <a href="#the-product">Product</a> ·
   <a href="#who-it-is-for">Who it is for</a> ·
   <a href="#how-it-is-built">How it is built</a> ·
-  <a href="#nasa-data-and-resources">NASA resources</a> ·
+  <a href="#data-used">Data used</a> ·
   <a href="#use-of-ai">Use of AI</a> ·
   <a href="#references">References</a> ·
   <a href="#team-off-the-binary">Team</a>
@@ -177,42 +177,53 @@ Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://
 
 ---
 
-## NASA data and resources
+## Data used
 
-Every number in Kiln Watch comes from NASA data. Everything we used from NASA:
+Every number in Kiln Watch comes from NASA data.
 
-| NASA resource | What we used | Where it appears |
+### NASA data
+
+| Dataset | Link | How we used it |
 |---|---|---|
-| [**FIRMS**](https://earthdata.nasa.gov/firms) MODIS Collection 6.1 active fire | Terra and Aqua MODIS detections, 2000 to today | Every calendar, chart, download and test |
-| [**FIRMS**](https://earthdata.nasa.gov/firms) VIIRS 375 m active fire, Collection 2 | Suomi-NPP, NOAA-20 and NOAA-21 VIIRS detections | Every calendar, chart, download and test |
-| FIRMS archive as GeoParquet ([Portolan mirror](https://source.coop/portolan-mirrors/firms-catalog), CC0) | The same FIRMS records, queried in place with DuckDB | Data pipeline (`server/kw/firms.py`) |
-| [**GIBS**](https://gibs.earthdata.nasa.gov) fire layers | `MODIS_Combined_Thermal_Anomalies_All`, `VIIRS_SNPP_Thermal_Anomalies_375m_All`, `VIIRS_NOAA20_Thermal_Anomalies_375m_All`, `VIIRS_NOAA21_Thermal_Anomalies_375m_All` | Daily fire overlay on the map |
-| [**GIBS**](https://gibs.earthdata.nasa.gov) imagery layers | `MODIS_Terra_CorrectedReflectance_TrueColor`, `VIIRS_NOAA20_CorrectedReflectance_TrueColor` | Satellite base maps |
-| **Black Marble** (VIIRS Day/Night Band, `VIIRS_Black_Marble`) | Night lights | Globe night view |
-| **Blue Marble** (`BlueMarble_ShadedRelief_Bathymetry` and Earth textures) | Earth imagery | Globe base map, 3D Earth on the home page |
-| [**NASA 3D Resources**](https://science.nasa.gov/3d-resources/) | Aqua, Terra and Suomi-NPP satellite models (`web/public/models/*.glb`) | Home page 3D scenes |
-| [**EONET**](https://eonet.gsfc.nasa.gov) (Earth Observatory Natural Event Tracker) API | Wildfire events | News page and cell inspector |
-| [**Worldview**](https://worldview.earthdata.nasa.gov) and the [FIRMS Fire Map](https://firms.modaps.eosdis.nasa.gov/map) | Deep links to the same place and day | "Open in Worldview" / FIRMS buttons |
-| NASA Earthdata, LAADS DAAC, LP DAAC and MODIS Land documentation | Sensor status and data attributes (see [References](#references)) | Method and sensor timeline |
+| FIRMS MODIS Collection 6.1 active fire (Terra, Aqua) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Every MODIS detection 2000–today; Aqua is the reference scale for the whole record |
+| FIRMS VIIRS 375 m active fire, Collection 2 (Suomi-NPP) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Calibrated to Aqua on 2012–2020; Suomi-NPP's end date is read from the data |
+| FIRMS VIIRS 375 m active fire, Collection 2 (NOAA-20) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Chained to Suomi-NPP so the record carries on after it |
+| FIRMS VIIRS 375 m active fire, Collection 2 (NOAA-21) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Chained to NOAA-20 for the newest years |
+| FIRMS archive as GeoParquet (Portolan mirror, CC0) | [source.coop/portolan-mirrors/firms-catalog](https://source.coop/portolan-mirrors/firms-catalog) | The same FIRMS records, queried in place with DuckDB, only the area's rows |
+| GIBS Thermal Anomalies layers (MODIS combined; VIIRS SNPP, NOAA-20, NOAA-21 375 m) | [gibs.earthdata.nasa.gov](https://gibs.earthdata.nasa.gov) | Daily fire overlay on the map for the selected day |
+| GIBS Corrected Reflectance True Color (MODIS Terra, VIIRS NOAA-20) | [gibs.earthdata.nasa.gov](https://gibs.earthdata.nasa.gov) | Satellite base map to see the place on the chosen day |
+| Black Marble (VIIRS Day/Night Band) | [blackmarble.gsfc.nasa.gov](https://blackmarble.gsfc.nasa.gov) | Night-lights view on the globe; helps tell kilns and flares from wildfire |
+| Blue Marble (shaded relief and bathymetry, Earth textures) | [visibleearth.nasa.gov](https://visibleearth.nasa.gov/collection/1484/blue-marble) | Globe base map and the 3D Earth on the home page |
+| NASA 3D Resources: Aqua, Terra and Suomi-NPP models | [science.nasa.gov/3d-resources](https://science.nasa.gov/3d-resources/) | 3D satellites in the home-page story |
+| EONET (Earth Observatory Natural Event Tracker) | [eonet.gsfc.nasa.gov](https://eonet.gsfc.nasa.gov) | Wildfire events shown beside the data for a month or cell |
+| Worldview | [worldview.earthdata.nasa.gov](https://worldview.earthdata.nasa.gov) | "Open in Worldview" link for the same place and day |
+| FIRMS Fire Map | [firms.modaps.eosdis.nasa.gov/map](https://firms.modaps.eosdis.nasa.gov/map) | Link to the raw detections for the same place and day |
+
+### Other space agency data
+
+None. NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
+
+### Other datasets
+
+| Dataset / API / library | Link | How we used it |
+|---|---|---|
+| GDACS (EC JRC, UN OCHA) | [gdacs.org](https://www.gdacs.org) | Wildfire alerts beside the data |
+| GDELT DOC API | [gdeltproject.org](https://www.gdeltproject.org) | News reports for a place and month (2017+) |
+| Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
+| ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
+| OpenFreeMap | [openfreemap.org](https://openfreemap.org) | Vector base map |
+| OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
+| DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
+| FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 31-tool MCP server for Claude, Cursor and n8n |
+| Google Gemini API | [ai.google.dev](https://ai.google.dev) | Optional in-app analyst |
+| React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |
+| MapLibre GL JS | [maplibre.org](https://maplibre.org) | Map and globe |
+| three.js, GSAP, Lenis | [threejs.org](https://threejs.org) | 3D home page, animation, smooth scroll |
+| iso-kit (MIT) | `web/src/lib/` | Isometric drawing helpers |
 
 We acknowledge the use of data and imagery from NASA's Fire Information for Resource Management System (FIRMS)
 (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
-
-<details>
-<summary><b>Other data and software</b></summary>
-
-<br>
-
-| Source | Used for |
-|---|---|
-| GDACS (EC JRC, UN OCHA) | Wildfire events |
-| GDELT Project, Google News RSS, ReliefWeb (optional) | News reports beside the data |
-| OpenFreeMap, OpenStreetMap, Nominatim | Base map and place search |
-| DuckDB, FastAPI, Uvicorn, MCP Python SDK | Server |
-| React, MapLibre GL JS, three.js, GSAP, Lenis, Vite, TypeScript | Web app |
-| iso-kit (MIT, `web/src/lib/`) | Isometric drawing helpers |
-
-</details>
 
 Detections are not fires and not burned area. Kiln Watch is an independent project, not an official NASA product.
 
