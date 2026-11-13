@@ -110,9 +110,9 @@ export function CaseCard({ c, onClose }: { c: FireCase; onClose?: () => void }) 
 }
 
 /** The area's fire cells shaded by people living there, with the cases on top. `reveal` (0–1) animates the markers in. */
-export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, label }: {
+export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, label, hi }: {
   bbox: number[]; cells: [number, number, number, number][]; cases: FireCase[]; sel?: string | null; onSel?: (id: string) => void;
-  onCell?: (lat: number, lon: number) => void; reveal?: number; label?: string;
+  onCell?: (lat: number, lon: number) => void; reveal?: number; label?: string; hi?: [number, number] | null;   // hi: SW corner of a cell to outline
 }) {
   const [w, s, e, n] = bbox;
   const W = 560, k = Math.cos(((s + n) / 2) * Math.PI / 180), H = Math.round(W * (n - s) / ((e - w) * k));
@@ -124,8 +124,13 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="cb-map" role="img" aria-label={label ?? `Map: ${cells.length} cells that have had fire, lighter where more people live, and ${cases.length} cases.`}>
       <rect width={W} height={H} fill="#0A0E15" />
+      {/* Real ground under the cells for orientation: NASA Blue Marble shaded relief for the exact bbox (plate carrée, so it lines up with x/y). */}
+      <image href={reliefImage(bbox, W * 2, H * 2)} width={W} height={H} preserveAspectRatio="none" opacity={0.55} />
+      <rect width={W} height={H} fill="#05080D" opacity={0.35} />
       {cells.map(([la, lo, p], i) => <rect key={i} x={x(lo)} y={y(la + 0.1)} width={cw} height={ch} fill={peopleShade(p, max)}
+        stroke="rgba(241,244,248,0.22)" strokeWidth={0.5}
         className={onCell ? "cb-cell" : undefined} onClick={onCell ? () => onCell(la + 0.05, lo + 0.05) : undefined} />)}
+      {hi && <rect x={x(hi[1]) - 2} y={y(hi[0] + 0.1) - 2} width={cw + 4} height={ch + 4} fill="none" stroke="#F1F4F8" strokeWidth={2.5} pointerEvents="none" />}
       {order.map((c) => (
         <g key={c.id} className={onSel ? "cb-pt" : undefined} onClick={onSel ? () => onSel(c.id) : undefined}>
           {onSel && <circle cx={x(c.lon)} cy={y(c.lat)} r={12} fill="transparent" />}
@@ -136,5 +141,9 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
     </svg>
   );
 }
-/** One neutral ramp for people, kept apart from the verdict colours: more people, lighter cell (log scale). */
-export const peopleShade = (p: number, max: number) => { const t = Math.log10(p + 1) / Math.log10(max + 1), l = Math.round(26 + t * 160); return `rgb(${l},${l + 4},${l + 10})`; };
+/** One neutral ramp for people, kept apart from the verdict colours: more people, brighter veil over the ground (log scale).
+ *  Even an empty cell keeps a visible floor, so "fire was seen here" never disappears into the basemap. */
+export const peopleShade = (p: number, max: number) => { const t = Math.log10(p + 1) / Math.log10(max + 1); return `rgba(241,244,248,${(0.1 + t * 0.6).toFixed(3)})`; };
+/** One GIBS WMS image (EPSG:4326) covering exactly this bbox. */
+const reliefImage = ([w, s, e, n]: number[], width: number, height: number) =>
+  `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=BlueMarble_ShadedRelief_Bathymetry&STYLES=&FORMAT=image/jpeg&SRS=EPSG:4326&BBOX=${w},${s},${e},${n}&WIDTH=${Math.round(width)}&HEIGHT=${Math.round(height)}`;
