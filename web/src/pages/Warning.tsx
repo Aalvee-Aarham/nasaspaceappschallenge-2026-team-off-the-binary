@@ -206,6 +206,7 @@ const TRIG: [Trigger, string, string][] = [
   ["outlook", "Fire-season watch", "when the 30-day outlook shows cells entering an active season while already above normal (at most weekly)"],
   ["events", "New wildfire events", "when NASA EONET opens a wildfire event inside the area"],
 ];
+const PLACE_TRIG: Record<string, string> = { nearby: "Fire detected nearby", season: "Fire season starting nearby" };
 const RATIOS: [number, string][] = [[1, "tops the median"], [1.5, "is 1.5× the median"], [2, "is 2× the median"], [3, "is 3× the median"]];
 
 function EmailAlert({ online, emailOn, serverless, preset, onAlert, go }: { online: boolean; emailOn: boolean | null; serverless: boolean; preset: Preset | null; onAlert: (s: Saved) => void; go: PageProps["go"] }) {
@@ -449,7 +450,7 @@ function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean
               <b>{ok?.name ?? m.name}</b>
               <div className="achips">
                 {ok?.email && <span className={ok.confirmed ? "ok" : "wait"}>{ok.confirmed ? "✓ " : "awaiting confirmation · "}{ok.email}</span>}
-                {(ok?.triggers ?? []).map((t) => <span key={t}>{TRIG.find((x) => x[0] === t)?.[1] ?? t}</span>)}
+                {(ok?.triggers ?? []).map((t) => <span key={t}>{TRIG.find((x) => x[0] === t)?.[1] ?? PLACE_TRIG[t] ?? t}</span>)}
               </div>
               {!a && <span className="muted small"> checking…</span>}
               {a === "gone" && <span className="error small"> this alert no longer exists</span>}
@@ -465,6 +466,11 @@ function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean
               {oc && <div className="small muted">30-day outlook: <b style={{ color: oc.watch ? OUTLOOK_COLOR.watch : undefined }}>{oc.watch} watch</b>, {oc.above} above normal, {oc.season} in season</div>}
               {ok?.events_in_box && <div className="small muted">{ok.events_in_box.length ? `${ok.events_in_box.length} open NASA EONET event${ok.events_in_box.length > 1 ? "s" : ""}: ${ok.events_in_box[0].title}` : "No open NASA EONET events inside"}</div>}
               {ok?.events_error && <div className="small muted">{ok.events_error}</div>}
+              {ok?.place && ok.nearby && <div className="small"><span className={`lvl ${ok.nearby.count ? "elevated" : "normal"}`}>{ok.nearby.count ? "Fire nearby" : "No fire nearby"}</span>{" "}
+                {ok.nearby.count ? `${fmt(ok.nearby.count)} detections within ${ok.nearby.radius_km} km of ${ok.place.label} in the last 2 days, closest ${fmt(ok.nearby.nearest_km ?? 0, 1)} km.` : `Nothing within ${ok.nearby.radius_km} km of ${ok.place.label} in the last 2 days.`}
+                {ok.nearby.data_through && <span className="muted"> Data through {ok.nearby.data_through}.</span>}</div>}
+              {ok?.nearby_error && <div className="small muted">{ok.nearby_error}</div>}
+              {ok?.place && ok.season && ok.season.share != null && <div className="small muted">Next weeks: fire was detected within ~15 km in {ok.season.years_with_fire} of {ok.season.record_years} past years for this month.</div>}
               {ok?.sent && ok.sent.length > 0 && <div className="small muted">Last email {ok.sent[ok.sent.length - 1].at.slice(0, 16).replace("T", " ")} UTC: {ok.sent[ok.sent.length - 1].subject}</div>}
               {test[m.token] && <div className="small">{test[m.token]}</div>}
             </div>

@@ -4,15 +4,20 @@ Triggers (each alert picks any of them):
   anomaly  the month so far tops N x the median of the same days in earlier years (at most once per month)
   outlook  the place's 30-day outlook has watch cells: fire season ahead AND already above normal (at most weekly)
   events   NASA EONET lists a new open wildfire event inside the box
+  nearby   (place alerts) a vegetation-fire detection within radius_km of the place in the last 2 days (each once)
+  season   (place alerts) the coming week falls in a month when fire was detected within ~15 km of the place in at
+           least SEASON_SHARE of past years (once per calendar month): history, never a forecast
 
 No accounts: the unguessable token is the credential. Email is double opt-in (a confirm link is mailed first) and
 every message carries a one-click unsubscribe link. SMTP comes from env (SMTP_HOST, SMTP_PORT, SMTP_USER,
 SMTP_PASSWORD, SMTP_FROM); without it, alerts still work through n8n or the poll endpoint.
 """
+import calendar
 import datetime as dt
 import html
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -28,7 +33,9 @@ from .firms import DATA
 FILE = DATA / "alerts.json"
 MAX_ALERTS = 2000
 MAX_PER_EMAIL = 20
-TRIGGERS = ("anomaly", "outlook", "events")
+TRIGGERS = ("anomaly", "outlook", "events", "nearby", "season")
+PLACE_TRIGGERS = ("nearby", "season")
+SEASON_SHARE = 0.5   # "usually": fire detected near the place in at least half of the past years for that month
 EMAIL_RE = re.compile(r"^[^@\s<>\"']{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,}$")
 _lock = threading.Lock()  # ponytail: one file + one lock; move to SQLite if alerts or writers grow
 
@@ -151,13 +158,45 @@ def _check_limits(d, email):
         raise ValueError("this address has 3 unconfirmed alerts: confirm those first (check the inbox)")  # anti-spam
 
 
-def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, email=None, triggers=None, base_url=""):
+def _place(place):
+    """Validate a place {lat, lon, radius_km?, label?}: a school, hospital or farm to watch."""
+    try:
+        lat, lon = float(place["lat"]), float(place["lon"])
+        radius = float(place.get("radius_km") or 10)
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("place needs numeric lat and lon")
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or not (1 <= radius <= 50):
+        raise ValueError("place lat/lon out of range, or radius_km not 1-50")
+    label = str(place.get("label") or "")[:120] or f"{lat:.3f}, {lon:.3f}"
+    return {"lat": round(lat, 5), "lon": round(lon, 5), "radius_km": radius, "label": label}
+
+
+def _area_holding(lat, lon):
+    """A built area whose box holds the point: presets first, then the smallest custom box."""
+    hold = [r for r in tools.list_regions() if r["bbox"][1] <= lat <= r["bbox"][3] and r["bbox"][0] <= lon <= r["bbox"][2]]
+    hold.sort(key=lambda r: (not r.get("preset"), (r["bbox"][2] - r["bbox"][0]) * (r["bbox"][3] - r["bbox"][1])))
+    return hold[0] if hold else None
+
+
+def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, email=None, triggers=None, base_url="", place=None):
     ratio, floor = float(ratio), float(min_hotspots)
     if not (0.5 <= ratio <= 20) or not (0 <= floor <= 1000):
         raise ValueError("ratio must be 0.5-20 and min_hotspots 0-1000")
-    triggers = list(dict.fromkeys(triggers or ["anomaly"]))
+    place = _place(place) if place else None
+    triggers = list(dict.fromkeys(triggers or (["nearby", "season"] if place else ["anomaly"])))
     if not triggers or any(t not in TRIGGERS for t in triggers):
         raise ValueError(f"triggers must be some of {', '.join(TRIGGERS)}")
+    if not place and any(t in PLACE_TRIGGERS for t in triggers):
+        raise ValueError("the nearby and season triggers need a place (lat, lon)")
+    if place and not region_id and not bbox:   # watch the place inside the area that holds it, or a box around it
+        area = _area_holding(place["lat"], place["lon"])
+        if area:
+            region_id = area["id"]
+        else:
+            d_lat = max(place["radius_km"], 25) / 111.32
+            d_lon = d_lat / max(0.2, math.cos(math.radians(place["lat"])))
+            bbox = [round(place["lon"] - d_lon, 3), round(place["lat"] - d_lat, 3), round(place["lon"] + d_lon, 3), round(place["lat"] + d_lat, 3)]
+        name = name or place["label"]
     email = (email or "").strip() or None
     if email and not EMAIL_RE.match(email):
         raise ValueError("that does not look like an email address")
@@ -178,7 +217,8 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
         d[token] = {"region_id": rid, "bbox": bbox, "name": name, "ratio": ratio, "min_hotspots": floor,
                     "created": _now(), "last_notified": None, "triggers": triggers, "email": email,
                     "confirmed": False, "code": secrets.token_urlsafe(16), "base_url": base_url,
-                    "last_outlook": None, "events_seen": [], "sent": []}
+                    "last_outlook": None, "events_seen": [], "sent": [],
+                    "place": place, "nearby_seen": None, "last_season": None}
         _save(d)
         sub = dict(d[token])
     email_status = None
@@ -287,6 +327,7 @@ def check(token, once=False, mark=True):
                 "error": st.get("error"), "outlook_triggered": ol_new if once else ol_hit,
                 "new_events": new_events if once else []}
     refreshing = tools.refresh_if_stale(rid)
+    place = _place_state(sub, trig, once)
     w = tools.early_warning(rid)
     m = w["month"]
     name = sub["name"] or w["name"]
@@ -297,11 +338,45 @@ def check(token, once=False, mark=True):
            "stale": w["stale"], "refreshing": refreshing, "month": m,
            "outlook_triggered": ol_new if once else ol_hit, "new_events": new_events if once else [],
            "rule": f"Alert when the month so far is above {sub['ratio']:g} x the median of the same days in earlier "
-                   f"years and at least {sub['min_hotspots']:g} hotspots."}
+                   f"years and at least {sub['min_hotspots']:g} hotspots.", **place}
     if m:
         out["message"] = _message(name, m, w["as_of"])
+    if out.get("nearby_triggered") or out.get("season_triggered"):   # n8n mails `message`: make it the place news
+        dg = _digest(sub, out)
+        out["message"] = dg[1] if dg else out.get("message")
     if once and mark:  # n8n polls mark here (n8n sends the mail); send_now marks only after delivery
         _mark(token, out)
+    return out
+
+
+def _place_state(sub, trig, once):
+    """The place triggers of one alert: fire detected near the place in the last 2 days, and its usual fire season."""
+    p = sub.get("place")
+    if not p:
+        return {}
+    rid, out = sub["region_id"], {"place": p, "nearby_triggered": False, "season_triggered": False}
+    if "nearby" in trig:
+        try:
+            nb = tools.place_nearby(rid, p["lat"], p["lon"], p["radius_km"], 2)
+            seen = sub.get("nearby_seen")
+            fresh = [d for d in nb["detections"] if not seen or d["time_utc"] > seen] if once else nb["detections"]
+            out["nearby"] = {k: nb[k] for k in ("count", "nearest_km", "latest_utc", "radius_km", "start", "end", "data_through", "note")}
+            out["nearby"]["new"] = len(fresh) if once else nb["count"]
+            out["nearby"]["closest"] = fresh[:5]
+            out["nearby_triggered"] = bool(fresh)
+        except Exception as ex:  # noqa: BLE001 - a failed read is reported, never shown as "no fire"
+            out["nearby_error"] = f"live detections could not be read: {str(ex)[:120]}"
+    if "season" in trig:
+        try:
+            soon = dt.date.today() + dt.timedelta(days=7)          # a week's notice before the season month starts
+            se = tools.place_season(rid, p["lat"], p["lon"], soon.month)
+            key = soon.strftime("%Y-%m")
+            out["season"] = se
+            hit = se["share"] is not None and se["share"] >= SEASON_SHARE and se["record_years"] >= 5
+            out["season_triggered"] = bool(hit and (not once or sub.get("last_season") != key))
+            out["season_key"] = key
+        except Exception as ex:  # noqa: BLE001
+            out["season_error"] = str(ex)[:120]
     return out
 
 
@@ -315,6 +390,10 @@ def _mark(token, st):
             d[token]["last_notified"] = st["month"]["period"]
         if st.get("outlook_triggered") and st.get("outlook"):
             d[token]["last_outlook"] = st["outlook"]["as_of"]
+        if st.get("nearby_triggered") and st.get("nearby", {}).get("latest_utc"):
+            d[token]["nearby_seen"] = st["nearby"]["latest_utc"]
+        if st.get("season_triggered") and st.get("season_key"):
+            d[token]["last_season"] = st["season_key"]
         if st.get("new_events"):
             d[token]["events_seen"] = ((d[token].get("events_seen") or []) + [x["title"] for x in st["new_events"]])[-200:]
         _save(d)
@@ -340,13 +419,37 @@ def _digest(sub, st):
         paras.append(f"<b>Fire-season watch for the next 30 days.</b> {c['watch']} half-degree cells here usually see "
                      f"an active season now and are already running above the same days in earlier years "
                      f"({c['above']} more above normal, {o['rising']} with a season that usually ramps up now).")
+    p = st.get("place") or sub.get("place")
+    if st.get("nearby_triggered") and st.get("nearby"):
+        nb = st["nearby"]
+        close = nb["closest"][0] if nb.get("closest") else None
+        t = (f"Fire detected near {p['label']}: {nb['new']} satellite detection(s) within {nb['radius_km']:g} km in the last "
+             f"2 days, the closest about {close['km']:g} km away ({close['time_utc']} UTC, {close['lat']:.4f}, {close['lon']:.4f})."
+             if close else f"Fire detected within {nb['radius_km']:g} km of {p['label']} in the last 2 days.")
+        t += " A detection is heat seen from space, not a confirmed fire: check locally and follow official advice."
+        parts.append(t)
+        paras.append(f"<b>Fire detected near {html.escape(p['label'])}.</b> " + html.escape(t.split(": ", 1)[1]))
+        if close:
+            paras.append(f"<a href='https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@{close['lon']:.3f},{close['lat']:.3f},12.0z' "
+                         f"style='color:#00a1ff'>See it on the NASA FIRMS map</a>")
+    if st.get("season_triggered") and st.get("season"):
+        se = st["season"]
+        mon = calendar.month_name[se["month"]]
+        t = (f"Fire season near {p['label']}: in {se['years_with_fire']} of {se['record_years']} past years, fire was "
+             f"detected within about 15 km in {mon}. History, not a forecast; a good time to clear dry material, "
+             f"plan residue burning safely and keep an eye on alerts.")
+        parts.append(t)
+        paras.append(f"<b>{mon} is usually a fire month near {html.escape(p['label'])}.</b> In {se['years_with_fire']} of "
+                     f"{se['record_years']} past years fire was detected within about 15 km. History, not a forecast.")
     for e in st.get("new_events") or []:
         parts.append(f"NASA EONET open wildfire event: {e['title']} ({e['date']}) {e.get('url') or ''}")
         paras.append(f"<b>New wildfire event reported:</b> {html.escape(e['title'])} ({e['date']}) "
                      + (f"<a href='{html.escape(e['url'])}' style='color:#00a1ff'>source</a>" if e.get("url") else ""))
     if not parts:
         return None
-    kind = "Fire activity above normal" if st.get("triggered") else "Fire-season watch" if st.get("outlook_triggered") else "New wildfire event"
+    kind = ("Fire detected nearby" if st.get("nearby_triggered") else "Fire activity above normal" if st.get("triggered")
+            else "Fire season starting nearby" if st.get("season_triggered") else "Fire-season watch" if st.get("outlook_triggered")
+            else "New wildfire event")
     return f"{kind}: {name}", "\n\n".join(parts) + f"\n\nOpen the record: {_page_url(sub)}", paras
 
 
@@ -449,7 +552,7 @@ def workflow(token, base_url):
             {"parameters": {"method": "POST", "url": url, "options": {}}, "id": "n2", "name": "Check Kiln Watch alert",
              "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [220, 0]},
             {"parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict"},
-             "conditions": [{"id": "c1", "leftValue": "={{ $json.triggered || $json.outlook_triggered || $json.new_events.length > 0 }}",
+             "conditions": [{"id": "c1", "leftValue": "={{ $json.triggered || $json.outlook_triggered || $json.nearby_triggered || $json.season_triggered || $json.new_events.length > 0 }}",
                              "rightValue": "", "operator": {"type": "boolean", "operation": "true", "singleValue": True}}],
              "combinator": "and"}, "options": {}}, "id": "n3", "name": "Anything new?",
              "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [440, 0]},

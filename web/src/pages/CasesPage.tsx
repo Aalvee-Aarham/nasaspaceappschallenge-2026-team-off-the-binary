@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CaseVerdict, CasebookOverview, ExposureResponse, api, fmt } from "../api";
 import { CaseCard, CellMap, Icon, LABEL, VerdictChips, compact, peopleShade, useCases, useExposure } from "../casebook";
+import { FacilityTable, FarmSection, PlaceCheck } from "../exposure";
 import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
 
 /** People living in the cells that had fire, per year: one series, hover to read, a table on demand. */
@@ -27,8 +28,8 @@ function PeopleByYear({ rows }: { rows: NonNullable<ExposureResponse["by_year"]>
       <figcaption>
         <p className="small" aria-live="polite">{hv ? <><b>{hv.year}</b>: about <b>{fmt(hv.population)}</b> people in {fmt(hv.fire_cells)} cells with fire.</> : "Point at the chart to read a year."}</p>
         <button className="link small" onClick={() => setTable(!table)} aria-expanded={table}>{table ? "Hide" : "Show"} as a table</button>
-        {table && <div className="scroll"><table className="tbl"><thead><tr><th>Year</th><th>Cells with fire</th><th>People</th><th>Hospitals</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.year}><td>{r.year}</td><td className="num">{fmt(r.fire_cells)}</td><td className="num">{fmt(r.population)}</td><td className="num">{fmt(r.hospitals)}</td></tr>)}</tbody></table></div>}
+        {table && <div className="scroll"><table className="tbl"><thead><tr><th>Year</th><th>Cells with fire</th><th>People</th><th>Hospitals</th><th>Schools</th><th>Farmland km²</th></tr></thead>
+          <tbody>{rows.map((r) => <tr key={r.year}><td>{r.year}</td><td className="num">{fmt(r.fire_cells)}</td><td className="num">{fmt(r.population)}</td><td className="num">{fmt(r.hospitals)}</td><td className="num">{r.schools == null ? "–" : fmt(r.schools)}</td><td className="num">{r.cropland_km2 == null ? "–" : fmt(r.cropland_km2)}</td></tr>)}</tbody></table></div>}
       </figcaption>
     </figure>
   );
@@ -43,8 +44,14 @@ export default function CasesPage({ regions, online, area }: PageProps) {
   const [all, setAll] = useState<CasebookOverview | null>(null);
   const [filter, setFilter] = useState<CaseVerdict | null>(null);
   const [sel, setSel] = useState<string | null>(null);
+  const [place, setPlace] = useState<{ lat: number; lon: number; label: string; n: number } | null>(null);
+  const [facTab, setFacTab] = useState<"schools" | "hospitals">("schools");
+  const check = (lat: number, lon: number, label: string) => {
+    setPlace((p) => ({ lat, lon, label, n: (p?.n ?? 0) + 1 }));
+    requestAnimationFrame(() => document.getElementById("ex-place")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   useEffect(() => { if (online) api.casebook().then(setAll).catch(() => setAll(null)); }, [online]);
-  useEffect(() => { setSel(null); setFilter(null); }, [id]);
+  useEffect(() => { setSel(null); setFilter(null); setPlace(null); }, [id]);
 
   const data = cs.data, e = ex.data;
   const rows = (data?.cases ?? []).filter((c) => !filter || c.verdict === filter);
@@ -68,6 +75,7 @@ export default function CasesPage({ regions, online, area }: PageProps) {
           <div className="cx-stat"><span>People in fire cells</span><b>{e ? compact(e.population) : ex.err ? "–" : "…"}</b></div>
           <div className="cx-stat"><span>Hospitals in them</span><b>{e ? (e.hospitals == null ? "–" : fmt(e.hospitals)) : "…"}</b></div>
           <div className="cx-stat"><span>Schools in them</span><b>{e ? (e.schools == null ? "–" : fmt(e.schools)) : "…"}</b></div>
+          <div className="cx-stat"><span>Farmland in them</span><b>{e ? (e.farmland ? `${compact(e.farmland.cropland_km2)} km²` : "–") : "…"}</b></div>
         </div>
 
         {cs.err && <p className="muted">No cases for this area yet.</p>}
@@ -77,11 +85,11 @@ export default function CasesPage({ regions, online, area }: PageProps) {
             <h2 id="cx-map-h">Map and cases</h2>
             <div className="cx-split">
               <figure className="cx-fig">
-                {e?.map_cells ? <CellMap bbox={info.bbox} cells={e.map_cells} cases={rows} sel={sel} onSel={setSel} /> : <div className="skeleton tall" />}
+                {e?.map_cells ? <CellMap bbox={info.bbox} cells={e.map_cells} cases={rows} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : <div className="skeleton tall" />}
                 {e?.map_cells && (
                   <figcaption className="cx-key">
                     <span className="cx-ramp"><i style={{ background: `linear-gradient(90deg, ${peopleShade(0, 1e6)}, ${peopleShade(1e3, 1e6)}, ${peopleShade(1e6, 1e6)})` }} />lighter cell = more people</span>
-                    <span>Each square is an 11 km cell where fire was seen since 2000.</span>
+                    <span>Each square is an 11 km cell where fire was seen since 2000. Click one for its fire history.</span>
                   </figcaption>
                 )}
               </figure>
@@ -117,12 +125,44 @@ export default function CasesPage({ regions, online, area }: PageProps) {
           </section>
         )}
 
+        {e && (
+          <section aria-labelledby="cx-f-h">
+            <h2 id="cx-f-h">Which schools and hospitals sit where fire is seen</h2>
+            <div className="ex-tabs" role="tablist" aria-label="Schools or hospitals">
+              {(["schools", "hospitals"] as const).map((k) => (
+                <button key={k} role="tab" aria-selected={facTab === k} className={`btn ghost${facTab === k ? " on" : ""}`} onClick={() => setFacTab(k)}>
+                  {k === "schools" ? `Schools${e.schools == null ? "" : ` · ${fmt(e.schools)}`}` : `Hospitals${e.hospitals == null ? "" : ` · ${fmt(e.hospitals)}`}`}
+                </button>
+              ))}
+            </div>
+            {facTab === "schools"
+              ? <FacilityTable key={`s-${id}`} kind="schools" rows={e.school_list ?? []} total={e.schools} named={e.schools_named} months={e.months_in_record} onCheck={check} />
+              : <FacilityTable key={`h-${id}`} kind="hospitals" rows={e.hospital_list} total={e.hospitals} named={null} months={e.months_in_record} onCheck={check} />}
+            <p className="muted small">A school or hospital is listed when fire was detected somewhere in its 11 km cell. That is a reason to look, not a sign the building was reached. Smoke can travel much further than a cell; there is no smoke model here.</p>
+          </section>
+        )}
+
+        {e && (
+          <section aria-labelledby="cx-c-h">
+            <h2 id="cx-c-h">For farm owners: fire on farmland</h2>
+            <FarmSection f={e.farmland} fireCells={e.fire_cells} onCheck={check} />
+          </section>
+        )}
+
+        {e && info && id && (
+          <section aria-labelledby="cx-x-h">
+            <h2 id="cx-x-h">Check your place</h2>
+            <PlaceCheck regionId={id} bbox={info.bbox} target={place} />
+          </section>
+        )}
+
         <section aria-labelledby="cx-a-h">
           <h2 id="cx-a-h">About this data</h2>
           <details className="cx-more">
             <summary>What the verdicts mean, and the limits</summary>
             <ul className="plain small">
               <li><b>Five witnesses</b> are asked about each fire: the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS and the news. A witness that could not see says so; missing news is never read as "no fire".</li>
+              <li><b>Farmland:</b> ESA WorldCover 2021 cropland, one year of land cover. It does not say what was growing the month of a fire, and fire on farmland is often residue burning by the farmers themselves.</li>
               <li><b>All nine areas</b> have cases and exposure. People: WorldPop 2020 (modelled). Hospitals, schools and roads: OpenStreetMap, which maps some places far better than others, so a low count can mean few mappers.</li>
               {roadsFailed.length > 0 && <li><b>Roads are missing</b> for {roadsFailed.join(", ")}: the OpenStreetMap query failed. Shown as "–", never as zero.</li>}
               <li><b>Context, not impact.</b> A cell counts if one detection fell anywhere in its 11 km. There is no fire outline, smoke or spread model.</li>

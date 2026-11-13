@@ -136,6 +136,15 @@ def get_exposure(region_id: str, period: str = "") -> dict:
     return out
 
 
+@mcp.tool(title="Fire history at one place", annotations=RO)
+def get_place_exposure(region_id: str, lat: float, lon: float) -> dict:
+    """For one point (a school, a hospital, a farm) inside an area: the 11 km cell that holds it, how many months fire
+    was detected there since 2000, the last month, which calendar months it is usually seen, the eight cells around
+    it, and the people, hospitals, schools and cropland (ESA WorldCover 2021) in the cell. Detections, not burned
+    area: it never says a place or a crop was hit."""
+    return tools.exposure_place(region_id, lat, lon)
+
+
 @mcp.tool(title="Early warning for an area", annotations=RO)
 def get_early_warning(region_id: str) -> dict:
     """Climatological early warning for a built area: level (elevated/watch/normal/quiet/insufficient), this month
@@ -292,6 +301,19 @@ def subscribe_email_alert(email: str, west: float, south: float, east: float, no
     trig = [t for t, on in (("anomaly", anomaly), ("outlook", outlook_watch), ("events", new_events)) if on]
     return alerts.create(bbox=[west, south, east, north], name=name or None, ratio=ratio, email=email, triggers=trig,
                          base_url=_base())
+
+
+@mcp.tool(title="Alert for one place", annotations=WRITE)
+def subscribe_place_alert(lat: float, lon: float, label: str = "", radius_km: float = 10.0, email: str = "",
+                          fire_nearby: bool = True, fire_season: bool = True) -> dict:
+    """Alert for one place (a school, hospital or farm). fire_nearby: a vegetation-fire detection within radius_km
+    (1-50) in the last 2 days, each detection reported once. fire_season: a week before a month in which fire was
+    detected within about 15 km in at least half of past years (history, not a forecast). With email a confirmation
+    link is sent first; without it, poll with check_alert. Returns a secret token (keep it private)."""
+    from . import alerts
+    trig = [t for t, on in (("nearby", fire_nearby), ("season", fire_season)) if on]
+    return alerts.create(name=label or None, email=email or None, triggers=trig, base_url=_base(),
+                         place={"lat": lat, "lon": lon, "radius_km": radius_km, "label": label})
 
 
 @mcp.tool(title="Alert without email", annotations=WRITE)

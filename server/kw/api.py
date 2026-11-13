@@ -5,7 +5,7 @@ import html
 import io
 import os
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 try:
     from dotenv import load_dotenv
@@ -93,6 +93,11 @@ def case_detail(rid: str, case_id: str):
 @app.get("/api/regions/{rid}/exposure")
 def exposure(rid: str, period: str | None = None):
     return _guard(tools.exposure, rid, period)
+
+
+@app.get("/api/regions/{rid}/exposure/place")
+def exposure_place(rid: str, lat: float, lon: float):
+    return _guard(tools.exposure_place, rid, lat, lon)
 
 
 @app.get("/api/regions/{rid}/summary")
@@ -274,17 +279,20 @@ def _public_base(request: Request, client_origin=None):
 
 @app.post("/api/alerts")
 def alert_create(request: Request, body: dict = Body(...)):
-    """Your own alert for any area: {region_id | bbox, name?, ratio?, min_hotspots?, email?, triggers?}.
-    triggers: any of anomaly, outlook, events. With email, a confirmation link is mailed first (double opt-in).
-    Returns the secret token."""
+    """Your own alert for any area: {region_id | bbox, name?, ratio?, min_hotspots?, email?, triggers?, place?}.
+    triggers: any of anomaly, outlook, events, and with a place {lat, lon, radius_km?, label?} also nearby (fire
+    detected within radius_km in the last 2 days) and season (the place's usual fire month is starting).
+    With email, a confirmation link is mailed first (double opt-in). Returns the secret token."""
     return _guard(alerts.create, body.get("region_id"), body.get("bbox"), body.get("name"),
                   body.get("ratio", 1.0), body.get("min_hotspots", 5.0), body.get("email"), body.get("triggers"),
-                  _public_base(request, body.get("origin")))
+                  _public_base(request, body.get("origin")), body.get("place"))
 
 
-def _note(title, text, ok=True, token="", name=""):
+def _note(title, text, ok=True, token="", name="", page="warning", base="", region=""):
     color = "#00a1ff" if ok else "#ff8a80"
-    target = f"/#pg=warning&token={token}" if token else "/#pg=warning"
+    base = base.rstrip("/")
+    q = urlencode({"pg": page, **({"r": region} if region else {}), **({"token": token} if token else {})})
+    target = f"{base}/#{q}"      # r= reopens the same area the alert was made in
     script = f"""<script>
 try {{
     const k = 'kw.alerts';
@@ -300,7 +308,7 @@ try {{
                         f"Arial,sans-serif;display:grid;place-items:center;min-height:100vh'><div style='max-width:460px;"
                         f"padding:24px'><p style='color:#ff7a6e;font-size:11px;letter-spacing:.12em;text-transform:uppercase'>"
                         f"Kiln Watch</p><h1 style='font-size:22px;color:{color}'>{html.escape(title)}</h1><p>{html.escape(text)}"
-                        f"</p><p><a href='{target}' style='color:#00a1ff'>Back to Early warning</a></p></div>{script}",
+                        f"</p><p><a href='{html.escape(target)}' style='color:#00a1ff'>Back to Kiln Watch</a></p></div>{script}",
                         status_code=200 if ok else 400)
 
 
@@ -324,7 +332,20 @@ def alert_confirm(token: str, code: str = ""):
     else:
         text = (f"Your alert for {sub.get('name')} is active. Nothing is above your thresholds right now; you will get an "
                 "email when fire activity crosses them. Every email has a one-click unsubscribe link.")
-    return _note("Alert confirmed", text, True, token, sub.get("name") or "")
+    if sub.get("place"):  # a school, hospital or farm: say what it watches and go back to where it was made
+        p = sub["place"]
+        what = " and ".join(x for x, t in (("fire detected within %g km" % p["radius_km"], "nearby"),
+                                          ("the start of its usual fire month", "season")) if t in (sub.get("triggers") or []))
+        if first.get("sent"):
+            text = (f"Fire has already been detected near {p['label']}: the alert email is on its way. After that you will only "
+                    "hear from us about new detections. Every email has a one-click unsubscribe link.")
+        elif first.get("error"):
+            text = f"Your alert for {p['label']} is active, but the first email could not be sent just now ({first['error']}). It will be retried automatically."
+        else:
+            text = (f"Your alert for {p['label']} is active. You will get an email when there is {what}. "
+                    "Satellites see heat a few hours after it happens and miss small fires: this is an early hint, not an official warning.")
+        return _note("Alert confirmed", text, True, token, p["label"], "cases", sub.get("base_url") or "", sub["region_id"])
+    return _note("Alert confirmed", text, True, token, sub.get("name") or "", base=sub.get("base_url") or "", region=sub["region_id"])
 
 
 @app.get("/api/alerts/{token}/unsubscribe")
