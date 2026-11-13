@@ -293,6 +293,7 @@ WORLDCOVER = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map
 CROPLAND = 40            # ESA WorldCover class "Cropland"
 WC_OVERVIEW = 2          # overview index 2 = 8x decimation: ~74 m pixels, exactly 150 per 0.1 degree cell
 SCHOOL_CAP = 2500
+ADD_BOX = float(os.environ.get("KW_OSM_BOX", "1.0"))   # degrees per Overpass sub-box in --add (smaller = fewer timeouts)
 
 
 def cropland(cells, bbox):
@@ -351,9 +352,28 @@ def add_schools_and_farmland(area):
     infra = ex["infrastructure"]
     errors = {k: v for k, v in (infra.get("errors") or {}).items() if k not in ("schools", "cropland")}
 
+    if "roads" in errors:   # retry roads that failed in the original build (same rule as build_area)
+        try:
+            els, _ = fetch_osm(ROAD_Q, ex["bbox"], ADD_BOX)
+            roads = {}
+            for el in els:
+                g, tags = el.get("geometry") or [], el.get("tags", {})
+                name = tags.get("name:en") or tags.get("name") or tags.get("ref")
+                ids = [index[c] for c in road_cells(g) if c in index] if g and name else []
+                if ids:
+                    r = roads.setdefault((name, tags.get("highway")), {"pt": g[len(g) // 2], "cells": set()})
+                    r["cells"].update(ids)
+            ex["roads"] = [[n, k, round(r["pt"]["lat"], 4), round(r["pt"]["lon"], 4), sorted(r["cells"])]
+                           for (n, k), r in list(roads.items())[:CAPS["roads"]]]
+            infra.setdefault("truncated", {})["roads"] = len(roads) > CAPS["roads"]
+            ex["totals"]["major_roads"] = len(ex["roads"])
+            del errors["roads"]
+        except Exception as ex_:
+            errors["roads"] = str(ex_)[:200]
+
     n_school, named = [0] * len(cells), []
     try:
-        els, _ = fetch_osm(SCHOOL_Q, ex["bbox"])
+        els, _ = fetch_osm(SCHOOL_Q, ex["bbox"], ADD_BOX)
         for el in els:
             lat, lon = (el.get("lat"), el.get("lon")) if el["type"] == "node" else (el.get("center", {}).get("lat"), el.get("center", {}).get("lon"))
             ci = index.get(cell_of(lat, lon)) if lat is not None else None
