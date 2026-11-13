@@ -44,7 +44,7 @@ export default function CasesPage({ regions, online, area }: PageProps) {
             <h2 id="cx-map-h">Where fire meets people</h2>
             <div className="cx-split">
               <figure className="cx-fig">
-                {e?.map_cells ? <CellMap bbox={info.bbox} cells={e.map_cells} cases={side === "cases" ? rows : []} hi={hi} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : ex.err ? <p className="muted">No exposure data for this area yet.</p> : <div className="skeleton tall" />}
+                {e?.map_cells ? <CellMap fill={0.8} bbox={info.bbox} cells={e.map_cells} cases={side === "cases" ? rows : []} hi={hi} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : ex.err ? <p className="muted">No exposure data for this area yet.</p> : <div className="skeleton tall" />}
               </figure>
               <div className="cx-side"><div className="cx-side-in">
                 {e && <p className="small cx-sum">Fire was detected in <b>{fmt(e.fire_cells)}</b> cells here, home to about <b>{compact(e.population)}</b> people, <b>{e.schools == null ? "–" : fmt(e.schools)}</b> schools and <b>{e.hospitals == null ? "–" : fmt(e.hospitals)}</b> hospitals.</p>}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { CaseVerdict, CasesResponse, ExposureResponse, FireCase, SHORT, api, fmt } from "./api";
 
 // One model of the casebook for every place it appears: the Explorer panel, the Cases & exposure page and the home
@@ -110,19 +110,24 @@ export function CaseCard({ c, onClose }: { c: FireCase; onClose?: () => void }) 
 }
 
 /** The area's fire cells shaded by people living there, with the cases on top. `reveal` (0–1) animates the markers in. */
-export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, label, hi }: {
+export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, label, hi, fill }: {
   bbox: number[]; cells: [number, number, number, number][]; cases: FireCase[]; sel?: string | null; onSel?: (id: string) => void;
   onCell?: (lat: number, lon: number) => void; reveal?: number; label?: string; hi?: [number, number] | null;   // hi: SW corner of a cell to outline
+  fill?: number;   // fill: a fixed height/width box every area is stretched into (cells then are not square); omitted, the area keeps its true shape
 }) {
+  const clip = `cb-clip${useId().replace(/:/g, "")}`;
   const [w, s, e, n] = bbox;
-  const W = 560, k = Math.cos(((s + n) / 2) * Math.PI / 180), H = Math.round(W * (n - s) / ((e - w) * k));
+  const W = 560, k = Math.cos(((s + n) / 2) * Math.PI / 180), H = Math.round(fill ? W * fill : W * (n - s) / ((e - w) * k));
   const x = (lon: number) => ((lon - w) / (e - w)) * W, y = (lat: number) => ((n - lat) / (n - s)) * H;
   const max = Math.max(1, ...cells.map((c) => c[2]));
   const cw = (0.1 / (e - w)) * W + 0.4, ch = (0.1 / (n - s)) * H + 0.4;
   const shown = Math.round(cases.length * reveal);
   const order = cases.slice(0, shown).sort((a, b) => (a.id === sel ? 1 : 0) - (b.id === sel ? 1 : 0));
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="cb-map" role="img" aria-label={label ?? `Map: ${cells.length} cells that have had fire, lighter where more people live, and ${cases.length} cases.`}>
+    // Size the box to the area's own shape: width shrinks so a tall area fits the height cap without empty side bands.
+    <svg viewBox={`0 0 ${W} ${H}`} className="cb-map" style={{ aspectRatio: `${W} / ${H}`, ["--ar" as string]: (W / H).toFixed(4) }} role="img" aria-label={label ?? `Map: ${cells.length} cells that have had fire, lighter where more people live, and ${cases.length} cases.`}>
+      <defs><clipPath id={clip}><rect width={W} height={H} /></clipPath></defs>
+      <g clipPath={`url(#${clip})`}>{/* cells on the bbox edge are cut at the border, never drawn outside it */}
       <rect width={W} height={H} fill="#0A0E15" />
       {/* Real ground under the cells for orientation: NASA Blue Marble shaded relief for the exact bbox (plate carrée, so it lines up with x/y). */}
       <image href={reliefImage(bbox, W * 2, H * 2)} width={W} height={H} preserveAspectRatio="none" opacity={0.55} />
@@ -138,6 +143,7 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
           <title>{`${c.date} · ${c.title} · ${LABEL[c.verdict]}`}</title>
         </g>
       ))}
+      </g>
     </svg>
   );
 }
