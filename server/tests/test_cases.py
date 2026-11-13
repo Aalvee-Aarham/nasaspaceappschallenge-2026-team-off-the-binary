@@ -80,6 +80,8 @@ def test_shipped_exposure_files():
         assert ex["population"]["source"] and ex["caveat"] and (d / "exposure.json").stat().st_size <= 600 * 1024
         assert all(0 <= h[3] < n for h in ex["hospitals"]) and all(all(0 <= i < n for i in r[4]) for r in ex["roads"])
         assert ex["totals"]["hospitals"] is None or ex["totals"]["hospitals"] == sum(c[3] for c in ex["cells"])
+        if "schools" in ex.get("cell_columns", []):
+            assert ex["totals"]["schools"] is None or ex["totals"]["schools"] == sum(c[5] for c in ex["cells"]), d.name
 
 
 def test_exposure_join_counts_only_fire_cells():

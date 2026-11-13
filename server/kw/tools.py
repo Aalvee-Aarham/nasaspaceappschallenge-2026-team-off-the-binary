@@ -615,8 +615,10 @@ def exposure(region_id, period=None):
         raise NotFound(f"no exposure layer built for '{region_id}'")
     grid = _read(region_id, "grid")
     fire = {ci for ci, _ in grid["months"].get(period, [])} if period else {ci for rows in grid["months"].values() for ci, _ in rows}
-    cells = ex["cells"]                                      # [lat, lon, population, hospitals, clinics]: index-parallel with grid.cells
+    cells = ex["cells"]                       # [lat, lon, population, hospitals, clinics, schools]: index-parallel with grid.cells
     err = ex["infrastructure"].get("errors") or {}
+    has_schools = "schools" in (ex.get("cell_columns") or []) and "schools" not in err   # files built before schools: unknown, not 0
+    school = lambda ci: cells[ci][5] if has_schools else 0
     pop = sum(cells[ci][2] for ci in fire)
     hosp = [dict(zip(ex["hospital_columns"], h)) for h in ex["hospitals"] if h[3] in fire]
     roads = [dict(zip(ex["road_columns"], r)) for r in ex["roads"] if fire.intersection(r[4])]
@@ -624,11 +626,52 @@ def exposure(region_id, period=None):
         h["cell"] = grid["cells"][h["cell"]]
     for r in roads:
         r["cells"] = [grid["cells"][ci] for ci in r["cells"] if ci in fire]
-    return {"region_id": region_id, "period": period, "fire_cells": len(fire), "population": pop,
+    detail = {}
+    if not period:  # the whole-record view also carries what the Cases & exposure page draws
+        months_on = {}
+        by_year = {}
+        for k, rows in grid["months"].items():
+            for ci, _ in rows:
+                months_on[ci] = months_on.get(ci, 0) + 1
+                by_year.setdefault(int(k[:4]), set()).add(ci)
+        detail = {
+            "by_year": [{"year": y, "fire_cells": len(cs), "population": sum(cells[ci][2] for ci in cs),
+                         "hospitals": sum(cells[ci][3] for ci in cs),
+                         "schools": sum(school(ci) for ci in cs) if has_schools else None} for y, cs in sorted(by_year.items())],
+            "map_cells": [[c[0], c[1], c[2], months_on.get(i, 0)] for i, c in enumerate(cells)],   # lat, lon, people, months with fire
+            "top_cells": sorted(({"lat": cells[ci][0], "lon": cells[ci][1], "population": cells[ci][2], "hospitals": cells[ci][3],
+                                  "clinics": cells[ci][4], "schools": school(ci) if has_schools else None,
+                                  "months_with_fire": n} for ci, n in months_on.items()),
+                                key=lambda r: (-r["population"], -r["months_with_fire"]))[:15],
+            "months_in_record": len(grid["months"]),
+        }
+    return {"region_id": region_id, "period": period, "fire_cells": len(fire), "population": pop, **detail,
             "population_source": ex["population"],
             "hospitals": None if "hospitals" in err else sum(cells[ci][3] for ci in fire),
             "clinics": None if "hospitals" in err else sum(cells[ci][4] for ci in fire),
+            "schools": sum(school(ci) for ci in fire) if has_schools else None,
             "hospital_list": [] if "hospitals" in err else hosp[:50],
             "major_roads": None if "roads" in err else len(roads), "road_list": [] if "roads" in err else roads[:50],
             "errors": err, "truncated": ex["infrastructure"].get("truncated"), "scope": ex["infrastructure"].get("scope"),
             "built_at": ex["built_at"], "caveat": ex["caveat"]}
+
+
+def casebook_overview():
+    """One honest row per built area: what the casebook and the exposure layer hold, and what failed."""
+    out = []
+    for r in list_regions():
+        row = {"id": r["id"], "name": r["name"], "country": r.get("country"), "cases": None, "exposure": None}
+        try:
+            c = _read(r["id"], "cases")
+            row["cases"] = {"total": len(c["cases"]), "counts": c["counts"], "found": c.get("found"),
+                            "failed_sources": [s["name"] for s in c["sources"] if s.get("error")]}
+        except NotFound:
+            pass
+        try:
+            ex = _read(r["id"], "exposure")
+            row["exposure"] = {**ex["totals"], "errors": ex["infrastructure"].get("errors") or {},
+                               "truncated": ex["infrastructure"].get("truncated"), "built_at": ex["built_at"]}
+        except NotFound:
+            pass
+        out.append(row)
+    return {"areas": out, "caveat": cases.CAVEAT}

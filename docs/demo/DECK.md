@@ -36,4 +36,4 @@ One idea per slide. Build the slides in any tool; speaker notes are the narratio
 ## 7. Try it
 **Title:** "kiln-watch-seven.vercel.app"
 - Visual: QR of the live link; repo link; MCP badge.
-- Notes: 33-tool MCP server for Claude, open API, n8n workflows. Detections are not fires and not burned area. Built on NASA FIRMS; AI use is disclosed in `AI_USE.md`.
+- Notes: 35-tool MCP server for Claude, open API, n8n workflows. Detections are not fires and not burned area. Built on NASA FIRMS; AI use is disclosed in `AI_USE.md`.

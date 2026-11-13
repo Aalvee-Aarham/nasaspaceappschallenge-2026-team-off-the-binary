@@ -152,7 +152,7 @@ type Props = {
   focus: Focus | null;
   onDrawn: (bbox: number[]) => void;
   onPickRegion: (id: string) => void;
-  cases?: FireCase[] | null;       // the casebook layer, shown while the Cases tab is open
+  cases?: FireCase[] | null;     // the casebook layer, shown while the Cases & exposure panel is open
   selCase?: string | null;
   onPickCase?: (id: string) => void;
 };
@@ -210,15 +210,15 @@ export default function MapView(p: Props) {
         },
       });
 
-      // case points: colour is the second cue, the verdict word is in the popup and the table
+      // case points: the same colours as the casebook (verdict word in the panel); white ring on the selected case
       m.addSource("cases", { type: "geojson", data: EMPTY });
       m.addLayer({
         id: "cases", type: "circle", source: "cases",
         paint: {
           "circle-radius": ["case", ["get", "sel"], 9, 6],
-          "circle-color": ["match", ["get", "v"], "agency_only", "#FF8A80", "corroborated", "#7FD4A0", "reported", "#7FB2EC",
-            "satellite_only", "#F6C64F", "#97A3B3"],
-          "circle-stroke-color": "#fff", "circle-stroke-width": ["case", ["get", "sel"], 2.5, 1], "circle-opacity": 0.95,
+          "circle-color": ["match", ["get", "v"], "corroborated", "#3987e5", "agency_only", "#d95926", "satellite_only", "#199e70", "#030508"],
+          "circle-stroke-color": ["case", ["get", "sel"], "#ffffff", ["match", ["get", "v"], "corroborated", "#030508", "agency_only", "#030508", "satellite_only", "#030508", "#898781"]],
+          "circle-stroke-width": ["case", ["get", "sel"], 3, 2],
         },
       });
       m.on("click", "cases", (e) => { const id = e.features?.[0]?.properties?.id; if (id) caseRef.current?.(id); });
@@ -281,10 +281,7 @@ export default function MapView(p: Props) {
     if (!ready) return;
     (map.current!.getSource("cases") as GeoJSONSource).setData({
       type: "FeatureCollection",
-      features: (p.cases ?? []).map((c) => ({
-        type: "Feature", properties: { id: c.id, v: c.verdict, sel: c.id === p.selCase },
-        geometry: { type: "Point", coordinates: [c.lon, c.lat] },
-      })),
+      features: (p.cases ?? []).map((c) => ({ type: "Feature", properties: { id: c.id, v: c.verdict, sel: c.id === p.selCase }, geometry: { type: "Point", coordinates: [c.lon, c.lat] } })),
     });
   }, [ready, p.cases, p.selCase]);
 

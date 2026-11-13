@@ -38,6 +38,7 @@ WORLDPOP = "https://data.worldpop.org/GIS/Population/Global_2000_2020_1km/2020/{
 CAVEAT = ("Population and infrastructure inside cells where the harmonized record shows fire. A context layer, not an "
           "impact estimate: FIRMS gives detections, not a fire perimeter, and there is no smoke or fire-spread model here.")
 HOSPITAL_Q = '[out:json][timeout:180];(nwr["amenity"~"^(hospital|clinic|doctors)$"]({s},{w},{n},{e});nwr["healthcare"~"^(hospital|clinic)$"]({s},{w},{n},{e}););out center tags;'
+SCHOOL_Q = '[out:json][timeout:180];nwr["amenity"~"^(school|kindergarten)$"]({s},{w},{n},{e});out center tags;'
 ROAD_Q = '[out:json][timeout:180];way["highway"~"^(motorway|trunk|primary)$"]({s},{w},{n},{e});out geom tags;'
 
 
@@ -195,7 +196,7 @@ def build_area(area):
     print(f"  population in fire cells {total:,.0f}; whole-box cross-check differs {diff:.3f}%")
 
     index = {c: i for i, c in enumerate(cells)}          # only facilities inside a cell that has had fire are kept
-    n_hosp, n_clin = [0] * len(cells), [0] * len(cells)
+    n_hosp, n_clin, n_school = [0] * len(cells), [0] * len(cells), [0] * len(cells)
     named_hosp, roads = [], {}
     errors, mirror, queried = {}, None, dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     try:
@@ -229,6 +230,16 @@ def build_area(area):
             r["cells"].update(ids)
     except Exception as ex:
         errors["roads"] = str(ex)[:200]
+    try:     # schools and kindergartens: counted per cell (no list: there are too many to ship)
+        els, mirror3 = fetch_osm(SCHOOL_Q, bbox)
+        mirror = mirror or mirror3
+        for el in els:
+            lat, lon = (el.get("lat"), el.get("lon")) if el["type"] == "node" else (el.get("center", {}).get("lat"), el.get("center", {}).get("lon"))
+            ci = index.get(cell_of(lat, lon)) if lat is not None else None
+            if ci is not None:
+                n_school[ci] += 1
+    except Exception as ex:
+        errors["schools"] = str(ex)[:200]
     named_hosp.sort(key=lambda h: (h[0].isascii() is False, h[0]))   # English names first, then A to Z: a stable sample
     trunc = {"hospitals": len(named_hosp) > CAPS["hospitals"], "roads": len(roads) > CAPS["roads"]}
     named_hosp = named_hosp[:CAPS["hospitals"]]
@@ -244,14 +255,17 @@ def build_area(area):
         },
         "infrastructure": {
             "hospitals_source": "OpenStreetMap via Overpass API: amenity=hospital (counted); clinic and doctors, healthcare=clinic (counted apart)",
+            "schools_source": "OpenStreetMap via Overpass API: amenity=school|kindergarten (counted per cell)",
             "roads_source": "OpenStreetMap via Overpass API: highway=motorway|trunk|primary, ways with a name or ref, merged by name and class",
             "scope": "Only facilities and roads inside a 0.1 degree cell that has had fire since 2000 are kept, so a distance to fire is 0 by construction.",
             "queried_at": queried, "mirror": mirror, "caps": CAPS, "truncated": trunc, "errors": errors,
         },
         "totals": {"population": round(total), "hospitals": None if "hospitals" in errors else sum(n_hosp),
-                   "clinics": None if "hospitals" in errors else sum(n_clin), "major_roads": None if "roads" in errors else len(road_rows)},
+                   "clinics": None if "hospitals" in errors else sum(n_clin), "schools": None if "schools" in errors else sum(n_school),
+                   "major_roads": None if "roads" in errors else len(road_rows)},
         # [lat, lon, population, hospitals, clinics_and_doctors]: INDEX-PARALLEL with grid.json "cells"
-        "cells": [[lat, lon, round(p), h, c] for (lat, lon), p, h, c in zip(cells, pop, n_hosp, n_clin)],
+        "cell_columns": ["lat", "lon", "population", "hospitals", "clinics", "schools"],
+        "cells": [[lat, lon, round(p), h, c, sc] for (lat, lon), p, h, c, sc in zip(cells, pop, n_hosp, n_clin, n_school)],
         "hospital_columns": ["name", "lat", "lon", "cell"], "hospitals": named_hosp,          # named hospitals only: a sample, counts are in cells
         "road_columns": ["name", "kind", "lat", "lon", "cells"], "roads": road_rows,          # cells are indices into grid.json "cells"
         "caveat": CAVEAT,
@@ -269,7 +283,7 @@ def build_area(area):
     m = cases.annotate_meta(json.loads(mp.read_text(encoding="utf-8")), folder)
     mp.with_suffix(".json.tmp").write_text(json.dumps(m, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
     os.replace(mp.with_suffix(".json.tmp"), mp)
-    print(f"  wrote exposure.json {kb:.0f} KB: {sum(n_hosp)} hospitals ({len(named_hosp)} named), {sum(n_clin)} clinics, {len(road_rows)} roads, errors={errors or 'none'}")
+    print(f"  wrote exposure.json {kb:.0f} KB: {sum(n_hosp)} hospitals ({len(named_hosp)} named), {sum(n_clin)} clinics, {sum(n_school)} schools, {len(road_rows)} roads, errors={errors or 'none'}")
     return out
 
 
