@@ -154,6 +154,7 @@ flowchart LR
 
 | For the judges | Where to look |
 |---|---|
+| **Try it live** | [kiln-watch-seven.vercel.app](https://kiln-watch-seven.vercel.app): the nine prebuilt regions, the globe, early warning and the MCP page, no install. |
 | **Best Use of Data** | Every number traces to FIRMS detections. Denial tests, placebo tests, measured interval coverage. Downloads for all of it. |
 | **Best Use of Technology** | Remote GeoParquet queried in place. One tool layer behind the app, the AI analyst and a remote MCP endpoint. |
 | **Galactic Impact** | A record that survives the end of MODIS, a worldwide outlook, and alerts for any box on Earth. |
