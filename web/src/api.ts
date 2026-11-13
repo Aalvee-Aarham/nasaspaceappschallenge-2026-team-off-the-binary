@@ -243,7 +243,7 @@ export const api = {
   warning: (id: string) => json<Warning>(`/api/regions/${id}/warning`),
   events: () => json<Events>("/api/events"),
   outlook: () => json<Outlook>("/api/outlook"),
-  createAlert: (body: { region_id?: string; bbox?: number[]; name?: string; ratio: number; email?: string; triggers?: Trigger[] }) => json<AlertSub>("/api/alerts", post(body)),
+  createAlert: (body: { region_id?: string; bbox?: number[]; name?: string; ratio: number; email?: string; triggers?: Trigger[] }) => json<AlertSub>("/api/alerts", post({ ...body, origin: window.location.origin })), // origin: email links come back to this exact site/port
   sendTest: (token: string) => json<{ sent: boolean; reason?: string; subject?: string }>(`/api/alerts/${token}/send-test`, { method: "POST" }),
   latestNews: (days: number) => json<LatestNews>(`/api/news/latest?days=${days}`),
   findPlace: (q: string) => json<PlaceResult>(`/api/place?q=${encodeURIComponent(q)}`),
@@ -251,7 +251,6 @@ export const api = {
   personas: () => json<{ personas: Persona[] }>("/api/personas").then((r) => r.personas),
   personaUrl: (id: string) => `${API}/api/personas/${id}.md`,
   alert: (token: string) => json<AlertState>(`/api/alerts/${token}`),
-  recentAlerts: () => json<{ token: string; name: string }[]>("/api/alerts/recent"),
   deleteAlert: (token: string) => json<{ deleted: boolean }>(`/api/alerts/${token}`, { method: "DELETE" }),
   workflowUrl: (token: string) => `${API}/api/alerts/${token}/n8n.json`,
   evidence: (id: string, p: string) => json<Evidence>(`/api/regions/${id}/evidence?period=${p}`),

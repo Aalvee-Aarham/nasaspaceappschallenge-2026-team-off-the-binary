@@ -42,14 +42,8 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
         addAlert({ token: tok, name: a.name || "My area" });
       }).catch(() => undefined);
     }
-
-    if (savedAlerts().length === 0) {
-      api.recentAlerts().then((list) => {
-        if (list && list.length > 0) {
-          list.forEach(addAlert);
-        }
-      }).catch(() => undefined);
-    }
+    // No server-side "recent alerts" fallback: tokens are secrets, so a browser only sees alerts it created or
+    // opened through its own confirm/token link.
   }, [online]);
 
   const addAlert = (s: Saved) => { const l = [...mine.filter((m) => m.token !== s.token), s]; setMine(l); saveAlerts(l); };

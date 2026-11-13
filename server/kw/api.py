@@ -5,6 +5,7 @@ import html
 import io
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     from dotenv import load_dotenv
@@ -241,8 +242,29 @@ def hotspots(rid: str, start: str, end: str):
                              headers={"Content-Disposition": f'attachment; filename="kilnwatch-{rid}-hotspots-{start}-{end}.csv"'})
 
 
-def _public_base(request: Request):
-    # Links in emails must point at our own domain; the Host header is caller-controlled.
+def _origin_of(url):
+    p = urlparse(url or "")
+    return f"{p.scheme}://{p.netloc}".lower() if p.scheme in ("http", "https") and p.netloc else ""
+
+
+def _trusted_origin(origin):
+    """The site the subscriber is actually on (any dev port on localhost, or a configured live domain)."""
+    origin = _origin_of(origin)
+    if not origin:
+        return ""
+    p = urlparse(origin)
+    if p.hostname in ("localhost", "127.0.0.1", "::1"):
+        return origin  # a localhost link only ever opens on the reader's own machine
+    allowed = {_origin_of(u) for u in [os.environ.get("PUBLIC_URL", "")] + os.environ.get("ALLOWED_ORIGINS", "").split(",")}
+    return origin if origin in allowed else ""
+
+
+def _public_base(request: Request, client_origin=None):
+    # Links in emails must point at the site the user subscribed from. The Host header and the client's origin are
+    # caller-controlled, so only localhost (any port), PUBLIC_URL and ALLOWED_ORIGINS are honoured.
+    trusted = _trusted_origin(client_origin) or _trusted_origin(request.headers.get("origin"))
+    if trusted:
+        return trusted
     if os.environ.get("PUBLIC_URL"):
         return os.environ["PUBLIC_URL"]
     if alerts.smtp_ready():
@@ -257,7 +279,7 @@ def alert_create(request: Request, body: dict = Body(...)):
     Returns the secret token."""
     return _guard(alerts.create, body.get("region_id"), body.get("bbox"), body.get("name"),
                   body.get("ratio", 1.0), body.get("min_hotspots", 5.0), body.get("email"), body.get("triggers"),
-                  _public_base(request))
+                  _public_base(request, body.get("origin")))
 
 
 def _note(title, text, ok=True, token="", name=""):
@@ -282,21 +304,27 @@ try {{
                         status_code=200 if ok else 400)
 
 
-@app.get("/api/alerts/recent")
-def alerts_recent():
-    """Confirmed alerts on this server (for session recovery)."""
-    d = alerts._load()
-    return [{"token": t, "name": sub.get("name") or sub.get("region_id")} for t, sub in d.items() if sub.get("confirmed")]
-
-
 @app.get("/api/alerts/{token}/confirm")
 def alert_confirm(token: str, code: str = ""):
     try:
         sub = alerts.confirm(token, code)
     except (ValueError, tools.NotFound) as ex:
         return _note("Link not valid", str(ex), False)
-    return _note("Alert confirmed", f"You will get an email when fire activity around {sub.get('name')} crosses your "
-                 "thresholds. Every email has a one-click unsubscribe link.", True, token, sub.get("name") or "")
+    first = alerts.notify_first(token)  # a hot area gets its first message now, not at the next 3-hourly pass
+    if first.get("sent"):
+        text = (f"Fire activity around {sub.get('name')} is already above your thresholds: the alert email is on its way "
+                "to your inbox now. After that you will only hear from us when something new happens. Every email has a "
+                "one-click unsubscribe link.")
+    elif first.get("error"):
+        text = (f"Your alert for {sub.get('name')} is active, but the first email could not be sent just now "
+                f"({first['error']}). It will be retried automatically.")
+    elif first.get("reason") == "area still building":
+        text = (f"Your alert for {sub.get('name')} is active. The area's record is still being built; you will get an "
+                "email as soon as it is ready and something has crossed your thresholds.")
+    else:
+        text = (f"Your alert for {sub.get('name')} is active. Nothing is above your thresholds right now; you will get an "
+                "email when fire activity crosses them. Every email has a one-click unsubscribe link.")
+    return _note("Alert confirmed", text, True, token, sub.get("name") or "")
 
 
 @app.get("/api/alerts/{token}/unsubscribe")
