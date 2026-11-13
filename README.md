@@ -28,6 +28,8 @@
 
 <p align="center"><img src="docs/readme/stats.svg" alt="26 years, raw jump 3.5 to 10.6 times, harmonized step 0.93 to 1.19 times, 7.3 million detections processed" width="100%"></p>
 
+<p align="center"><sub>Demo video: link added after upload (see <code>docs/demo/SUBMISSION.md</code>).</sub></p>
+
 <p align="center"><sub>The live demo serves the nine prebuilt regions. Run it locally to build any place on Earth.</sub></p>
 
 <p align="center">
