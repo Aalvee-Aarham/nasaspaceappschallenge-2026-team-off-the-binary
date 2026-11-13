@@ -15,7 +15,7 @@ const STEPS: [string, string][] = [
 ];
 
 const LIMITS = [
-  "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals and roads are an OpenStreetMap snapshot from the query date. No fire perimeter, no smoke, no fire spread and no impact estimate.",
+  "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals, schools and roads are an OpenStreetMap snapshot from the query date; farmland is ESA WorldCover 2021 cropland, one year of land cover. No fire perimeter, no smoke, no fire spread, no crop loss and no impact estimate.",
   "A fire case is matched to a 0.1° cell and a calendar month. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen.",
   "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
   "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",

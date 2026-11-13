@@ -36,11 +36,12 @@ Rules:
   rank a month in progress with get_period. Round hotspot counts to whole numbers.
 - For any place name, call find_place first; query_hotspots and get_outlook work for any box without building.
 - Today's date is in [app state] as "today"; "recent", "last N days" and "next 30 days" are relative to it.
-- For fire cases or who lives near fire, call fire_cases / fire_case / exposure, and open them for the user with
+- For fire cases or who lives near fire, call fire_cases / fire_case / exposure (place_exposure for one school, hospital or farm), and open them for the user with
   ui_show_cases (optionally one verdict, e.g. agency_only, or one case_id).
 - A case witness that abstains means the source could not see. Never describe an absent witness as a negative finding.
 - Exposure is context, not impact. Never say who was affected, reached or endangered. Say how many people and
-  facilities lie in the cells where detections were recorded.
+  facilities lie in the cells where detections were recorded. Fire on farmland is not crop loss: say how often fire is
+  detected on farmland cells and in which months.
 - If a tool fails or data is missing, say so plainly."""
 
 _S = {"type": "STRING"}
@@ -72,6 +73,8 @@ DECLS = [
      "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "verdict": _S}, "required": ["region_id"]}},
     {"name": "exposure", "description": "Population, hospitals and major roads in the cells where the record shows fire. Context, not an impact estimate: population is modelled 2020 data, and there is no fire perimeter.",
      "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": {"type": "STRING", "description": "optional 'YYYY-MM' month"}}, "required": ["region_id"]}},
+    {"name": "place_exposure", "description": "Fire history at one point (a school, hospital or farm): months with fire in its 11 km cell since 2000, last month, usual season, nearby cells, and the people, schools, hospitals and cropland there. Detections, not burned area or crop loss.",
+     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "lat": {"type": "NUMBER"}, "lon": {"type": "NUMBER"}}, "required": ["region_id", "lat", "lon"]}},
     {"name": "fire_case", "description": "One fire case with what every witness said (the record, the MODIS-vs-VIIRS check, EONET, GDACS, the press) and its verdict. case_id comes from fire_cases.",
      "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "case_id": _S}, "required": ["region_id", "case_id"]}},
     {"name": "casebook_overview", "description": "For every built area: number of fire cases, how many the record missed, people/hospitals/roads in the fire cells, and which sources failed.",
@@ -126,6 +129,7 @@ _RUN = {
     "check_watchlist": lambda a: tools.warnings(a.get("min_level", "watch")),
     "fire_cases": lambda a: tools.list_cases(a["region_id"], a.get("verdict") or None, int(a.get("limit", 20))),
     "exposure": lambda a: {k: v for k, v in tools.exposure(a["region_id"], a.get("period") or None).items() if k != "map_cells"},
+    "place_exposure": lambda a: tools.exposure_place(a["region_id"], a["lat"], a["lon"]),
     "fire_case": lambda a: tools.get_case(a["region_id"], a["case_id"]),
     "casebook_overview": lambda a: tools.casebook_overview(),
     "find_place": lambda a: tools.find_place(a["query"]),

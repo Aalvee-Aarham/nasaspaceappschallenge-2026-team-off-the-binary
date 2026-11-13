@@ -606,6 +606,68 @@ def get_case(region_id, case_id):
     raise NotFound(f"no case '{case_id}' in '{region_id}'")
 
 
+FARM_SHARE = 0.5   # a cell is "mostly farmland" when cropland covers at least half of it (ESA WorldCover 2021)
+
+
+def _aligned_grid(region_id):
+    """grid.json re-indexed onto exposure.json's cells, matched by coordinates. A live refresh rebuilds grid.json and
+    may reorder or add cells; exposure.json (and the cell indices its hospitals, schools and roads carry) keeps the
+    order of its own build. Cells with fire that are newer than the exposure build have no exposure data and are left
+    out, and counted in 'cells_without_exposure'."""
+    g, e = OUT / region_id / "grid.json", OUT / region_id / "exposure.json"
+    if not e.exists():
+        return _read(region_id, "grid")
+    return _aligned_cached(region_id, g.stat().st_mtime, e.stat().st_mtime)
+
+
+@functools.lru_cache(maxsize=16)
+def _aligned_cached(region_id, _gm, _em):
+    grid, ex = _read(region_id, "grid"), _read(region_id, "exposure")
+    cells = [c[:2] for c in ex["cells"]]
+    if cells == grid["cells"]:
+        return {**grid, "cells_without_exposure": 0}
+    where = {tuple(c): i for i, c in enumerate(cells)}
+    remap = [where.get(tuple(c)) for c in grid["cells"]]
+    months = {k: [[remap[ci], v] for ci, v in rows if remap[ci] is not None] for k, rows in grid["months"].items()}
+    return {**grid, "cells": cells, "months": months, "cells_without_exposure": sum(r is None for r in remap)}
+
+
+@functools.lru_cache(maxsize=16)
+def _fire_profile(region_id, _mtime):
+    """Per grid cell, from grid.json: months with fire, last month with fire, and per calendar month the number of
+    years with fire and the summed hotspots. Cached per file version; callers must not mutate it."""
+    grid = _aligned_grid(region_id)
+    n = len(grid["cells"])
+    on, last = [0] * n, [None] * n
+    cal_years = [[0] * 12 for _ in range(n)]
+    cal_hot = [[0.0] * 12 for _ in range(n)]
+    years_of_month = [set() for _ in range(12)]          # record years that hold each calendar month
+    for k in sorted(grid["months"]):
+        m = int(k[5:]) - 1
+        years_of_month[m].add(k[:4])
+        for ci, v in grid["months"][k]:
+            on[ci] += 1
+            last[ci] = k
+            cal_years[ci][m] += 1
+            cal_hot[ci][m] += v
+    return {"on": on, "last": last, "cal_years": cal_years, "cal_hot": cal_hot,
+            "years_of_month": [len(y) for y in years_of_month]}
+
+
+def _profile(region_id):
+    e = OUT / region_id / "exposure.json"
+    return _fire_profile(region_id, ((OUT / region_id / "grid.json").stat().st_mtime, e.stat().st_mtime if e.exists() else 0))
+
+
+def _cell_km2(lat0, deg=0.1):
+    return (111.32 * deg) ** 2 * math.cos(math.radians(lat0 + deg / 2))
+
+
+def _gc_km(la1, lo1, la2, lo2):
+    p1, p2, dl = math.radians(la1), math.radians(la2), math.radians(lo2 - lo1)
+    return 6371.0 * math.acos(max(-1.0, min(1.0, math.sin(p1) * math.sin(p2) + math.cos(p1) * math.cos(p2) * math.cos(dl))))
+
+
 def exposure(region_id, period=None):
     """Population and infrastructure in the 0.1 degree cells where the record shows fire. Context, not impact."""
     if period and not (len(period) == 7 and period[4] == "-" and period[:4].isdigit() and period[5:].isdigit() and 1 <= int(period[5:]) <= 12):
@@ -614,47 +676,187 @@ def exposure(region_id, period=None):
         ex = _read(region_id, "exposure")
     except NotFound:
         raise NotFound(f"no exposure layer built for '{region_id}'")
-    grid = _read(region_id, "grid")
+    grid = _aligned_grid(region_id)
     fire = {ci for ci, _ in grid["months"].get(period, [])} if period else {ci for rows in grid["months"].values() for ci, _ in rows}
-    cells = ex["cells"]                       # [lat, lon, population, hospitals, clinics, schools]: index-parallel with grid.cells
+    cells = ex["cells"]   # [lat, lon, population, hospitals, clinics, schools, cropland_km2]: index-parallel with grid.cells
+    cols = ex.get("cell_columns") or []
     err = ex["infrastructure"].get("errors") or {}
-    has_schools = "schools" in (ex.get("cell_columns") or []) and "schools" not in err   # files built before schools: unknown, not 0
+    has_schools = "schools" in cols and "schools" not in err   # files built before schools: unknown, not 0
+    has_named = has_schools and "school_columns" in ex
+    has_crop = "cropland_km2" in cols and "cropland" not in err
     school = lambda ci: cells[ci][5] if has_schools else 0
-    pop = sum(cells[ci][2] for ci in fire)
-    hosp = [dict(zip(ex["hospital_columns"], h)) for h in ex["hospitals"] if h[3] in fire]
+    crop = lambda ci: cells[ci][6] if has_crop else 0
+    prof = _profile(region_id)
+    on, last = prof["on"], prof["last"]
+
+    def place(row, columns):   # a named facility, with how often fire is seen in its 11 km cell
+        d = dict(zip(columns, row))
+        ci = d["cell"]
+        d["cell"] = grid["cells"][ci]
+        d["months_with_fire"], d["last_fire"] = on[ci], last[ci]
+        return d
+    rank = lambda h: (-h["months_with_fire"], h["name"])
+    hosp = sorted((place(h, ex["hospital_columns"]) for h in ex["hospitals"] if h[3] in fire), key=rank)
+    schools = sorted((place(r, ex["school_columns"]) for r in ex["schools"] if r[3] in fire), key=rank) if has_named else []
     roads = [dict(zip(ex["road_columns"], r)) for r in ex["roads"] if fire.intersection(r[4])]
-    for h in hosp:
-        h["cell"] = grid["cells"][h["cell"]]
     for r in roads:
         r["cells"] = [grid["cells"][ci] for ci in r["cells"] if ci in fire]
+    farm, farm_cells = None, []
+    if has_crop:
+        farm_cells = [ci for ci in fire if cells[ci][6] >= FARM_SHARE * _cell_km2(cells[ci][0])]
+        farm = {"cropland_km2": round(sum(crop(ci) for ci in fire)), "farm_cells": len(farm_cells),
+                "farm_rule": f"cropland covers at least {FARM_SHARE:.0%} of the 11 km cell", "source": ex.get("farmland")}
     detail = {}
     if not period:  # the whole-record view also carries what the Cases & exposure page draws
-        months_on = {}
         by_year = {}
         for k, rows in grid["months"].items():
             for ci, _ in rows:
-                months_on[ci] = months_on.get(ci, 0) + 1
                 by_year.setdefault(int(k[:4]), set()).add(ci)
         detail = {
             "by_year": [{"year": y, "fire_cells": len(cs), "population": sum(cells[ci][2] for ci in cs),
                          "hospitals": sum(cells[ci][3] for ci in cs),
-                         "schools": sum(school(ci) for ci in cs) if has_schools else None} for y, cs in sorted(by_year.items())],
-            "map_cells": [[c[0], c[1], c[2], months_on.get(i, 0)] for i, c in enumerate(cells)],   # lat, lon, people, months with fire
+                         "schools": sum(school(ci) for ci in cs) if has_schools else None,
+                         "cropland_km2": round(sum(crop(ci) for ci in cs)) if has_crop else None} for y, cs in sorted(by_year.items())],
+            "map_cells": [[c[0], c[1], c[2], on[i]] for i, c in enumerate(cells)],   # lat, lon, people, months with fire
             "top_cells": sorted(({"lat": cells[ci][0], "lon": cells[ci][1], "population": cells[ci][2], "hospitals": cells[ci][3],
                                   "clinics": cells[ci][4], "schools": school(ci) if has_schools else None,
-                                  "months_with_fire": n} for ci, n in months_on.items()),
+                                  "cropland_km2": crop(ci) if has_crop else None,
+                                  "months_with_fire": on[ci]} for ci in fire),
                                 key=lambda r: (-r["population"], -r["months_with_fire"]))[:15],
             "months_in_record": len(grid["months"]),
         }
-    return {"region_id": region_id, "period": period, "fire_cells": len(fire), "population": pop, **detail,
+        if farm:
+            yrs = prof["years_of_month"]
+            farm["by_month"] = [{"month": m + 1, "record_years": yrs[m],
+                                 "hotspots_per_year": round(sum(prof["cal_hot"][ci][m] for ci in farm_cells) / yrs[m], 1) if yrs[m] else None,
+                                 "farm_cells_with_fire_per_year": round(sum(prof["cal_years"][ci][m] for ci in farm_cells) / yrs[m], 1) if yrs[m] else None}
+                                for m in range(12)]
+            farm["top_cells"] = sorted(({"lat": cells[ci][0], "lon": cells[ci][1], "cropland_km2": cells[ci][6],
+                                         "months_with_fire": on[ci], "last_fire": last[ci],
+                                         "peak_month": max(range(12), key=lambda m: prof["cal_years"][ci][m]) + 1} for ci in farm_cells),
+                                       key=lambda r: (-r["months_with_fire"], -r["cropland_km2"]))[:15]
+    return {"region_id": region_id, "period": period, "fire_cells": len(fire), "population": sum(cells[ci][2] for ci in fire), **detail,
             "population_source": ex["population"],
             "hospitals": None if "hospitals" in err else sum(cells[ci][3] for ci in fire),
             "clinics": None if "hospitals" in err else sum(cells[ci][4] for ci in fire),
             "schools": sum(school(ci) for ci in fire) if has_schools else None,
             "hospital_list": [] if "hospitals" in err else hosp[:50],
+            "school_list": schools[:100], "schools_named": len(schools) if has_named else None,
+            "farmland": farm,
             "major_roads": None if "roads" in err else len(roads), "road_list": [] if "roads" in err else roads[:50],
             "errors": err, "truncated": ex["infrastructure"].get("truncated"), "scope": ex["infrastructure"].get("scope"),
-            "built_at": ex["built_at"], "caveat": ex["caveat"]}
+            "built_at": ex["built_at"], "caveat": ex["caveat"], "cells_without_exposure": grid.get("cells_without_exposure", 0)}
+
+
+def exposure_place(region_id, lat, lon):
+    """One place (a school, a hospital, a farm): the 11 km cell that holds it, how often and in which months fire is
+    seen there and in the eight cells around it, and who and what lies in it. Context, not impact."""
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        raise ValueError("lat and lon must be numbers")
+    try:
+        ex = _read(region_id, "exposure")
+    except NotFound:
+        raise NotFound(f"no exposure layer built for '{region_id}'")
+    w, s, e, n = ex["bbox"]
+    if not (s <= lat <= n and w <= lon <= e):
+        raise ValueError(f"the point is outside this area ({s} to {n} latitude, {w} to {e} longitude)")
+    grid = _aligned_grid(region_id)
+    prof = _profile(region_id)
+    cols = ex.get("cell_columns") or []
+    err = ex["infrastructure"].get("errors") or {}
+    index = {tuple(c): i for i, c in enumerate(grid["cells"])}
+    key = lambda la, lo: (round(math.floor(la * 10 + 1e-9) / 10, 2), round(math.floor(lo * 10 + 1e-9) / 10, 2))
+    cell = key(lat, lon)
+    ci = index.get(cell)
+    around = [index[k] for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+              if (dy or dx) and (k := key(cell[0] + dy * 0.1 + 0.05, cell[1] + dx * 0.1 + 0.05)) in index]
+    out = {"region_id": region_id, "lat": lat, "lon": lon, "cell": list(cell), "in_record": ci is not None,
+           "cell_km2": round(_cell_km2(cell[0])), "months_in_record": len(grid["months"]),
+           "neighbours_with_fire": len(around),
+           "neighbours_last_fire": max((prof["last"][j] for j in around if prof["last"][j]), default=None),
+           "caveat": ex["caveat"], "farmland_source": ex.get("farmland"), "population_source": ex["population"]}
+    if ci is None:
+        if grid["cells"]:
+            out["nearest_fire_cell_km"] = round(min(_gc_km(lat, lon, c[0] + 0.05, c[1] + 0.05) for c in grid["cells"]), 1)
+        out["note"] = "No fire has been detected in this 11 km cell since 2000, so it holds no exposure data."
+        return out
+    c, yrs = ex["cells"][ci], prof["years_of_month"]
+    recent = [{"period": k, "hotspots": v} for k in sorted(grid["months"], reverse=True) for j, v in grid["months"][k] if j == ci][:8]
+    out.update({
+        "months_with_fire": prof["on"][ci], "last_fire": prof["last"][ci], "recent": recent, "unit": grid.get("unit"),
+        "by_month": [{"month": m + 1, "years_with_fire": prof["cal_years"][ci][m], "record_years": yrs[m],
+                      "hotspots_per_year": round(prof["cal_hot"][ci][m] / yrs[m], 2) if yrs[m] else None} for m in range(12)],
+        "population": c[2],
+        "hospitals": None if "hospitals" in err else c[3], "clinics": None if "hospitals" in err else c[4],
+        "schools": c[5] if "schools" in cols and "schools" not in err else None,
+        "cropland_km2": c[6] if "cropland_km2" in cols and "cropland" not in err else None,
+        "hospital_list": [{"name": h[0], "lat": h[1], "lon": h[2]} for h in ex["hospitals"] if h[3] == ci][:30],
+        "school_list": [{"name": r[0], "lat": r[1], "lon": r[2], "kind": r[4]} for r in ex.get("schools", []) if r[3] == ci][:50],
+    })
+    return out
+
+
+def _check_point(region_id, lat, lon):
+    lat, lon = float(lat), float(lon)
+    m = _read(region_id, "meta")
+    w, s, e, n = m["bbox"]
+    if not (s <= lat <= n and w <= lon <= e):
+        raise ValueError(f"the point is outside this area ({s} to {n} latitude, {w} to {e} longitude)")
+    return lat, lon, m
+
+
+def place_nearby(region_id, lat, lon, radius_km=10.0, days=2):
+    """Vegetation-fire detections within radius_km of a point in the last `days` days, from the area's live FIRMS
+    cache (confidence-filtered; kilns and other static sources excluded). Pixel centres, not fire locations."""
+    lat, lon, m = _check_point(region_id, lat, lon)
+    radius_km, days = float(radius_km), int(days)
+    if not (1 <= radius_km <= 50) or not (1 <= days <= 10):
+        raise ValueError("radius_km must be 1-50 and days 1-10")
+    b = dt.datetime.now(dt.timezone.utc).date()
+    a = b - dt.timedelta(days=days)
+    con = duckdb.connect()
+    con.execute("SET enable_progress_bar = false")
+    _detections(con, region_id, m["bbox"], a, b)
+    dist = (f"2 * 6371 * asin(sqrt(pow(sin(radians(lat - {lat}) / 2), 2) + cos(radians({lat})) * cos(radians(lat)) "
+            f"* pow(sin(radians(lon - {lon}) / 2), 2)))")
+    rows = con.execute(f"""SELECT strftime(acq_datetime, '%Y-%m-%d %H:%M'), satellite, lat, lon, round(frp, 1), round({dist}, 1) AS km
+                           FROM e WHERE conf_ok AND cls = 'veg' AND {dist} <= {radius_km}
+                           ORDER BY acq_datetime DESC""").fetchall()
+    con.close()
+    dets = [dict(zip(("time_utc", "satellite", "lat", "lon", "frp_mw", "km"), r)) for r in rows]
+    return {"region_id": region_id, "lat": lat, "lon": lon, "radius_km": radius_km, "start": str(a), "end": str(b),
+            "count": len(dets), "nearest_km": min((d["km"] for d in dets), default=None),
+            "latest_utc": dets[0]["time_utc"] if dets else None, "detections": sorted(dets, key=lambda d: d["km"])[:10],
+            "data_through": m.get("data_through"),
+            "note": "Satellite detections of heat (VIIRS 375 m, MODIS 1 km pixel centres), confidence-filtered, static "
+                    "sources such as kilns removed. A detection is not a confirmed fire and not its edge; check locally."}
+
+
+def place_season(region_id, lat, lon, month=None):
+    """How often fire was detected within about 15 km of a point (its 11 km cell and the eight around it) in one
+    calendar month, over every year of the record. A climatology, never a forecast."""
+    lat, lon, _ = _check_point(region_id, lat, lon)
+    month = int(month or dt.date.today().month)
+    if not 1 <= month <= 12:
+        raise ValueError("month must be 1-12")
+    grid = _read(region_id, "grid")
+    index = {tuple(c): i for i, c in enumerate(grid["cells"])}
+    gy, gx = math.floor(lat * 10 + 1e-9), math.floor(lon * 10 + 1e-9)
+    block = {index[k] for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+             if (k := (round((gy + dy) / 10, 2), round((gx + dx) / 10, 2))) in index}
+    years, hit = 0, []
+    for k, rows in sorted(grid["months"].items()):
+        if int(k[5:]) != month:
+            continue
+        years += 1
+        if block and any(ci in block for ci, _ in rows):
+            hit.append(k[:4])
+    return {"region_id": region_id, "lat": lat, "lon": lon, "month": month, "record_years": years,
+            "years_with_fire": len(hit), "share": round(len(hit) / years, 2) if years else None, "years": hit[-10:],
+            "note": "Years in which fire was detected within about 15 km of the place in this calendar month. "
+                    "History, not a forecast."}
 
 
 def casebook_overview():

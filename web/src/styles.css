@@ -762,3 +762,33 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .with-analyst .map-actions { right: calc(var(--panel-w) + 372px); }
 .cp-near { margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid #d95926; background: rgba(217, 89, 38, .08); font-size: 14px; line-height: 1.45; }
 .cp-near b { color: #fff; }
+
+/* Exposure: schools and hospitals, farmland, one place */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.cb-cell { cursor: pointer; }
+.cb-cell:hover { stroke: var(--text); stroke-width: 1; }
+.ex-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.ex-search input, .ex-form input { width: 100%; max-width: 420px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 8px 10px; font: inherit; }
+.ex-search { display: block; margin: 8px 0 10px; }
+.ex-form .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.ex-form .row input { flex: 1 1 220px; }
+.ex-card { border: 1px solid var(--line); background: var(--raised); padding: 16px; margin-top: 14px; }
+.ex-card h3 { margin-top: 0; }
+.ex-card .cx-stats { margin-bottom: 14px; }
+.ex-card .cx-stat { background: var(--night); }
+.ex-card .cx-stat b { font-size: 24px; }
+.ex-season { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; }
+.ex-season li { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+.ex-season i { display: block; width: 100%; height: 26px; border-radius: 2px; }
+.ex-season b { color: var(--text); font-weight: 600; font-size: 10.5px; }
+@media (max-width: 560px) { .ex-season { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.ex-names { columns: 2 220px; margin: 0; }
+.ex-farm .cx-stats { margin-bottom: 18px; }
+.ex-alert-open { margin: 10px 0 4px; }
+.ex-alert { border: 1px solid var(--line); background: var(--night); padding: 14px; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.ex-alert.ok { border-color: var(--focus); }
+.ex-alert label { display: flex; flex-direction: column; gap: 4px; }
+.ex-alert fieldset label { flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ex-alert fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.ex-alert input:not([type=checkbox]), .ex-alert select { background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 7px 9px; font: inherit; max-width: 420px; }
+.ex-alert .row { display: flex; gap: 8px; flex-wrap: wrap; }

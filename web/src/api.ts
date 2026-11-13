@@ -93,20 +93,38 @@ export type CasesResponse = {
 export type ExposureResponse = {
   region_id: string; period: string | null; fire_cells: number; population: number;
   population_source: { source: string; url: string; vintage: number | string; method: string; note: string };
-  hospitals: number | null; clinics: number | null; schools: number | null; hospital_list: { name: string; lat: number; lon: number; cell: [number, number] }[];
+  hospitals: number | null; clinics: number | null; schools: number | null; hospital_list: Facility[];
+  school_list?: Facility[]; schools_named?: number | null; farmland?: Farmland | null;
   major_roads: number | null; road_list: { name: string; kind: string; lat: number; lon: number; cells: [number, number][] }[];
   errors: Record<string, string>; truncated: Record<string, boolean> | null; scope: string | null; built_at: string; caveat: string;
   // present only for the whole-record view (no period)
-  by_year?: { year: number; fire_cells: number; population: number; hospitals: number; schools: number | null }[];
+  by_year?: { year: number; fire_cells: number; population: number; hospitals: number; schools: number | null; cropland_km2?: number | null }[];
   map_cells?: [number, number, number, number][];   // lat, lon (SW corner), people, months with fire
-  top_cells?: { lat: number; lon: number; population: number; hospitals: number; clinics: number; schools: number | null; months_with_fire: number }[];
+  top_cells?: { lat: number; lon: number; population: number; hospitals: number; clinics: number; schools: number | null; cropland_km2?: number | null; months_with_fire: number }[];
   months_in_record?: number;
+};
+/** A named hospital or school in a cell with fire, with how often fire is detected in that 11 km cell. */
+export type Facility = { name: string; lat: number; lon: number; cell: [number, number]; kind?: string; months_with_fire?: number; last_fire?: string | null };
+export type Farmland = {
+  cropland_km2: number; farm_cells: number; farm_rule: string;
+  source: { source: string; url: string; vintage: number; method: string; note: string; tiles_absent?: string[] } | null;
+  by_month?: { month: number; record_years: number; hotspots_per_year: number | null; farm_cells_with_fire_per_year: number | null }[];
+  top_cells?: { lat: number; lon: number; cropland_km2: number; months_with_fire: number; last_fire: string | null; peak_month: number }[];
+};
+export type PlaceExposure = {
+  region_id: string; lat: number; lon: number; cell: [number, number]; in_record: boolean; cell_km2: number; months_in_record: number;
+  neighbours_with_fire: number; neighbours_last_fire: string | null; nearest_fire_cell_km?: number; note?: string; caveat: string;
+  months_with_fire?: number; last_fire?: string | null; unit?: string;
+  by_month?: { month: number; years_with_fire: number; record_years: number; hotspots_per_year: number | null }[];
+  recent?: { period: string; hotspots: number }[];
+  population?: number; hospitals?: number | null; clinics?: number | null; schools?: number | null; cropland_km2?: number | null;
+  hospital_list?: { name: string; lat: number; lon: number }[]; school_list?: { name: string; lat: number; lon: number; kind: string }[];
 };
 export type CasebookOverview = {
   caveat: string;
   areas: { id: string; name: string; country: string | null;
     cases: { total: number; counts: Record<CaseVerdict, number>; found: Record<CaseVerdict, number> | null; failed_sources: string[] } | null;
-    exposure: { population: number; hospitals: number | null; clinics: number | null; schools?: number | null; major_roads: number | null; errors: Record<string, string>; built_at: string } | null }[];
+    exposure: { population: number; hospitals: number | null; clinics: number | null; schools?: number | null; cropland_km2?: number | null; major_roads: number | null; errors: Record<string, string>; built_at: string } | null }[];
 };
 export type Grid = { deg: number; cells: [number, number][]; months: Record<string, [number, number][]>; unit: string };
 export type StaticPts = { points: [number, number, number, number, number, number, number, number][] };
@@ -152,7 +170,8 @@ export type Warning = {
   backtest?: { scored: boolean; reason?: string; first_year?: number; last_year?: number;
     by_day?: Record<string, Record<"elevated" | "watch_or_above", { n: number; hits: number; misses: number; false_alarms: number; correct_negatives: number; base_rate: Num; pod: Num; far: Num; pss: Num }>> } | null;
 };
-export type Trigger = "anomaly" | "outlook" | "events";
+export type Trigger = "anomaly" | "outlook" | "events" | "nearby" | "season";
+export type AlertPlace = { lat: number; lon: number; radius_km: number; label: string };
 export type AlertSub = {
   token: string; region_id: string; bbox: number[]; name: string | null; ratio: number; min_hotspots: number; created: string; last_notified: string | null;
   triggers?: Trigger[]; email?: string | null; confirmed?: boolean; email_status?: string | null;
@@ -164,6 +183,9 @@ export type AlertState = {
   triggers?: Trigger[]; email?: string | null; confirmed?: boolean; sent?: { at: string; subject: string }[];
   outlook?: { as_of: string; next_30_days: [string, string]; counts: Record<OutlookClass, number>; rising: number } | null;
   events_in_box?: WildEvent[] | null; events_error?: string | null; outlook_triggered?: boolean;
+  place?: AlertPlace | null; nearby_triggered?: boolean; season_triggered?: boolean; nearby_error?: string; season_error?: string;
+  nearby?: { count: number; new: number; nearest_km: number | null; latest_utc: string | null; radius_km: number; data_through: string | null } | null;
+  season?: { month: number; years_with_fire: number; record_years: number; share: number | null } | null;
 };
 export type NewsItem = { source: string; title: string; date: string; url: string; lang: string; outlet: string; lat?: number; lon?: number; severity?: string; alert?: string; country?: string };
 export type LatestNews = { window: [string, string]; sources: { name: string; count: number; error: string | null }[]; items: NewsItem[]; note: string };
@@ -233,6 +255,7 @@ export const api = {
   casebook: () => json<CasebookOverview>("/api/casebook"),
   case: (id: string, caseId: string) => json<FireCase>(`/api/regions/${id}/cases/${encodeURIComponent(caseId)}`),
   exposure: (id: string, period?: string) => json<ExposureResponse>(`/api/regions/${id}/exposure${period ? `?period=${period}` : ""}`),
+  exposurePlace: (id: string, lat: number, lon: number) => json<PlaceExposure>(`/api/regions/${id}/exposure/place?lat=${lat}&lon=${lon}`),
   monthly: (id: string) => json<Block>(`/data/regions/${id}/monthly.json`),
   region: async (id: string): Promise<Region> => {
     const f = (n: string) => json<any>(`/data/regions/${id}/${n}.json`);
@@ -243,7 +266,7 @@ export const api = {
   warning: (id: string) => json<Warning>(`/api/regions/${id}/warning`),
   events: () => json<Events>("/api/events"),
   outlook: () => json<Outlook>("/api/outlook"),
-  createAlert: (body: { region_id?: string; bbox?: number[]; name?: string; ratio: number; email?: string; triggers?: Trigger[] }) => json<AlertSub>("/api/alerts", post({ ...body, origin: window.location.origin })), // origin: email links come back to this exact site/port
+  createAlert: (body: { region_id?: string; bbox?: number[]; name?: string; ratio: number; email?: string; triggers?: Trigger[]; place?: AlertPlace }) => json<AlertSub>("/api/alerts", post({ ...body, origin: window.location.origin })), // origin: email links come back to this exact site/port
   sendTest: (token: string) => json<{ sent: boolean; reason?: string; subject?: string }>(`/api/alerts/${token}/send-test`, { method: "POST" }),
   latestNews: (days: number) => json<LatestNews>(`/api/news/latest?days=${days}`),
   findPlace: (q: string) => json<PlaceResult>(`/api/place?q=${encodeURIComponent(q)}`),

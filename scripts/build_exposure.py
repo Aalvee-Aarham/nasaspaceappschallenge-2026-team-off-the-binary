@@ -287,6 +287,123 @@ def build_area(area):
     return out
 
 
+# ---------------------------------------------------------------- schools (named) and farmland, added to a built file
+
+WORLDCOVER = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile}_Map.tif"
+CROPLAND = 40            # ESA WorldCover class "Cropland"
+WC_OVERVIEW = 2          # overview index 2 = 8x decimation: ~74 m pixels, exactly 150 per 0.1 degree cell
+SCHOOL_CAP = 2500
+
+
+def cropland(cells, bbox):
+    """Cropland area (km2) in each 0.1 degree cell from ESA WorldCover 2021, read from the tile overviews.
+    Returns (km2 per cell, tiles read, tiles absent). A tile that does not exist (open ocean) holds no cropland."""
+    share = [0.0] * len(cells)
+    read, absent = [], []
+    by_tile = {}
+    for i, (lat0, lon0) in enumerate(cells):
+        la, lo = math.floor(lat0 / 3 + 1e-9) * 3, math.floor(lon0 / 3 + 1e-9) * 3
+        by_tile.setdefault((la, lo), []).append(i)
+    for (la, lo), idx in sorted(by_tile.items()):
+        tile = f"{'N' if la >= 0 else 'S'}{abs(la):02d}{'E' if lo >= 0 else 'W'}{abs(lo):03d}"
+        try:
+            ds = rasterio.open("/vsicurl/" + WORLDCOVER.format(tile=tile), overview_level=WC_OVERVIEW)
+        except rasterio.errors.RasterioIOError:
+            absent.append(tile)
+            continue
+        with ds:
+            assert ds.crs.to_epsg() == 4326, f"{tile}: CRS {ds.crs}"
+            t = ds.transform
+            per = round(DEG / t.a)                        # pixels per 0.1 degree cell (150)
+            lats, lons = [cells[i][0] for i in idx], [cells[i][1] for i in idx]
+            c0 = max(0, int(round((min(lons) - t.c) / t.a)))
+            c1 = min(ds.width, int(round((max(lons) + DEG - t.c) / t.a)))
+            r0 = max(0, int(round((t.f - (max(lats) + DEG)) / -t.e)))
+            r1 = min(ds.height, int(round((t.f - min(lats)) / -t.e)))
+            a = ds.read(1, window=((r0, r1), (c0, c1))) == CROPLAND
+            for i in idx:
+                lat0, lon0 = cells[i]
+                cc = int(round((lon0 - t.c) / t.a)) - c0
+                rr = int(round((t.f - (lat0 + DEG)) / -t.e)) - r0
+                block = a[max(rr, 0):max(rr + per, 0), max(cc, 0):max(cc + per, 0)]
+                share[i] = float(block.sum()) / (per * per)
+        read.append(tile)
+    km2 = [s * (111.32 * DEG) ** 2 * math.cos(math.radians(lat0 + DEG / 2)) for s, (lat0, _) in zip(share, cells)]
+    return km2, read, absent
+
+
+def add_schools_and_farmland(area):
+    """Add named schools and cropland per cell to an already built exposure.json, keeping its population,
+    hospitals and roads. No WorldPop download needed."""
+    folder = REGIONS / area
+    ex = json.loads((folder / "exposure.json").read_text(encoding="utf-8"))
+    grid = json.loads((folder / "grid.json").read_text(encoding="utf-8"))
+    # Index by exposure.json's own cells (the order its hospitals and roads refer to), matched to grid.json by
+    # coordinates: a live refresh may have rebuilt grid.json in a different order since the exposure build.
+    cells = [tuple(c[:2]) for c in ex["cells"]]
+    index = {c: i for i, c in enumerate(cells)}
+    to_ex = [index.get(tuple(c)) for c in grid["cells"]]
+    months_on = [0] * len(cells)
+    for rows in grid["months"].values():
+        for ci, _ in rows:
+            if to_ex[ci] is not None:
+                months_on[to_ex[ci]] += 1
+    infra = ex["infrastructure"]
+    errors = {k: v for k, v in (infra.get("errors") or {}).items() if k not in ("schools", "cropland")}
+
+    n_school, named = [0] * len(cells), []
+    try:
+        els, _ = fetch_osm(SCHOOL_Q, ex["bbox"])
+        for el in els:
+            lat, lon = (el.get("lat"), el.get("lon")) if el["type"] == "node" else (el.get("center", {}).get("lat"), el.get("center", {}).get("lon"))
+            ci = index.get(cell_of(lat, lon)) if lat is not None else None
+            if ci is None:
+                continue
+            n_school[ci] += 1
+            tags = el.get("tags", {})
+            name = tags.get("name:en") or tags.get("name")
+            if name:
+                named.append([name, round(lat, 4), round(lon, 4), ci, tags.get("amenity", "school")])
+    except Exception as ex_:
+        errors["schools"] = str(ex_)[:200]
+    named.sort(key=lambda s: (-months_on[s[3]], s[0]))   # schools in the cells with fire most often first: the cap keeps those
+    trunc = dict(infra.get("truncated") or {})
+    trunc["schools"] = len(named) > SCHOOL_CAP
+    named = named[:SCHOOL_CAP]
+
+    try:
+        crop, tiles, absent = cropland(cells, ex["bbox"])
+    except Exception as ex_:
+        crop, tiles, absent = None, [], []
+        errors["cropland"] = str(ex_)[:200]
+
+    old = ex["cells"]
+    ex["cell_columns"] = ["lat", "lon", "population", "hospitals", "clinics", "schools", "cropland_km2"]
+    ex["cells"] = [[c[0], c[1], c[2], c[3], c[4], None if "schools" in errors else n_school[i],
+                    None if crop is None else round(crop[i], 1)] for i, c in enumerate(old)]
+    ex["school_columns"], ex["schools"] = ["name", "lat", "lon", "cell", "kind"], ([] if "schools" in errors else named)
+    infra["schools_source"] = "OpenStreetMap via Overpass API: amenity=school|kindergarten (all counted per cell; named ones listed)"
+    infra["truncated"], infra["errors"] = trunc, errors
+    infra["caps"] = {**(infra.get("caps") or {}), "schools": SCHOOL_CAP}
+    infra["schools_queried_at"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    ex["farmland"] = {
+        "source": "ESA WorldCover 10 m 2021 v200, class 40 (Cropland), read at the ~74 m overview",
+        "url": WORLDCOVER.format(tile="<tile>"), "vintage": 2021, "tiles": tiles, "tiles_absent": absent,
+        "method": "share of cropland pixels in each 0.1 degree cell times the cell area (cosine of latitude)",
+        "note": "Land cover from one year, not what was planted the month of a fire. Fire on farmland is often residue burning by the farmers themselves; detections are not burned area, so nothing here says crops were lost.",
+    }
+    tot = ex["totals"]
+    tot["schools"] = None if "schools" in errors else sum(n_school)
+    tot["cropland_km2"] = None if crop is None else round(sum(crop))
+    tmp = folder / "exposure.json.tmp"
+    tmp.write_text(json.dumps(ex, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    kb = tmp.stat().st_size / 1024
+    assert kb <= 600, f"{area}: exposure.json is {kb:.0f} KB, over the 600 KB budget"
+    os.replace(tmp, folder / "exposure.json")
+    print(f"  {area}: {tot['schools']} schools ({len(named)} named{', capped' if trunc['schools'] else ''}), "
+          f"cropland {tot['cropland_km2']} km2 from {len(tiles)} tiles, {kb:.0f} KB, errors={errors or 'none'}", flush=True)
+
+
 def self_check():
     assert cell_of(23.79, 90.39) == (23.7, 90.3) and cell_of(23.8, 90.4) == (23.8, 90.4)
     assert road_cells([{"lat": 23.71, "lon": 90.31}, {"lat": 23.71, "lon": 90.52}]) == [(23.7, 90.3), (23.7, 90.4), (23.7, 90.5)]
@@ -295,7 +412,13 @@ def self_check():
 if __name__ == "__main__":
     self_check()
     index = json.loads((REGIONS / "index.json").read_text(encoding="utf-8"))
-    areas = sys.argv[1:] or [r["id"] for r in index["regions"] if r.get("preset")]
+    args = sys.argv[1:]
+    add = "--add" in args      # only add named schools and farmland to the built files (no WorldPop download)
+    areas = [a for a in args if a != "--add"] or [r["id"] for r in index["regions"] if r.get("preset")]
     for a in areas:
-        print(a)
-        build_area(a)
+        print(a, flush=True)
+        if add:
+            add_schools_and_farmland(a)
+        else:
+            build_area(a)
+            add_schools_and_farmland(a)

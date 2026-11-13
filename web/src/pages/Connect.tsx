@@ -32,7 +32,8 @@ const TOOLS: [string, [string, string][]][] = [
     ["search_fire_reports / search_timeline_reports", "Reports matched month by month against the record, with a verdict."],
     ["get_fire_cases / get_fire_case", "Fire cases checked against agency records and the news, with a verdict; one case with every witness."],
     ["get_casebook_overview", "Every area at a glance: cases, fires the record missed, people and hospitals near fire, failed sources."],
-    ["get_exposure", "Population, hospitals and major roads in the cells where the record shows fire. Context, not impact."],
+    ["get_exposure", "Population, hospitals, schools, farmland and major roads in the cells where the record shows fire. Context, not impact."],
+    ["get_place_exposure", "One school, hospital or farm: how often and in which months fire is seen in its 11 km cell since 2000."],
   ]],
   ["Alerts", [
     ["subscribe_email_alert", "Email for any box: anomaly, 30-day watch, new events. Double opt-in."],

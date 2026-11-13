@@ -147,6 +147,35 @@ def test_rejected_alert_starts_no_build():
         tools.start_aoi, alerts.MAX_ALERTS = real_start, real_max
 
 
+def test_place_alert_reports_each_detection_once():
+    """A place alert (school, farm) lands in the area holding it; nearby fire is reported once per new detection and the
+    season once per month. Live reads are stubbed: this is about the marking logic, not today's fires."""
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    real = tools.place_nearby, tools.place_season
+    det = [{"time_utc": "2026-11-12 08:09", "satellite": "NOAA-20", "lat": 30.80, "lon": 75.81, "frp_mw": 9.0, "km": 11.5}]
+    tools.place_nearby = lambda rid, la, lo, r, d: {"count": len(det), "nearest_km": 11.5, "latest_utc": max(x["time_utc"] for x in det),
+                                                    "radius_km": r, "start": "", "end": "", "data_through": "", "note": "", "detections": list(det)}
+    tools.place_season = lambda rid, la, lo, m: {"month": m, "years_with_fire": 20, "record_years": 25, "share": 0.8, "years": []}
+    try:
+        a = alerts.create(place={"lat": 30.9, "lon": 75.85, "radius_km": 25, "label": "Test farm"})
+        assert a["region_id"] == "punjab" and a["triggers"] == ["nearby", "season"]
+        first = alerts.check(a["token"], once=True)
+        assert first["nearby_triggered"] and first["season_triggered"] and "Test farm" in first["message"]
+        assert "not a confirmed fire" in first["message"] and "not a forecast" in first["message"]
+        again = alerts.check(a["token"], once=True)
+        assert not again["nearby_triggered"] and not again["season_triggered"]
+        det.insert(0, {**det[0], "time_utc": "2026-11-13 07:50", "km": 4.0})   # a newer detection fires again
+        third = alerts.check(a["token"], once=True)
+        assert third["nearby_triggered"] and third["nearby"]["new"] == 1 and not third["season_triggered"]
+        try:
+            alerts.create(region_id="punjab", triggers=["nearby"])
+            raise AssertionError("a nearby trigger without a place was accepted")
+        except ValueError:
+            pass
+    finally:
+        tools.place_nearby, tools.place_season = real
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

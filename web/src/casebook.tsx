@@ -110,8 +110,9 @@ export function CaseCard({ c, onClose }: { c: FireCase; onClose?: () => void }) 
 }
 
 /** The area's fire cells shaded by people living there, with the cases on top. `reveal` (0–1) animates the markers in. */
-export function CellMap({ bbox, cells, cases, sel, onSel, reveal = 1, label }: {
-  bbox: number[]; cells: [number, number, number, number][]; cases: FireCase[]; sel?: string | null; onSel?: (id: string) => void; reveal?: number; label?: string;
+export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, label }: {
+  bbox: number[]; cells: [number, number, number, number][]; cases: FireCase[]; sel?: string | null; onSel?: (id: string) => void;
+  onCell?: (lat: number, lon: number) => void; reveal?: number; label?: string;
 }) {
   const [w, s, e, n] = bbox;
   const W = 560, k = Math.cos(((s + n) / 2) * Math.PI / 180), H = Math.round(W * (n - s) / ((e - w) * k));
@@ -123,7 +124,8 @@ export function CellMap({ bbox, cells, cases, sel, onSel, reveal = 1, label }: {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="cb-map" role="img" aria-label={label ?? `Map: ${cells.length} cells that have had fire, lighter where more people live, and ${cases.length} cases.`}>
       <rect width={W} height={H} fill="#0A0E15" />
-      {cells.map(([la, lo, p], i) => <rect key={i} x={x(lo)} y={y(la + 0.1)} width={cw} height={ch} fill={peopleShade(p, max)} />)}
+      {cells.map(([la, lo, p], i) => <rect key={i} x={x(lo)} y={y(la + 0.1)} width={cw} height={ch} fill={peopleShade(p, max)}
+        className={onCell ? "cb-cell" : undefined} onClick={onCell ? () => onCell(la + 0.05, lo + 0.05) : undefined} />)}
       {order.map((c) => (
         <g key={c.id} className={onSel ? "cb-pt" : undefined} onClick={onSel ? () => onSel(c.id) : undefined}>
           {onSel && <circle cx={x(c.lon)} cy={y(c.lat)} r={12} fill="transparent" />}
