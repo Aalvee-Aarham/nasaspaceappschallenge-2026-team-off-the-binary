@@ -1,8 +1,8 @@
-<p align="center">
-  <img src="docs/readme/hero.svg" alt="Kiln Watch: raw satellite hotspot counts jump when new satellites arrive; the harmonized record stays level" width="100%">
-</p>
-
 <h1 align="center">Kiln Watch</h1>
+
+<p align="center">
+  <a href="https://kiln-watch-seven.vercel.app"><img src="docs/readme/app-home.jpg" alt="Kiln Watch home page: Every fire. One record." width="100%"></a>
+</p>
 
 <p align="center">
   <b>One fire record for any place on Earth, from 2000 to today, that does not jump when satellites change.</b><br>
@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
-  <a href="docs/TECHNICAL.md"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
   <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-31%20tools-3DDC97?style=for-the-badge" alt="MCP server, 31 tools"></a>
 </p>
 
@@ -28,11 +28,23 @@
 
 <p align="center"><sub>The live demo serves the nine prebuilt regions. Run it locally to build any place on Earth.</sub></p>
 
+<p align="center">
+  <a href="#the-problem-in-one-picture">Problem</a> ·
+  <a href="#the-fix">Fix</a> ·
+  <a href="#the-proof">Proof</a> ·
+  <a href="#the-product">Product</a> ·
+  <a href="#who-it-is-for">Who it is for</a> ·
+  <a href="#how-it-is-built">How it is built</a> ·
+  <a href="#team-off-the-binary">Team</a>
+</p>
+
 ---
 
 ## The problem, in one picture
 
 In 2012 a sharper satellite started counting smaller fires. Nothing changed on the ground. The record did.
+
+<p align="center"><img src="docs/readme/hero.svg" alt="Kiln Watch: raw satellite hotspot counts jump when new satellites arrive; the harmonized record stays level" width="100%"></p>
 
 <p align="center"><img src="docs/readme/calendars.svg" alt="Two month-by-year calendars for Punjab: raw counts brighten sharply from 2012, the harmonized calendar stays even" width="100%"></p>
 
@@ -80,7 +92,7 @@ We test the record the way the future will: by taking satellites away.
 
 Errors are from the MODIS-denial test (calibrate on 2012–2016, rebuild 2017–2020 from VIIRS alone). The 96% coverage holds
 by construction: intervals are widened to reach 95% on that test. Trends are Sen slopes for 2003–2020.
-How to read every column: [docs/TECHNICAL.md](docs/TECHNICAL.md).
+How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/#pg=method).
 
 </details>
 
@@ -93,8 +105,6 @@ How to read every column: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 ---
 
 ## The product
-
-<p align="center"><img src="docs/readme/app-home.jpg" alt="Kiln Watch home page: Every fire. One record." width="100%"></p>
 
 <table>
 <tr>
@@ -158,7 +168,7 @@ cd web && npm install && npm run dev  # http://localhost:5173
 
 Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s: `python -m kw.globe` (one-off, 1.8 GB).
 Tests: `python server/tests/test_science.py`. Figures on this page: `node scripts/readme_figures.mjs`.
-Analyst key, MCP setup, email alerts and deployment: [docs/TECHNICAL.md](docs/TECHNICAL.md).
+Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
 
 </details>
 
@@ -195,13 +205,13 @@ Detections are not fires and not burned area. Kiln Watch is an independent proje
 
 <table align="center">
 <tr>
-<td align="center" width="33%"><b>Aalvee Aarham</b><br><sub>AI SYSTEMS ARCHITECT & PROJECT LEAD</sub></td>
-<td align="center" width="33%"><b>Israt Jahan Arna</b><br><sub>FRONTEND ENGINEERING LEAD</sub></td>
-<td align="center" width="33%"><b>Sajid Alam Chowdhury Omee</b><br><sub>BACKEND SYSTEMS ENGINEER</sub></td>
+<td align="center" width="33%"><b>Aalvee Aarham</b><br><sub>AI SYSTEMS ARCHITECT & PROJECT LEAD</sub><br><a href="https://github.com/aalvee-aarham">@aalvee-aarham</a></td>
+<td align="center" width="33%"><b>Israt Jahan Arna</b><br><sub>FRONTEND ENGINEERING LEAD</sub><br><a href="https://github.com/isratarna">@isratarna</a></td>
+<td align="center" width="33%"><b>Sajid Alam Chowdhury Omee</b><br><sub>BACKEND SYSTEMS ENGINEER</sub><br><a href="https://github.com/omee1612">@omee1612</a></td>
 </tr>
 <tr>
-<td align="center"><b>Nazifa Jahan</b><br><sub>RESEARCH & INNOVATION LEAD</sub></td>
-<td align="center"><b>Maruf Hasan Tawhid</b><br><sub>DATA ACQUISITION & DATA ANALYST</sub></td>
-<td align="center"><b>Muhammad Ahnaf Sarker</b><br><sub>LEAD AI/ML DEVELOPER</sub></td>
+<td align="center"><b>Nazifa Jahan</b><br><sub>RESEARCH & INNOVATION LEAD</sub><br><a href="https://github.com/nazifa-r">@nazifa-r</a></td>
+<td align="center"><b>Maruf Hasan Tawhid</b><br><sub>DATA ACQUISITION & DATA ANALYST</sub><br><a href="https://github.com/tawhid-exe">@tawhid-exe</a></td>
+<td align="center"><b>Muhammad Ahnaf Sarker</b><br><sub>LEAD AI/ML DEVELOPER</sub><br><a href="https://github.com/Ahnaf181419">@Ahnaf181419</a></td>
 </tr>
 </table>
