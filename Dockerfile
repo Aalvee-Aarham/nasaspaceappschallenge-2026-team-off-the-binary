@@ -15,6 +15,7 @@ COPY server/ server/
 COPY data/regions/ data/regions/
 # 30-day outlook snapshot (rebuilt daily where the global aggregate exists; served as-is otherwise)
 COPY data/global/outlook.json data/global/outlook.json
+COPY data/sensor_days.parquet data/sensor_days.parquet
 COPY --from=web /web/dist web/dist
 ENV KW_DATA=/app/data PYTHONUNBUFFERED=1
 WORKDIR /app/server

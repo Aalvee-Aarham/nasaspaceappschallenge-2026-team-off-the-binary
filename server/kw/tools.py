@@ -42,12 +42,13 @@ def _read_cached(path, _mtime):
 
 def list_regions():
     f = OUT / "index.json"
-    return json.loads(f.read_text(encoding="utf-8"))["regions"] if f.exists() else []
+    items = json.loads(f.read_text(encoding="utf-8"))["regions"] if f.exists() else []
+    return [r for r in items if is_built(r["id"])]  # index may list custom areas built on another machine
 
 
 def region_summary(region_id):
     m = _read(region_id, "meta")
-    val = next(v for v in m["validation"]["veg_det_D"] if v["sensor"] == "VIIRS_SNPP")
+    val = next((v for v in m["validation"]["veg_det_D"] if v["sensor"] == "VIIRS_SNPP"), None)
     strip = lambda d: {k: v for k, v in (d or {}).items() if k != "series"}  # noqa: E731
     return {
         "id": m["id"], "name": m["name"], "country": m["country"], "bbox": m["bbox"], "story": m.get("story"),
@@ -239,7 +240,8 @@ def _next_weeks(b, k=4):
     """Typical total of the next k weeks (10th/50th/90th percentile over earlier years) and the weeks themselves."""
     h = b["classes"]["veg"]["hotspots"]["v"]
     pos = {p: i for i, p in enumerate(b["periods"])}
-    y0, w0 = int(b["periods"][-1][:4]), int(b["periods"][-1][6:])
+    last = max((i for i, p in enumerate(b["partial"]) if not p), default=len(b["periods"]) - 1)  # as the season card
+    y0, w0 = int(b["periods"][last][:4]), int(b["periods"][last][6:])
     weeks = [((w0 + j - 1) % 52 + 1, y0 + (w0 + j - 1) // 52) for j in range(1, k + 1)]  # ponytail: skips ISO week 53
     sums = []
     for dy in range(1, y0 - int(b["periods"][0][:4]) + 1):
@@ -290,6 +292,7 @@ def early_warning(region_id):
         "latest_complete_week_percentile": pct_w, "recent_weeks": recent,
         "next_4_weeks": {**nxt, "usual_share_of_year_pct": share},
         "year_to_date": ytd,
+        "backtest": m.get("warning_backtest"),
         "caveat": "Climatological outlook from harmonized satellite detections. It compares with earlier years and "
                   "does not forecast weather, fire behaviour or burned area. Not an official alert; detections are "
                   "not confirmed fires. Recent days may be near-real-time and are provisional.",
@@ -520,6 +523,17 @@ def compare_areas(region_ids):
     return {"areas": out, "unit": "hotspots on the Aqua MODIS scale (harmonized)"}
 
 
+def find_place(query):
+    """Any place name -> centre, box and the built areas overlapping it (shared by MCP and the analyst)."""
+    from . import news_more  # local import: only this lookup needs it
+    g = news_more.geocode(query)
+    if not g:
+        return {"found": False, "query": query}
+    w, s, e, n = g["bbox"]
+    near = [r for r in list_regions() if not (r["bbox"][2] < w or r["bbox"][0] > e or r["bbox"][3] < s or r["bbox"][1] > n)]
+    return {"found": True, **g, "built_areas_overlapping": [{"id": r["id"], "name": r["name"]} for r in near]}
+
+
 def sensor_status():
     """Last day each satellite delivered data, measured from the records (never hard-coded)."""
     last = {}
@@ -529,8 +543,8 @@ def sensor_status():
     newest = max(last.values(), default=None)
     return {"last_observed": last, "newest": newest,
             "silent_over_3_days": [s_ for s_, d in last.items() if newest and (dt.date.fromisoformat(newest) - dt.date.fromisoformat(d)).days > 3],
-            "note": "Derived from the data (latest detection per satellite across all areas). Suomi-NPP's active-fire "
-                    "stream ended in November 2026; Terra and Aqua orbits are drifting."}
+            "note": "Derived from the data: the latest detection per satellite across all built areas. "
+                    "silent_over_3_days lists satellites with no detection in the 3 days before the newest one."}
 
 
 def briefing(region_id):
