@@ -133,6 +133,15 @@ def _send_confirm(token, sub):
 
 # ---------- CRUD ----------
 
+def _check_limits(d, email):
+    if len(d) >= MAX_ALERTS:
+        raise ValueError("alert limit reached")
+    if email and sum(s.get("email") == email for s in d.values()) >= MAX_PER_EMAIL:
+        raise ValueError(f"at most {MAX_PER_EMAIL} alerts per email address")
+    if email and sum(s.get("email") == email and not s.get("confirmed") for s in d.values()) >= 3:
+        raise ValueError("this address has 3 unconfirmed alerts: confirm those first (check the inbox)")  # anti-spam
+
+
 def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, email=None, triggers=None, base_url=""):
     ratio, floor = float(ratio), float(min_hotspots)
     if not (0.5 <= ratio <= 20) or not (0 <= floor <= 1000):
@@ -143,6 +152,8 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
     email = (email or "").strip() or None
     if email and not EMAIL_RE.match(email):
         raise ValueError("that does not look like an email address")
+    with _lock:
+        _check_limits(_load(), email)  # before start_aoi: a rejected alert must not start a build
     if region_id:
         area = next((r for r in tools.list_regions() if r["id"] == region_id), None)
         if not area:
@@ -153,12 +164,7 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
         bbox = list(tools.validate_bbox(bbox))
     with _lock:
         d = _load()
-        if len(d) >= MAX_ALERTS:
-            raise ValueError("alert limit reached")
-        if email and sum(s.get("email") == email for s in d.values()) >= MAX_PER_EMAIL:
-            raise ValueError(f"at most {MAX_PER_EMAIL} alerts per email address")
-        if email and sum(s.get("email") == email and not s.get("confirmed") for s in d.values()) >= 3:
-            raise ValueError("this address has 3 unconfirmed alerts: confirm those first (check the inbox)")  # anti-spam
+        _check_limits(d, email)  # again under the lock that writes: two parallel requests cannot both pass
         token = secrets.token_urlsafe(9)
         d[token] = {"region_id": rid, "bbox": bbox, "name": name, "ratio": ratio, "min_hotspots": floor,
                     "created": _now(), "last_notified": None, "triggers": triggers, "email": email,
@@ -242,7 +248,7 @@ def _events(bbox):
     return [x for x in evs if s <= x["lat"] <= n and ((w <= x["lon"] <= e) if w <= e else (x["lon"] >= w or x["lon"] <= e))]
 
 
-def check(token, once=False):
+def check(token, once=False, mark=True):
     """Current state of one alert. once=True is the scheduled poll (n8n or the email loop): each hit is reported
     once (anomaly once per month, outlook at most weekly, each EONET event once), then marked."""
     sub = get(token)
@@ -254,7 +260,8 @@ def check(token, once=False):
     ol = _outlook(sub["bbox"]) if "outlook" in trig else None
     evs = _events(sub["bbox"]) if "events" in trig else None
     extra = {"outlook": ol and {k: ol[k] for k in ("as_of", "next_30_days", "counts", "rising")},
-             "events_in_box": evs}
+             "events_in_box": evs,
+             "events_error": "NASA EONET is unavailable right now" if "events" in trig and evs is None else None}
     new_events = [x for x in (evs or []) if x["title"] not in (sub.get("events_seen") or [])]
     last_ol = sub.get("last_outlook")
     ol_hit = bool(ol and ol["counts"]["watch"])
@@ -275,17 +282,6 @@ def check(token, once=False):
     name = sub["name"] or w["name"]
     hit = "anomaly" in trig and bool(m) and tops(m["value"], m["median_same_days"], sub["ratio"], sub["min_hotspots"])
     new = hit and sub["last_notified"] != m["period"]
-    if once and (new or ol_new or new_events):
-        with _lock:
-            d = _load()
-            if token in d:  # ponytail: marked before delivery; a failed send is not retried
-                if new:
-                    d[token]["last_notified"] = m["period"]
-                if ol_new:
-                    d[token]["last_outlook"] = ol["as_of"]
-                if new_events:
-                    d[token]["events_seen"] = ((d[token].get("events_seen") or []) + [x["title"] for x in new_events])[-200:]
-                _save(d)
     out = {**base, **extra, "name": name, "status": "ready", "triggered": new if once else hit,
            "already_notified": bool(once and hit and not new), "level": w["level"], "as_of": w["as_of"],
            "stale": w["stale"], "refreshing": refreshing, "month": m,
@@ -294,7 +290,24 @@ def check(token, once=False):
                    f"years and at least {sub['min_hotspots']:g} hotspots."}
     if m:
         out["message"] = _message(name, m, w["as_of"])
+    if once and mark:  # n8n polls mark here (n8n sends the mail); send_now marks only after delivery
+        _mark(token, out)
     return out
+
+
+def _mark(token, st):
+    """Record what was reported, so the next scheduled poll does not repeat it."""
+    with _lock:
+        d = _load()
+        if token not in d:
+            return
+        if st.get("triggered") and st.get("month"):
+            d[token]["last_notified"] = st["month"]["period"]
+        if st.get("outlook_triggered") and st.get("outlook"):
+            d[token]["last_outlook"] = st["outlook"]["as_of"]
+        if st.get("new_events"):
+            d[token]["events_seen"] = ((d[token].get("events_seen") or []) + [x["title"] for x in st["new_events"]])[-200:]
+        _save(d)
 
 
 def _digest(sub, st):
@@ -335,7 +348,7 @@ def send_now(token, force=False):
     sent = sub.get("sent") or []
     if force and sent and time.time() - dt.datetime.fromisoformat(sent[-1]["at"]).timestamp() < 600:
         raise ValueError("a message was sent less than 10 minutes ago; try again later")
-    st = check(token, once=not force)
+    st = check(token, once=not force, mark=False)
     if st.get("status") != "ready" and not force:
         return {"sent": False, "reason": "area still building"}
     dg = _digest(sub, st)
@@ -350,6 +363,8 @@ def send_now(token, force=False):
         return {"sent": False, "reason": "nothing new fired"}
     subject, text, paras = dg
     send_email(sub["email"], subject, text, _html(subject, paras, sub, token))
+    if not force:
+        _mark(token, st)
     rec = {"at": _now(), "subject": subject}
     with _lock:
         d = _load()

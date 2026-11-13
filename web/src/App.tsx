@@ -61,17 +61,20 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [search, setSearch] = useState("");
   const [searchErr, setSearchErr] = useState("");
+  const [searching, setSearching] = useState(false);
   const pageRef = useRef<HTMLElement>(null);
   useSmoothScroll(pageRef, pg);
 
   const refreshRegions = useCallback(() => api.regions().then(setRegions).catch(() => setRegions([])), []);
   useEffect(() => {
     refreshRegions();
-    api.health().then((h) => {
+    const ok = (h: Health) => {
       setHealth(h); setOnline(true);
       api.warnings().then(setEw).catch(() => undefined);
       api.outlook().then(setOutlook).catch(() => undefined); // needs the global aggregate; the layer hides without it
-    }).catch(() => setOnline(false));
+    };
+    // one retry: a single network hiccup must not switch the whole session to offline mode
+    api.health().then(ok).catch(() => setTimeout(() => api.health().then(ok).catch(() => setOnline(false)), 3000));
   }, [refreshRegions]);
 
   useEffect(() => {
@@ -167,13 +170,14 @@ export default function App() {
     if (!q) return;
     const hit = regions.find((r) => `${r.name} ${r.country}`.toLowerCase().includes(q.toLowerCase()));
     if (hit) { openRegion(hit.id); return; }
+    setSearching(true);
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`);
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(8000) });
       const [p] = await r.json();
       if (!p) { setSearchErr(`No place called “${q}”.`); return; }
       const [s, n, w, ea] = p.boundingbox.map(Number);
       setFocus({ bbox: [w, s, ea, n], n: Date.now() });
-    } catch { setSearchErr("Place search is unavailable right now."); }
+    } catch { setSearchErr("Place search is unavailable right now."); } finally { setSearching(false); }
   };
 
   const startBuild = async (box = draft, name?: string) => {
@@ -215,8 +219,9 @@ export default function App() {
           ))}
         </nav>
         {pg === "explore" && <>
-        <form className="search" onSubmit={doSearch} role="search">
+        <form className="search" onSubmit={doSearch} role="search" aria-busy={searching}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search a place or area" aria-label="Search a place or area" />
+          {searching && <span className="search-err" role="status">Searching…</span>}
           {searchErr && <span className="search-err" role="alert">{searchErr}</span>}
         </form>
         <div className="datebox" aria-label="Map date">
@@ -362,7 +367,7 @@ export default function App() {
                   {newsOpen && <RangeNews r={region} bounds={yearBounds} onOpen={selectPeriod}
                     onAsk={(q) => { setAnalystOpen(true); setSeed(q); }} onClose={() => setNewsOpen(false)} />}
                   {scale === "raw" && view === "value" && <p className="warn small">Raw counts rise with every satellite added and are not comparable across years. Use the Aqua or VIIRS scale for trends.</p>}
-                  <Calendar block={block} scale={view !== "value" ? "hotspots" : scale} cls={cls} view={view} weekly={granularity === "week"} years={years} selected={period} onOpen={selectPeriod} />
+                  <Calendar key={granularity} block={block} scale={view !== "value" ? "hotspots" : scale} cls={cls} view={view} weekly={granularity === "week"} years={years} selected={period} onOpen={selectPeriod} />
                 </>
               )}
               {tab === "season" && <SeasonView r={region} />}
