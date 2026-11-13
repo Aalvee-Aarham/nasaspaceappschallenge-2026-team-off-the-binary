@@ -77,6 +77,44 @@ def test_failed_send_is_retried():
         alerts.send_email = real
 
 
+def test_first_alert_goes_out_on_confirm():
+    """Confirming a subscription on an area that is already above threshold mails at once, and only once."""
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    real_send, real_ready, sent = alerts.send_email, alerts.smtp_ready, []
+    alerts.send_email = lambda to, subject, text, html_body=None: sent.append((to, subject))
+    alerts.smtp_ready = lambda: True
+    try:
+        a = alerts.create(region_id=_hot_area(), ratio=0.5, min_hotspots=0, email="test@example.com", base_url="http://x")
+        assert len(sent) == 1  # the confirmation mail only
+        sent.clear()
+        code = alerts._load()[a["token"]]["code"]
+        alerts.confirm(a["token"], code)
+        first = alerts.notify_first(a["token"])
+        assert first["sent"] is True and len(sent) == 1 and sent[0][0] == "test@example.com", (first, sent)
+        assert alerts.notify_first(a["token"])["sent"] is False and len(sent) == 1  # a second click repeats nothing
+    finally:
+        alerts.send_email, alerts.smtp_ready = real_send, real_ready
+
+
+def test_first_alert_failure_never_breaks_confirm():
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    real_send, real_ready = alerts.send_email, alerts.smtp_ready
+    alerts.smtp_ready = lambda: True
+    try:
+        alerts.send_email = lambda *a, **k: None
+        a = alerts.create(region_id=_hot_area(), ratio=0.5, min_hotspots=0, email="test@example.com", base_url="http://x")
+        alerts.confirm(a["token"], alerts._load()[a["token"]]["code"])
+
+        def boom(*a, **k):
+            raise RuntimeError("535 bad credentials")
+        alerts.send_email = boom
+        res = alerts.notify_first(a["token"])  # must return, not raise
+        assert res["sent"] is False and "535" in res["error"], res
+        assert alerts.check(a["token"], once=True)["triggered"] is True  # still due: the loop retries it
+    finally:
+        alerts.send_email, alerts.smtp_ready = real_send, real_ready
+
+
 def test_eonet_outage_is_reported():
     """'EONET is down' must not look like 'no events here'."""
     alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"

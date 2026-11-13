@@ -20,6 +20,7 @@ def test_health_reports_serverless():
 
 class _Req:
     base_url = "http://evil.example/"  # what a forged Host header would produce
+    headers: dict = {}                 # no Origin header
 
 
 def test_links_never_come_from_host_header_when_email_is_on():

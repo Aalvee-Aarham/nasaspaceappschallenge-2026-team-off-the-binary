@@ -12,6 +12,7 @@ SMTP_PASSWORD, SMTP_FROM); without it, alerts still work through n8n or the poll
 import datetime as dt
 import html
 import json
+import logging
 import os
 import re
 import secrets
@@ -30,6 +31,14 @@ MAX_PER_EMAIL = 20
 TRIGGERS = ("anomaly", "outlook", "events")
 EMAIL_RE = re.compile(r"^[^@\s<>\"']{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,}$")
 _lock = threading.Lock()  # ponytail: one file + one lock; move to SQLite if alerts or writers grow
+
+log = logging.getLogger("kw.alerts")
+if not log.handlers:  # uvicorn only configures its own loggers; without this our INFO lines would vanish
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s kw.alerts: %(message)s"))
+    log.addHandler(_h)
+    log.setLevel(logging.INFO)
+    log.propagate = False
 
 
 def _load():
@@ -179,6 +188,7 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
             email_status = "confirmation_sent"
         except Exception as ex:  # surfaced, never swallowed: the UI tells the user to use n8n instead
             email_status = f"not_sent: {str(ex)[:160]}"
+            log.error("confirmation email for alert %s... failed: %s", token[:3], ex)
     return {"token": token, **public(sub), "email_status": email_status}
 
 
@@ -371,7 +381,24 @@ def send_now(token, force=False):
         if token in d:
             d[token]["sent"] = ((d[token].get("sent") or []) + [rec])[-50:]
             _save(d)
+    log.info("alert %s... emailed: %s", token[:3], subject)
     return {"sent": True, **rec}
+
+
+def notify_first(token):
+    """Right after the confirm link is clicked: check the alert and mail whatever has already fired, so a subscriber
+    on a hot area gets the first message in seconds instead of at the next scheduled pass. Never raises; the confirm
+    page reports the outcome. Anything not sent now is picked up by the loop (an area still building, a failed send)."""
+    if not smtp_ready():
+        return {"sent": False, "reason": "email delivery is not configured on this server"}
+    try:
+        res = send_now(token)
+    except Exception as ex:  # noqa: BLE001 - confirming must succeed even when the first mail cannot go out
+        log.error("first alert for %s... failed: %s", token[:3], ex)
+        return {"sent": False, "error": str(ex)[:160]}
+    if not res.get("sent"):
+        log.info("first alert for %s... not sent: %s", token[:3], res.get("reason"))
+    return res
 
 
 def deliver_all():
@@ -382,6 +409,7 @@ def deliver_all():
             try:
                 done.append({"token": token[:3] + "…", **send_now(token)})
             except Exception as ex:  # one bad alert never stops the others
+                log.error("delivery for alert %s... failed: %s", token[:3], ex)
                 done.append({"token": token[:3] + "…", "sent": False, "error": str(ex)[:160]})
     return done
 
@@ -395,9 +423,11 @@ def start_loop(every_h=None):
         while True:
             if smtp_ready():
                 try:
-                    deliver_all()
+                    done = deliver_all()
+                    log.info("delivery pass: %d alerts checked, %d emailed, %d failed", len(done),
+                             sum(bool(x.get("sent")) for x in done), sum(bool(x.get("error")) for x in done))
                 except Exception:  # noqa: BLE001 - the loop must survive anything
-                    pass
+                    log.exception("delivery pass crashed")
             time.sleep(every)
 
     threading.Thread(target=run, daemon=True, name="alert-email").start()
