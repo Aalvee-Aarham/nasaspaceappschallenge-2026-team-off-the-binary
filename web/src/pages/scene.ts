@@ -74,11 +74,16 @@ const DPR = 1.5; // sharper than this costs more frames than it buys
 
 // ---------- shaders ----------
 const HOLO_VS = `varying vec3 vN; varying vec3 vV; varying vec2 vUv;
-void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.); vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }`;
-// hologram: a dark navy solid whose faces glow where they turn away from the camera; the model's own texture is kept as faint panel detail
+void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.); vN=normalMatrix*normal; vV=-mv.xyz; gl_Position=projectionMatrix*mv; }`;
+// hologram: a dark navy solid whose faces glow where they turn away from the camera; the model's own texture is kept as faint panel detail.
+// NaN guards: one NaN pixel (normalize(0) on a degenerate normal, or pow() of a value rounded just below 0) is smeared by
+// the bloom pass into a black box, so every pow() base is clamped and zero-length normals fall back to the view direction
+const SAFE_N = `vec3 safeN(vec3 n, vec3 fb){ float l=dot(n,n); return l>1e-12 ? n*inversesqrt(l) : fb; }`;
 const HOLO_FS = `uniform sampler2D map; uniform float hasMap; uniform float op; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+${SAFE_N}
 void main(){
-  float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),2.4);
+  vec3 v=safeN(vV,vec3(0.,0.,1.));
+  float f=pow(clamp(1.-abs(dot(safeN(vN,v),v)),0.,1.),2.4);
   float lum=hasMap>.5 ? dot(texture2D(map,vUv).rgb,vec3(.3,.59,.11)) : .3;
   vec3 c=vec3(.005,.03,.15)*(.35+1.5*lum)+vec3(.03,.22,.7)*f;
   gl_FragColor=vec4(c,op);
@@ -92,7 +97,7 @@ const EARTH_FS = `uniform sampler2D day; uniform sampler2D water; uniform vec3 s
 varying vec2 vUv; varying vec3 vN; varying vec3 vW;
 const float ROWS=230.;
 void main(){
-  vec3 n=normalize(vN); vec3 v=normalize(cameraPosition-vW); float facing=max(dot(v,n),0.);
+  vec3 n=normalize(vN); vec3 v=normalize(cameraPosition-vW); float facing=clamp(dot(v,n),0.,1.);
   float lit=smoothstep(-.3,.7,dot(n,sun));
   vec3 img=texture2D(day,vUv).rgb; float g=dot(img,vec3(.3,.59,.11));
   vec3 base=mix(vec3(g),img,.3)*(.006+.1*lit)*vec3(.8,.9,1.15);
@@ -100,7 +105,7 @@ void main(){
   float cols=max(4.,floor(ROWS*2.*sin(3.14159265*(row+.5)/ROWS)));
   float cx=vUv.x*cols;
   float land=1.-texture2D(water,vec2((floor(cx)+.5)/cols,(row+.5)/ROWS)).r;
-  float aa=min(fwidth(lat)*1.3,.24);
+  float aa=clamp(fwidth(lat)*1.3,1e-3,.24);
   float dotm=1.-smoothstep(.27-aa,.27+aa,length(vec2(fract(cx),fract(lat))-.5));
   vec3 dc=mix(vec3(.006,.03,.09),vec3(.07,.21,.54),land)*(.3+.7*lit);
   vec3 col=base*(1.-.75*dots)+dc*dotm*dots*smoothstep(0.,.3,facing);
@@ -123,8 +128,8 @@ void main(){
 const GRID_VS = `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`;
 const GRID_FS = `uniform float op; varying vec3 vP;
 void main(){
-  vec2 q=vP.xy*7.; vec2 g=abs(fract(q-.5)-.5)/fwidth(q); float line=1.-min(min(g.x,g.y),1.);
-  float fall=smoothstep(2.1,.1,length(vP.xy));
+  vec2 q=vP.xy*7.; vec2 g=abs(fract(q-.5)-.5)/max(fwidth(q),vec2(1e-4)); float line=1.-min(min(g.x,g.y),1.);
+  float fall=1.-smoothstep(.1,2.1,length(vP.xy));
   gl_FragColor=vec4(vec3(.035,.045,.062)*line*fall*op,1.);
 }`;
 
@@ -134,9 +139,10 @@ void main(){ vec4 mv=modelViewMatrix*vec4(position,1.); vF=.72+.2*sin(t*2.3+ph)+
 const FIRE_FS = `uniform float op; varying float vF;
 void main(){ float d=length(gl_PointCoord-.5)*2.; float a=pow(max(1.-d,0.),2.6); vec3 c=mix(vec3(1.,.28,.05),vec3(1.,.8,.45),pow(max(1.-d*2.2,0.),2.)); gl_FragColor=vec4(c*a*op*vF*.85,1.); }`;
 // the hero satellite's scan beam: a faint cone with a bright band sweeping down to the ground
+// (smoothstep with edge0 > edge1 is undefined in GLSL, so the falling edges are written as 1 - smoothstep)
 const BEAM_VS = `varying float vH; void main(){ vH=position.y+.5; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`;
 const BEAM_FS = `uniform float op; uniform float t; varying float vH;
-void main(){ float a=(.04+.22*pow(1.-vH,1.6))*smoothstep(1.,.8,vH); float scan=smoothstep(.07,0.,abs(fract(t*.32)-(1.-vH)));
+void main(){ float h=clamp(vH,0.,1.); float a=(.04+.22*pow(1.-h,1.6))*(1.-smoothstep(.8,1.,h)); float scan=1.-smoothstep(0.,.07,abs(fract(t*.32)-(1.-h)));
   gl_FragColor=vec4(vec3(.1,.55,1.)*(a+scan*.5)*op,1.); }`;
 
 const additive = { blending: THREE.AdditiveBlending, transparent: true, depthWrite: false } as const;
