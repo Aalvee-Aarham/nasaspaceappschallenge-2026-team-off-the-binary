@@ -1,39 +1,8 @@
 import { useEffect, useState } from "react";
-import { CaseVerdict, CasebookOverview, ExposureResponse, api, fmt } from "../api";
+import { CaseVerdict, CasebookOverview, api, fmt } from "../api";
 import { CaseCard, CellMap, Icon, LABEL, VerdictChips, compact, peopleShade, useCases, useExposure } from "../casebook";
-import { FacilityTable, FarmSection, PlaceCheck } from "../exposure";
+import { FarmSection, PeopleSection, PlaceCheck } from "../exposure";
 import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
-
-/** People living in the cells that had fire, per year: one series, hover to read, a table on demand. */
-function PeopleByYear({ rows }: { rows: NonNullable<ExposureResponse["by_year"]> }) {
-  const [table, setTable] = useState(false);
-  const [hover, setHover] = useState<number | null>(null);
-  const W = 640, L = 46, R = 10, T = 12, B = 24, H = 200;
-  const max = Math.max(1, ...rows.map((r) => r.population));
-  const px = (i: number) => L + (rows.length > 1 ? (i / (rows.length - 1)) * (W - L - R) : 0);
-  const py = (v: number) => T + (1 - v / max) * (H - T - B);
-  const pts = rows.map((r, i) => `${px(i)},${py(r.population)}`).join(" ");
-  const hv = hover == null ? null : rows[hover];
-  return (
-    <figure className="cx-fig">
-      <svg viewBox={`0 0 ${W} ${H}`} className="cx-line" role="img" aria-label="People living in the cells that had fire, per year. A table is available below."
-        onMouseLeave={() => setHover(null)}
-        onMouseMove={(ev) => { const b = ev.currentTarget.getBoundingClientRect(); const fx = ((ev.clientX - b.left) / b.width) * W; setHover(Math.max(0, Math.min(rows.length - 1, Math.round(((fx - L) / (W - L - R)) * (rows.length - 1))))); }}>
-        {[0, max / 2, max].map((t) => <g key={t}><line x1={L} x2={W - R} y1={py(t)} y2={py(t)} className="gridline" /><text x={L - 6} y={py(t) + 3} className="axis" textAnchor="end">{compact(t)}</text></g>)}
-        <polygon points={`${px(0)},${py(0)} ${pts} ${px(rows.length - 1)},${py(0)}`} fill="#3987e5" opacity={0.16} />
-        <polyline points={pts} fill="none" stroke="#3987e5" strokeWidth={2} />
-        {[0, Math.floor(rows.length / 2), rows.length - 1].map((i) => <text key={i} x={px(i)} y={H - 6} className="axis" textAnchor={i === 0 ? "start" : i === rows.length - 1 ? "end" : "middle"}>{rows[i].year}</text>)}
-        {hv && <g><line x1={px(hover!)} x2={px(hover!)} y1={T} y2={H - B} stroke="#97A3B3" /><circle cx={px(hover!)} cy={py(hv.population)} r={4} fill="#3987e5" stroke="#030508" strokeWidth={2} /></g>}
-      </svg>
-      <figcaption>
-        <p className="small" aria-live="polite">{hv ? <><b>{hv.year}</b>: about <b>{fmt(hv.population)}</b> people in {fmt(hv.fire_cells)} cells with fire.</> : "Point at the chart to read a year."}</p>
-        <button className="link small" onClick={() => setTable(!table)} aria-expanded={table}>{table ? "Hide" : "Show"} as a table</button>
-        {table && <div className="scroll"><table className="tbl"><thead><tr><th>Year</th><th>Cells with fire</th><th>People</th><th>Hospitals</th><th>Schools</th><th>Farmland km²</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.year}><td>{r.year}</td><td className="num">{fmt(r.fire_cells)}</td><td className="num">{fmt(r.population)}</td><td className="num">{fmt(r.hospitals)}</td><td className="num">{r.schools == null ? "–" : fmt(r.schools)}</td><td className="num">{r.cropland_km2 == null ? "–" : fmt(r.cropland_km2)}</td></tr>)}</tbody></table></div>}
-      </figcaption>
-    </figure>
-  );
-}
 
 export default function CasesPage({ regions, online, area }: PageProps) {
   const presets = regions.filter((r) => r.preset);
@@ -45,13 +14,14 @@ export default function CasesPage({ regions, online, area }: PageProps) {
   const [filter, setFilter] = useState<CaseVerdict | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [place, setPlace] = useState<{ lat: number; lon: number; label: string; n: number } | null>(null);
-  const [facTab, setFacTab] = useState<"schools" | "hospitals">("schools");
+  const [side, setSide] = useState<"cases" | "people">("cases");
+  const [hi, setHi] = useState<[number, number] | null>(null);
   const check = (lat: number, lon: number, label: string) => {
     setPlace((p) => ({ lat, lon, label, n: (p?.n ?? 0) + 1 }));
     requestAnimationFrame(() => document.getElementById("ex-place")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
   useEffect(() => { if (online) api.casebook().then(setAll).catch(() => setAll(null)); }, [online]);
-  useEffect(() => { setSel(null); setFilter(null); setPlace(null); }, [id]);
+  useEffect(() => { setSel(null); setFilter(null); setPlace(null); setSide("cases"); setHi(null); }, [id]);
 
   const data = cs.data, e = ex.data;
   const rows = (data?.cases ?? []).filter((c) => !filter || c.verdict === filter);
@@ -60,8 +30,8 @@ export default function CasesPage({ regions, online, area }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Casebook" title="Cases & exposure"
-        lead="Each fire is checked against other sources: which fires the satellites confirmed, which they missed, and how many people live nearby." />
+      <PageHead kicker="Exposure" title="Cases & exposure"
+        lead="Who lives, learns and farms where fire is detected: people, schools, hospitals and farmland in every 11 km cell that has had fire since 2000." />
 
       {!online ? <Offline what="This page" /> : <>
         <div className="cx-pick">
@@ -69,76 +39,60 @@ export default function CasesPage({ regions, online, area }: PageProps) {
           {info?.story && <p className="muted small">{info.story}</p>}
         </div>
 
-        <div className="cx-stats" aria-live="polite">
-          <div className="cx-stat"><span>Fire cases</span><b>{data ? fmt(data.cases.length) : "…"}</b></div>
-          <div className="cx-stat"><span>Record missed it</span><b>{data ? fmt(data.counts.agency_only) : "…"}</b></div>
-          <div className="cx-stat"><span>People in fire cells</span><b>{e ? compact(e.population) : ex.err ? "–" : "…"}</b></div>
-          <div className="cx-stat"><span>Hospitals in them</span><b>{e ? (e.hospitals == null ? "–" : fmt(e.hospitals)) : "…"}</b></div>
-          <div className="cx-stat"><span>Schools in them</span><b>{e ? (e.schools == null ? "–" : fmt(e.schools)) : "…"}</b></div>
-          <div className="cx-stat"><span>Farmland in them</span><b>{e ? (e.farmland ? `${compact(e.farmland.cropland_km2)} km²` : "–") : "…"}</b></div>
-        </div>
-
-        {cs.err && <p className="muted">No cases for this area yet.</p>}
-
-        {data && info && (
+        {info && (
           <section className="cx-wide" aria-labelledby="cx-map-h">
-            <h2 id="cx-map-h">Map and cases</h2>
+            <h2 id="cx-map-h">Where fire meets people</h2>
             <div className="cx-split">
               <figure className="cx-fig">
-                {e?.map_cells ? <CellMap bbox={info.bbox} cells={e.map_cells} cases={rows} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : <div className="skeleton tall" />}
-                {e?.map_cells && (
-                  <figcaption className="cx-key">
-                    <span className="cx-ramp"><i style={{ background: `linear-gradient(90deg, ${peopleShade(0, 1e6)}, ${peopleShade(1e3, 1e6)}, ${peopleShade(1e6, 1e6)})` }} />lighter cell = more people</span>
-                    <span>Each square is an 11 km cell where fire was seen since 2000. Click one for its fire history.</span>
-                  </figcaption>
-                )}
+                {e?.map_cells ? <CellMap bbox={info.bbox} cells={e.map_cells} cases={side === "cases" ? rows : []} hi={hi} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : ex.err ? <p className="muted">No exposure data for this area yet.</p> : <div className="skeleton tall" />}
               </figure>
-              <div className="cx-side">
-                <VerdictChips counts={data.counts} active={filter} onPick={(v) => { setFilter(v); setSel(null); }} />
-                {chosen ? <CaseCard c={chosen} onClose={() => setSel(null)} /> : (
-                  <ul className="cp-list tall" aria-label="Cases">
-                    {rows.map((c) => <li key={c.id}><button onClick={() => setSel(c.id)}><Icon v={c.verdict} /><span className="t">{c.title}</span><span className="d">{c.date.slice(0, 7)} · {LABEL[c.verdict]}</span></button></li>)}
-                  </ul>
-                )}
-              </div>
+              <div className="cx-side"><div className="cx-side-in">
+                {e && <p className="small cx-sum">Fire was detected in <b>{fmt(e.fire_cells)}</b> cells here, home to about <b>{compact(e.population)}</b> people, <b>{e.schools == null ? "–" : fmt(e.schools)}</b> schools and <b>{e.hospitals == null ? "–" : fmt(e.hospitals)}</b> hospitals.</p>}
+                <div className="cx-panel">
+                  <div className="cx-tabs" role="tablist" aria-label="What the map shows">
+                    <button role="tab" aria-selected={side === "cases"} className={side === "cases" ? "on" : ""} onClick={() => { setSide("cases"); setHi(null); }}>Fire cases{data ? ` · ${fmt(data.cases.length)}` : ""}</button>
+                    <button role="tab" aria-selected={side === "people"} className={side === "people" ? "on" : ""} onClick={() => { setSide("people"); setSel(null); }}>Most people</button>
+                  </div>
+                  {side === "cases" ? <>
+                    <p className="muted small">Known fires, checked against NASA EONET, GDACS and the news.{data && data.counts.agency_only > 0 && <> The satellite record missed <b>{fmt(data.counts.agency_only)}</b>.</>}</p>
+                    {cs.err ? <p className="muted small">No cases for this area yet.</p> : !data ? <div className="skeleton" /> : <>
+                      <VerdictChips counts={data.counts} active={filter} onPick={(v) => { setFilter(v); setSel(null); }} />
+                      {chosen ? <CaseCard c={chosen} onClose={() => setSel(null)} /> : (
+                        <ul className="cp-list" aria-label="Cases">
+                          {rows.map((c) => <li key={c.id}><button onClick={() => setSel(c.id)}><Icon v={c.verdict} /><span className="t">{c.title}</span><span className="d">{c.date.slice(0, 7)} · {LABEL[c.verdict]}</span></button></li>)}
+                        </ul>
+                      )}
+                    </>}
+                  </> : <>
+                    <p className="muted small">Cells with fire where the most people live. Point at one to find it on the map; click for its fire history.</p>
+                    {e?.top_cells?.length ? (
+                      <ul className="cp-list" aria-label="Cells with the most people" onMouseLeave={() => setHi(null)}>
+                        {e.top_cells.slice(0, 10).map((c) => (
+                          <li key={`${c.lat},${c.lon}`}><button onMouseEnter={() => setHi([c.lat, c.lon])} onFocus={() => setHi([c.lat, c.lon])}
+                            onClick={() => check(c.lat + 0.05, c.lon + 0.05, `Cell ${c.lat.toFixed(1)}°, ${c.lon.toFixed(1)}°`)}>
+                            <span className="cx-rank">{compact(c.population)}</span><span className="t">people in cell {c.lat.toFixed(1)}°, {c.lon.toFixed(1)}°</span>
+                            <span className="d">fire in {fmt(c.months_with_fire)} months · {c.schools == null ? "–" : fmt(c.schools)} {c.schools === 1 ? "school" : "schools"} · {fmt(c.hospitals)} {c.hospitals === 1 ? "hospital" : "hospitals"}</span>
+                          </button></li>
+                        ))}
+                      </ul>
+                    ) : <p className="muted small">No populated cells with fire here.</p>}
+                  </>}
+                </div>
+              </div></div>
             </div>
+            {e?.map_cells && (
+              <p className="cx-key">
+                <span className="cx-ramp"><i style={{ background: `linear-gradient(90deg, ${peopleShade(0, 1e6)}, ${peopleShade(1e3, 1e6)}, ${peopleShade(1e6, 1e6)})` }} />brighter cell = more people</span>
+                <span>Each square is an 11 km cell where fire was seen since 2000. Click one for its fire history.</span>
+              </p>
+            )}
           </section>
         )}
 
         {e && (
           <section aria-labelledby="cx-p-h">
-            <h2 id="cx-p-h">People, hospitals and schools near fire</h2>
-            {e.by_year && e.by_year.length > 1 && <>
-              <h3>People living in the cells with fire, each year</h3>
-              <PeopleByYear rows={e.by_year} />
-            </>}
-            {e.top_cells && e.top_cells.length > 0 && <>
-              <h3>Places with the most people: look here first</h3>
-              <div className="scroll">
-                <table className="tbl">
-                  <thead><tr><th scope="col">Cell</th><th scope="col">People</th><th scope="col">Months with fire</th><th scope="col">Hospitals</th><th scope="col">Schools</th></tr></thead>
-                  <tbody>{e.top_cells.slice(0, 5).map((c) => <tr key={`${c.lat},${c.lon}`}><td className="num">{c.lat.toFixed(1)}°, {c.lon.toFixed(1)}°</td><td className="num">{fmt(c.population)}</td><td className="num">{fmt(c.months_with_fire)}</td><td className="num">{fmt(c.hospitals)}</td><td className="num">{c.schools == null ? "–" : fmt(c.schools)}</td></tr>)}</tbody>
-                </table>
-              </div>
-            </>}
-            <p className="muted small">{e.caveat}</p>
-          </section>
-        )}
-
-        {e && (
-          <section aria-labelledby="cx-f-h">
-            <h2 id="cx-f-h">Which schools and hospitals sit where fire is seen</h2>
-            <div className="ex-tabs" role="tablist" aria-label="Schools or hospitals">
-              {(["schools", "hospitals"] as const).map((k) => (
-                <button key={k} role="tab" aria-selected={facTab === k} className={`btn ghost${facTab === k ? " on" : ""}`} onClick={() => setFacTab(k)}>
-                  {k === "schools" ? `Schools${e.schools == null ? "" : ` · ${fmt(e.schools)}`}` : `Hospitals${e.hospitals == null ? "" : ` · ${fmt(e.hospitals)}`}`}
-                </button>
-              ))}
-            </div>
-            {facTab === "schools"
-              ? <FacilityTable key={`s-${id}`} kind="schools" rows={e.school_list ?? []} total={e.schools} named={e.schools_named} months={e.months_in_record} onCheck={check} />
-              : <FacilityTable key={`h-${id}`} kind="hospitals" rows={e.hospital_list} total={e.hospitals} named={null} months={e.months_in_record} onCheck={check} />}
-            <p className="muted small">A school or hospital is listed when fire was detected somewhere in its 11 km cell. That is a reason to look, not a sign the building was reached. Smoke can travel much further than a cell; there is no smoke model here.</p>
+            <h2 id="cx-p-h">For families: people, schools and hospitals near fire</h2>
+            <PeopleSection key={id ?? ""} e={e} onCheck={check} />
           </section>
         )}
 

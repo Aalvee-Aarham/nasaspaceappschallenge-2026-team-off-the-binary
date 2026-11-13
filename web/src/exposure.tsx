@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Facility, Farmland, MONTH_SHORT, MONTHS, PlaceExposure, api, fmt, periodLabel } from "./api";
+import { ExposureResponse, Facility, Farmland, MONTH_SHORT, MONTHS, PlaceExposure, api, fmt, periodLabel } from "./api";
 import { compact } from "./casebook";
 import { saveAlerts, savedAlerts } from "./pages/shared";
 
@@ -45,6 +45,27 @@ export function FacilityTable({ kind, rows, total, named, months, onCheck }: {
       </div>
       {hits.length === 0 && <p className="muted small">No {kind === "schools" ? "school" : "hospital"} in the list matches "{q}". The list holds the named ones in the cells with fire most often; check a place by its coordinates below.</p>}
       {hits.length > 10 && <button className="link small" onClick={() => setAll(!all)} aria-expanded={all}>{all ? "Show the first 10" : `Show all ${fmt(hits.length)}`}</button>}
+    </div>
+  );
+}
+
+/** People, schools and hospitals in cells with fire: built like FarmSection (stats, when, where, then the named places). */
+export function PeopleSection({ e, onCheck }: { e: ExposureResponse; onCheck: (lat: number, lon: number, label: string) => void }) {
+  const [tab, setTab] = useState<"schools" | "hospitals">("schools");
+  return (
+    <div className="ex-people">
+      <h3 className="ex-first">Schools and hospitals where fire is detected most often</h3>
+      <div className="ex-tabs" role="tablist" aria-label="Schools or hospitals">
+        {(["schools", "hospitals"] as const).map((k) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={`btn ghost${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
+            {k === "schools" ? `Schools${e.schools == null ? "" : ` · ${fmt(e.schools)}`}` : `Hospitals${e.hospitals == null ? "" : ` · ${fmt(e.hospitals)}`}`}
+          </button>
+        ))}
+      </div>
+      {tab === "schools"
+        ? <FacilityTable key="s" kind="schools" rows={e.school_list ?? []} total={e.schools} named={e.schools_named} months={e.months_in_record} onCheck={onCheck} />
+        : <FacilityTable key="h" kind="hospitals" rows={e.hospital_list} total={e.hospitals} named={null} months={e.months_in_record} onCheck={onCheck} />}
+      <p className="muted small">{e.population_source?.source} ({e.population_source?.vintage}, modelled) for people; OpenStreetMap for schools and hospitals. A place is listed when fire was detected somewhere in its 11 km cell: a reason to look, not a sign it was reached. Smoke travels further; there is no smoke model here. {e.caveat}</p>
     </div>
   );
 }
