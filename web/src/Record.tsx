@@ -221,9 +221,9 @@ function Legend({ view, vmax, scale }: { view: string; vmax: number; scale: Scal
 
 // ---------------- charts ----------------
 
-type Line = { name: string; color: string; vals: Num[]; dash?: string; wide?: boolean };
+export type Line = { name: string; color: string; vals: Num[]; dash?: string; wide?: boolean };
 
-function LineChart({ x, lines, band, logY, marks, label, name, yFmt = (v: number) => fmt(v) }: {
+export function LineChart({ x, lines, band, logY, marks, label, name, yFmt = (v: number) => fmt(v) }: {
   x: string[]; lines: Line[]; band?: { lo: Num[]; hi: Num[]; color: string }; logY?: boolean; marks?: { at: number; color: string; text: string }[];
   label: string; name: string; yFmt?: (v: number) => string;
 }) {

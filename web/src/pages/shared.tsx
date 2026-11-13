@@ -2,10 +2,12 @@ import { ReactNode, RefObject, useEffect, useState } from "react";
 import Lenis from "lenis";
 import { Level, LEVEL_LABEL, Region, RegionItem, api } from "../api";
 
-export type Page = "home" | "explore" | "warning" | "news" | "download" | "create" | "method" | "mcp" | "n8n";
+export type Page = "home" | "explore" | "warning" | "after" | "bangladesh" | "news" | "download" | "create" | "method" | "mcp" | "n8n";
+/** Every routable page (hash links); `PAGES` is the shorter top-bar list. */
+export const ALL_PAGES: readonly Page[] = ["home", "explore", "warning", "after", "method", "bangladesh", "mcp", "n8n", "news", "download", "create"];
 export const PAGES: readonly (readonly [Page, string])[] = [
-  ["home", "Home"], ["explore", "Explorer"], ["warning", "Early warning"], ["news", "News"], ["download", "Download"],
-  ["create", "Create"], ["method", "Method"], ["mcp", "Claude MCP"], ["n8n", "n8n"],
+  ["explore", "Explorer"], ["warning", "Early warning"], ["after", "After MODIS"],
+  ["method", "Proof"], ["bangladesh", "Bangladesh"], ["mcp", "Connect"],
 ];
 
 export type PageProps = {

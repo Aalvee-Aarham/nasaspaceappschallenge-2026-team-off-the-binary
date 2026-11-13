@@ -56,6 +56,8 @@ export type Meta = {
   placebo: { n: number; excess_p05: number; excess_median: number; excess_p95: number; dates: string } | null;
   trend: Record<"2003-2020" | "full", Record<"harmonized" | "aqua_only" | "raw_all_sensors", Trend>>;
   drift: Record<string, [number, number][]>;
+  warning_backtest?: { scored: boolean; by_day?: Record<string, { elevated?: { pss: Num; pod: Num; far: Num; hits: number; base_rate: Num } }> } | null;
+  aqua_overpass?: { years: Record<string, number>; n: Record<string, number>; baseline_hour: Num; orbit_onset?: string | null; version_change?: { version: string; from: string } | null; onset: string | null; rule: string } | null;
   season: Season | null;
   current: { period: string; days: number; partial: boolean; value: number; lo: number; hi: number; median: number; higher_than: number; n_prior: number; rank: number; prior: [number, number][]; sentence: string } | null;
   answers: { peak_months: number[]; peak_share_pct: number; top_years: [number, number][]; sentences: string[] };

@@ -9,7 +9,9 @@ import { Create, Download } from "./pages/Data";
 import { Mcp, N8n } from "./pages/Connect";
 import MethodPage from "./pages/Method";
 import News from "./pages/News";
-import { LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
+import AfterModis from "./pages/AfterModis";
+import Bangladesh from "./pages/Bangladesh";
+import { ALL_PAGES, LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
 import EarlyWarning from "./pages/Warning";
 import Timeline from "./Timeline";
 
@@ -17,7 +19,7 @@ const Landing = lazy(() => import("./pages/Home")); // three.js + gsap load only
 
 type Tab = "calendar" | "season" | "continuity";
 const TABS: Tab[] = ["calendar", "season", "continuity"];
-const PAGE_IDS = PAGES.map(([k]) => k) as string[];
+const PAGE_IDS = ALL_PAGES as readonly string[];
 const SCALES: Scale[] = ["hotspots", "viirs", "celldays", "raw"];
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
 
@@ -242,6 +244,8 @@ export default function App() {
         <main className="page" id="main" key={pg} ref={pageRef}>
           <div className="page-in">
             {pg === "warning" && <EarlyWarning {...pageProps} />}
+            {pg === "after" && <AfterModis {...pageProps} />}
+            {pg === "bangladesh" && <Bangladesh {...pageProps} />}
             {pg === "news" && <News {...pageProps} />}
             {pg === "download" && <Download {...pageProps} />}
             {pg === "create" && <Create {...pageProps} job={job} build={(b, n) => startBuild(b, n)} goDraw={() => { setPg("explore"); setDrawing(true); }} />}
