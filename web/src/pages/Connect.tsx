@@ -30,6 +30,8 @@ const TOOLS: [string, [string, string][]][] = [
     ["get_latest_fire_news", "Worldwide wildfire headlines and events of the last days, 7 languages."],
     ["get_gdacs_wildfires", "GDACS wildfire alerts with burned area, optionally inside a box."],
     ["search_fire_reports / search_timeline_reports", "Reports matched month by month against the record, with a verdict."],
+    ["get_fire_cases", "Fire cases heard by independent witnesses, with a verdict; agency_only lists fires the record missed."],
+    ["get_exposure", "Population, hospitals and major roads in the cells where the record shows fire. Context, not impact."],
   ]],
   ["Alerts", [
     ["subscribe_email_alert", "Email for any box: anomaly, 30-day watch, new events. Double opt-in."],

@@ -67,6 +67,21 @@ def regions():
     return {"regions": tools.list_regions()}
 
 
+@app.get("/api/regions/{rid}/cases")
+def cases(rid: str, verdict: str | None = None, limit: int = 50):
+    return _guard(tools.list_cases, rid, verdict, min(max(limit, 1), 200))
+
+
+@app.get("/api/regions/{rid}/cases/{case_id}")
+def case_detail(rid: str, case_id: str):
+    return _guard(tools.get_case, rid, case_id)
+
+
+@app.get("/api/regions/{rid}/exposure")
+def exposure(rid: str, period: str | None = None):
+    return _guard(tools.exposure, rid, period)
+
+
 @app.get("/api/regions/{rid}/summary")
 def summary(rid: str):
     return _guard(tools.region_summary, rid)

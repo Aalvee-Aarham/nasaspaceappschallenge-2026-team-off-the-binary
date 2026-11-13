@@ -353,6 +353,8 @@ def _block(agg, keys, cov, partial, cals, k_scale):
             "hotspots": hot, "viirs_scale": _viirs_scale(keys, parts, cal), "celldays": _band(cd_v, cd_var),
             "aqua_only": [_r(x) for x in aqua_only], "history": sc.versus_history(v, keys, partial),
         }
+        if cls == "veg":  # the VIIRS-only series, the cross-family witness of the casebook (veg only: static is persistent heat)
+            block["classes"][cls]["viirs_only"] = [_r(x) for x in _hotspots(agg, keys, cov, cls, cal, set(VIIRS))[0]]
     for s in RAW_KEYS:
         block["raw"][s] = {f: [_r((agg.get(("veg", s, k)) or {}).get(f, 0), 1) for k in keys]
                            for f in ("det", "det_D", "det_N", "celldays", "frp")}
@@ -946,11 +948,22 @@ def build_region(region_id, info, progress=None, source=None):
     if old.exists():  # computed across all presets in main(); a single-area rebuild must not erase it
         meta["transfer_validation"] = json.loads(old.read_text(encoding="utf-8")).get("transfer_validation")
     con.execute(f"COPY mask TO '{(folder / 'mask.parquet').as_posix()}' (FORMAT parquet)")
-    for name, obj in (("meta", meta), ("monthly", monthly), ("weekly", weekly),
-                      ("grid", _grid(con, mkeys, mcov, cals)), ("static", _static_points(con, glob))):
+    grid = _grid(con, mkeys, mcov, cals)   # computed once: the casebook reads it too
+    from . import cases as cases_mod
+    try:  # every witness source is optional; a network failure must never break a build
+        cases = cases_mod.build_cases(region_id, meta, monthly, grid)
+    except Exception as ex:
+        cases = {"built_at": meta["built_at"], "area": region_id, "data_through": meta["data_through"],
+                 "counts": {}, "sources": [], "caveat": "", "cases": [], "error": str(ex)[:200]}
+    cases_mod.write_cases(folder, cases)
+    for name, obj in (("monthly", monthly), ("weekly", weekly), ("grid", grid), ("static", _static_points(con, glob))):
         tmp = folder / f"{name}.json.tmp"
         tmp.write_text(json.dumps(obj, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, folder / f"{name}.json")
+    cases_mod.annotate_meta(meta, folder)   # feature flags, method text and external sources, from the files now on disk
+    tmp = folder / "meta.json.tmp"
+    tmp.write_text(json.dumps(meta, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, folder / "meta.json")
     return meta
 
 

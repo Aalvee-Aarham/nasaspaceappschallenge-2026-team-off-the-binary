@@ -8,7 +8,7 @@ draft wording for the team to edit.
 **High-level summary:** Kiln Watch puts NASA's MODIS and VIIRS fire detections on one consistent scale, so a place's
 fire record from 2000 to today does not jump when satellites arrive or are retired. Every value carries a 95% interval
 and is tested by taking satellites away, in nine regions. On top of the record it offers an early warning that compares
-the current month with every earlier year (never a forecast), and a 31-tool MCP server so Claude can answer from the
+the current month with every earlier year (never a forecast), and a 33-tool MCP server so Claude can answer from the
 same numbers.
 
 **How it addresses the challenge (Harmonization of MODIS and VIIRS Hot Spots):** Aqua MODIS is the reference scale. Terra,

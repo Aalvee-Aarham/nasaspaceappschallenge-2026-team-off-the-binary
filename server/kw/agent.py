@@ -36,6 +36,9 @@ Rules:
   rank a month in progress with get_period. Round hotspot counts to whole numbers.
 - For any place name, call find_place first; query_hotspots and get_outlook work for any box without building.
 - Today's date is in [app state] as "today"; "recent", "last N days" and "next 30 days" are relative to it.
+- A case witness that abstains means the source could not see. Never describe an absent witness as a negative finding.
+- Exposure is context, not impact. Never say who was affected, reached or endangered. Say how many people and
+  facilities lie in the cells where detections were recorded.
 - If a tool fails or data is missing, say so plainly."""
 
 _S = {"type": "STRING"}
@@ -63,6 +66,10 @@ DECLS = [
      "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
     {"name": "check_watchlist", "description": "Built areas at or above a warning level (elevated, watch or normal), most serious first.",
      "parameters": {"type": "OBJECT", "properties": {"min_level": {"type": "STRING", "enum": ["elevated", "watch", "normal"]}}}},
+    {"name": "fire_cases", "description": "Fire cases with independent witnesses (the harmonized record, a MODIS-versus-VIIRS cross-check, NASA EONET, GDACS and the press) and an agreement verdict; verdict='agency_only' returns the fires the record does not show.",
+     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "verdict": _S}, "required": ["region_id"]}},
+    {"name": "exposure", "description": "Population, hospitals and major roads in the cells where the record shows fire. Context, not an impact estimate: population is modelled 2020 data, and there is no fire perimeter.",
+     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": {"type": "STRING", "description": "optional 'YYYY-MM' month"}}, "required": ["region_id"]}},
     {"name": "find_place", "description": "Look up any place name: centre, a 0.5-4 degree box (west,south,east,north), built areas overlapping it.",
      "parameters": {"type": "OBJECT", "properties": {"query": _S}, "required": ["query"]}},
     {"name": "get_outlook", "description": "Climatological 30-day outlook cells (watch/above/season) inside a box, or worldwide summary without a box.",
@@ -109,6 +116,8 @@ _RUN = {
     "timeline_reports": lambda a: _trim_timeline(tools.timeline_reports(a["region_id"], a["start"], a["end"])),
     "early_warning": lambda a: tools.early_warning(a["region_id"]),
     "check_watchlist": lambda a: tools.warnings(a.get("min_level", "watch")),
+    "fire_cases": lambda a: tools.list_cases(a["region_id"], a.get("verdict") or None, int(a.get("limit", 20))),
+    "exposure": lambda a: tools.exposure(a["region_id"], a.get("period") or None),
     "find_place": lambda a: tools.find_place(a["query"]),
     "get_outlook": lambda a: _outlook(a),
     "query_hotspots": lambda a: _hotspots(a),

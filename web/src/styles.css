@@ -661,3 +661,19 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .starters li { display: flex; gap: 6px; align-items: baseline; }
 .starters li::before { content: "›"; flex: none; }
 .avatar { color: #fff; background: color-mix(in srgb, var(--pc) 70%, #000); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+
+/* casebook: the verdict is text first, colour second */
+.vd { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid currentColor; white-space: nowrap; }
+.vd.agency_only { color: #FF8A80; background: rgba(255, 138, 128, .12); }
+.vd.corroborated { color: #7FD4A0; background: rgba(61, 220, 151, .1); }
+.vd.reported { color: var(--cold); background: rgba(127, 178, 236, .1); }
+.vd.satellite_only { color: var(--gold); background: rgba(246, 198, 79, .1); }
+.vd.abstained, .vd.insufficient { color: var(--muted); border-style: dashed; }
+.witness { border: 1px solid var(--line); padding: 10px 14px; margin: 10px 0; background: var(--raised); }
+.witness h4 { margin: 0 0 6px; }
+.wl { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; margin: 0 0 8px; font-size: 13px; }
+.wl dt { color: var(--muted); font-weight: 600; }
+.wl dd { margin: 0; }
+.srcline { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.tbl.click tbody tr.on td { background: var(--raised-2); }
+.expo-nums { font-size: 15px; }

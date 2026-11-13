@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Analyst from "./Analyst";
-import { AgentReply, Cls, Health, Outlook, Region, RegionItem, SCALE_LABEL, SHORT, Scale, View, Warnings, api, fmt, periodLabel } from "./api";
+import { AgentReply, Cls, FireCase, Health, Outlook, Region, RegionItem, SCALE_LABEL, SHORT, Scale, View, Warnings, api, fmt, periodLabel } from "./api";
 import Detail, { RangeNews } from "./Detail";
 import Loader, { STEPS } from "./Loader";
 import MapView, { Basemap, FIRE_LAYERS, Focus, Layers, OUTLOOK_COLOR, OUTLOOK_LABEL, Projection } from "./Map";
@@ -14,11 +14,12 @@ import Bangladesh from "./pages/Bangladesh";
 import { ALL_PAGES, LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
 import EarlyWarning from "./pages/Warning";
 import Timeline from "./Timeline";
+import { Cases } from "./Cases";
 
 const Landing = lazy(() => import("./pages/Home")); // three.js + gsap load only on the home page
 
-type Tab = "calendar" | "season" | "continuity";
-const TABS: Tab[] = ["calendar", "season", "continuity"];
+type Tab = "calendar" | "season" | "continuity" | "cases";
+const TABS: Tab[] = ["calendar", "season", "continuity", "cases"];
 const PAGE_IDS = ALL_PAGES as readonly string[];
 const SCALES: Scale[] = ["hotspots", "viirs", "celldays", "raw"];
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
@@ -44,6 +45,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>((TABS as string[]).includes(h0.t) ? (h0.t as Tab) : "calendar");
   const [view, setView] = useState<View>("value");
   const [period, setPeriod] = useState<string | null>(h0.p ?? null);
+  const [caseMap, setCaseMap] = useState<FireCase[] | null>(null);
+  const [selCase, setSelCase] = useState<string | null>(null);
   const [date, setDate] = useState(clampDate(h0.d ?? yesterday()));
   const [layers, setLayers] = useState<Layers>({
     fires: { VIIRS_NOAA20_Thermal_Anomalies_375m_All: true, MODIS_Combined_Thermal_Anomalies_All: true },
@@ -259,6 +262,7 @@ export default function App() {
         <MapView regions={regions} region={region} month={month} date={date} layers={layers} basemap={basemap}
           projection={projection} outlook={outlook} onOutlookPick={pickAround}
           drawing={drawing} focus={focus} onPickRegion={openRegion}
+          cases={tab === "cases" ? caseMap : null} selCase={selCase} onPickCase={(id) => { setSelCase(id); setTab("cases"); }}
           onDrawn={(b) => { setDrawing(false); setDraft(b); }} />
 
         {outlook && layers.outlook && !layersOpen && <MapKey o={outlook} />}
@@ -340,11 +344,11 @@ export default function App() {
               </header>
               {region.meta.story && <p className="story">{region.meta.story}</p>}
               <nav className="tabs" role="tablist">
-                {([["calendar", "Calendar"], ["season", "Season"], ["continuity", "Continuity"]] as const).map(([k, l]) => (
+                {([["calendar", "Calendar"], ["season", "Season"], ["continuity", "Continuity"], ["cases", "Cases"]] as const).filter(([k]) => k !== "cases" || region.meta.features?.cases?.available).map(([k, l]) => (
                   <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
                 ))}
               </nav>
-              {tab !== "season" && (
+              {tab !== "season" && tab !== "cases" && (
                 <div className="seg-row">
                   <Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Kilns & static heat"]]} />
                   {tab === "calendar" && <Seg value={granularity} onChange={(g) => { setGranularity(g); setPeriod(null); }} options={[["month", "Month"], ["week", "Week"]]} />}
@@ -376,6 +380,7 @@ export default function App() {
               )}
               {tab === "season" && <SeasonView r={region} />}
               {tab === "continuity" && <Continuity r={region} cls={cls} />}
+              {tab === "cases" && <Cases r={region} online={online} sel={selCase} onSel={setSelCase} onCases={setCaseMap} />}
             </div>
           )}
         </section>
