@@ -1,12 +1,15 @@
-# AI use log
+# Use of AI
 
-The 2026 Space Apps rules ask every submission to describe how AI tools were used. Keep this file current.
+The 2026 Space Apps rules ask every submission to describe how AI tools were used.
 
-| Date | Tool | Used for | Human review |
-|---|---|---|---|
-| 2026-11-10 | Claude Code (Anthropic) | Read the project briefs; wrote the data pipeline, harmonization statistics, API, MCP server and web UI; ran builds and tests | Team to review all code and results before submission |
-| 2026-11-10 | Research brief (AI-assisted, `harmonized_fire_calendar_improvements_round2.md`) | Literature and rules review that shaped the method (Aqua reference, denial tests, accessibility) | Sources to be opened and verified before quoting |
-| optional, at run time | Google Gemini (free tier) | In-app analyst that phrases answers from deterministic tool output | Every tool call is shown to the user; numbers come from the pipeline only |
+| Tool | Used for | Data it worked on |
+|---|---|---|
+| **Claude Fable 5.2** (Anthropic) | Planning: reading the challenge brief, literature and rules review, shaping the method (Aqua as reference, denial tests, accessibility) | Public challenge page, public papers and NASA/NOAA documentation |
+| **Gemini Argon** (Google) | Planning: research briefs and the first technical specification | Public challenge page, public papers and NASA/NOAA documentation |
+| **Claude Opus via Claude Code** (Anthropic) | Development: wrote the data pipeline, harmonization statistics, API, MCP server and web UI; ran builds and tests | Our source code; public NASA FIRMS detections and the region files built from them |
+| **Gemini Flash** (Google) | Development: writing and reviewing code | Our source code |
+| **Gemini 2.5 Flash** (Google, free tier, optional at run time) | In-app analyst: puts the results of deterministic tool calls into words | Pipeline output only (region JSON built from NASA FIRMS). Every tool call is shown to the user |
 
-No AI system generates any number shown in the calendar, charts or downloads. Those come from
-`server/kw/build.py` run on NASA FIRMS data.
+**What AI did not do.** No AI system produces any number shown in the calendar, charts or downloads. Those come from
+`server/kw/build.py` run on NASA FIRMS data. No personal or private data was given to any AI tool.
+The team reviewed the code and results before submission.
