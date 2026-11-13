@@ -21,6 +21,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
   const [v, setV] = useState(0); // bump to reload the watchlist after a new area is built
   const [o, setO] = useState<Outlook | null>(null);
   const [emailOn, setEmailOn] = useState<boolean | null>(null);
+  const [serverless, setServerless] = useState(false);
   const [preset, setPreset] = useState<Preset | null>(null);
   const formRef = useRef<HTMLElement>(null);
 
@@ -31,7 +32,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
   useEffect(() => {
     if (!online) return;
     api.outlook().then(setO).catch(() => undefined);
-    api.health().then((h) => setEmailOn(!!h.email)).catch(() => undefined);
+    api.health().then((h) => { setEmailOn(!!h.email); setServerless(!!h.serverless); }).catch(() => undefined);
   }, [online]);
 
   const addAlert = (s: Saved) => { const l = [...mine.filter((m) => m.token !== s.token), s]; setMine(l); saveAlerts(l); };
@@ -55,7 +56,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
 
       <section ref={formRef}>
         <h2>Email me when fire activity changes</h2>
-        <EmailAlert online={online} emailOn={emailOn} preset={preset} onAlert={addAlert} go={go} />
+        <EmailAlert online={online} emailOn={emailOn} serverless={serverless} preset={preset} onAlert={addAlert} go={go} />
       </section>
 
       <section>
@@ -196,7 +197,7 @@ const TRIG: [Trigger, string, string][] = [
 ];
 const RATIOS: [number, string][] = [[1, "tops the median"], [1.5, "is 1.5× the median"], [2, "is 2× the median"], [3, "is 3× the median"]];
 
-function EmailAlert({ online, emailOn, preset, onAlert, go }: { online: boolean; emailOn: boolean | null; preset: Preset | null; onAlert: (s: Saved) => void; go: PageProps["go"] }) {
+function EmailAlert({ online, emailOn, serverless, preset, onAlert, go }: { online: boolean; emailOn: boolean | null; serverless: boolean; preset: Preset | null; onAlert: (s: Saved) => void; go: PageProps["go"] }) {
   const [box, setBox] = useState<number[] | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -265,6 +266,7 @@ function EmailAlert({ online, emailOn, preset, onAlert, go }: { online: boolean;
             <input className="grow" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.org" aria-label="Email address" autoComplete="email" />
             <button className="btn" disabled={!online || state === "saving" || !trig.length || (!!email && !valid)}>{state === "saving" ? "Saving…" : email ? "Email me" : "Create without email"}</button>
           </div>
+          {serverless && <p className="muted small">This hosted demo keeps alerts only while its server stays warm (minutes to hours). The confirmation and "send test" emails work here; for alerts that last, run Kiln Watch with Docker (see the README) or use <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
           {emailOn === false && <p className="muted small">This server has no email settings yet (SMTP), so confirmation emails cannot go out. The alert still works through <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
           <p className="muted small">Double opt-in: you confirm by email first. At most one anomaly email per month, one outlook email per week, one per new event. Unsubscribe in one click. New areas build their 26-year record in the background.</p>
           {err && <p className="error small">{err}</p>}
@@ -343,6 +345,13 @@ function Detail({ id, go, openRegion, onAlert }: { id: string } & DetailProps) {
           sub={n.median === null ? "not enough earlier years" : `middle of earlier years; 10th to 90th percentile ${fmt(n.p10)} to ${fmt(n.p90)}${n.usual_share_of_year_pct !== null ? `; about ${fmt(n.usual_share_of_year_pct)}% of a year` : ""}`} />
       </div>
       <Weeks w={w} />
+      {w.backtest?.scored && w.backtest.by_day?.["15"] && (() => { const e = w.backtest!.by_day!["15"].elevated; return (
+        <section>
+          <h3>Has this rule worked here before?</h3>
+          <p className="small">Run on the 15th of every month from {w.backtest!.first_year} to {w.backtest!.last_year}: of the {e.hits + e.misses} months that
+            ended in the top tenth, the rule had already flagged {e.hits} ({fmt((e.pod ?? 0) * 100, 0)}%). Of its {e.hits + e.false_alarms} "elevated" flags,
+            {" "}{e.false_alarms} were false alarms. Skill score {e.pss ?? "–"} (0 = chance, 1 = perfect). The weekly part of the rule is not backtested.</p>
+        </section>); })()}
       <AlertForm regionId={id} name={w.name} median={m?.median_same_days ?? null} onAlert={onAlert} go={go} />
       <div className="row">
         <button className="btn ghost" onClick={() => openRegion(id)}>Open the calendar</button>
@@ -444,6 +453,7 @@ function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean
               )}
               {oc && <div className="small muted">30-day outlook: <b style={{ color: oc.watch ? OUTLOOK_COLOR.watch : undefined }}>{oc.watch} watch</b>, {oc.above} above normal, {oc.season} in season</div>}
               {ok?.events_in_box && <div className="small muted">{ok.events_in_box.length ? `${ok.events_in_box.length} open NASA EONET event${ok.events_in_box.length > 1 ? "s" : ""}: ${ok.events_in_box[0].title}` : "No open NASA EONET events inside"}</div>}
+              {ok?.events_error && <div className="small muted">{ok.events_error}</div>}
               {ok?.sent && ok.sent.length > 0 && <div className="small muted">Last email {ok.sent[ok.sent.length - 1].at.slice(0, 16).replace("T", " ")} UTC: {ok.sent[ok.sent.length - 1].subject}</div>}
               {test[m.token] && <div className="small">{test[m.token]}</div>}
             </div>
