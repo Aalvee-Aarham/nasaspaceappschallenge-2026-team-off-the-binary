@@ -32,12 +32,14 @@ export default function Timeline(p: Props) {
   // timelapse
   const monthRef = useRef(p.month);
   monthRef.current = p.month;
+  const cb = useRef({ onMonth: p.onMonth, onPlay: p.onPlay }); // latest callbacks, not the ones from play time
+  cb.current = { onMonth: p.onMonth, onPlay: p.onPlay };
   useEffect(() => {
     if (!p.playing) return;
     const id = setInterval(() => {
       const next = toIdx(monthRef.current) + 1;
-      if (next >= n) p.onPlay(false);
-      else p.onMonth(toKey(next));
+      if (next >= n) cb.current.onPlay(false);
+      else cb.current.onMonth(toKey(next));
     }, 450);
     return () => clearInterval(id);
   }, [p.playing, n]); // eslint-disable-line react-hooks/exhaustive-deps

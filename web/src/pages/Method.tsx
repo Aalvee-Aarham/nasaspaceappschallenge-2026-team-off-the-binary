@@ -16,7 +16,7 @@ const STEPS: [string, string][] = [
 const LIMITS = [
   "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
   "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",
-  "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua drifts after about 2021.",
+  "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua's data changed after 2020 (orbit drift, and a new MODIS archive version); from the onset measured from the data the record uses VIIRS only, still on the Aqua 2002–2020 scale.",
   "MODIS changes collection (6.03 to 61.03) at the start of 2023; this is listed but not yet step-tested.",
   "Near-real-time rows cannot be compared with standard processing from the mirror, so those months are labelled provisional, not adjusted.",
   "Persistent heat sources are not validated against an independent kiln inventory, so they are labelled likely.",
