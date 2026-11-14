@@ -93,6 +93,30 @@ def ratio_calibration(pairs):
     return {"beta": beta, "pooled": pooled, "sigma2": sigma2, "tau2": tau2, "n": len(pairs), "calibrated": True}
 
 
+def size_term(train, test, beta):
+    """Fire-size check on a fitted ratio calibration. MODIS misses small fires, so the sensor ratio could follow the
+    fire mix: this adds the month's log mean FRP per source detection (minus its calendar-month mean in training) as a
+    multiplicative term, its slope fitted on the training log residuals. train/test: (calendar_month, ref, src, log_frp).
+    Returns (slope, test predictions with the term)."""
+    by_m = {}
+    for m, _, _, x in train:
+        by_m.setdefault(m, []).append(x)
+    mean_x = {m: statistics.fmean(v) for m, v in by_m.items()}
+    pooled = statistics.fmean(mean_x.values())
+
+    def anom(m, x):
+        return x - mean_x.get(m, pooled)
+    xs = [anom(m, x) for m, _, _, x in train]
+    ys = [math.log((r + 0.5) / (beta[m - 1] * s + 0.5)) for m, r, s, _ in train]
+    slope = statistics.linear_regression(xs, ys).slope if len(set(xs)) > 1 else 0.0
+    return slope, [beta[m - 1] * s * math.exp(slope * anom(m, x)) for m, _, s, x in test]
+
+
+def log_mae(pred, truth):
+    """Mean absolute log error, +0.5 so empty months count: every month weighs the same whatever its size."""
+    return round(statistics.fmean(abs(math.log((t + 0.5) / (p + 0.5))) for p, t in zip(pred, truth)), 3) if truth else None
+
+
 def combine(estimates):
     """Inverse-variance mean of per-sensor estimates already in reference units.
 

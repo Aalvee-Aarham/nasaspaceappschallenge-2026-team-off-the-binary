@@ -186,24 +186,144 @@ def evidence(region_id, period):
     }
 
 
-def hotspots_csv(region_id, start, end):
-    """The detections behind the calendar: FIRMS columns plus satellite, static-source flag and version."""
+# ---------- export: choose the format, the columns and the dates ----------
+
+EXPORT_FORMATS = {"csv": ("text/csv", "Comma-separated; opens in Excel, R and pandas. Starts with # comment lines (unit, source, code version) unless switched off."),
+                  "tsv": ("text/tab-separated-values", "Tab-separated, for tools that choke on commas."),
+                  "json": ("application/json", "Rows as objects with a provenance block, for code and web apps.")}
+
+CAL_ORDER = ["period", "partial", "provisional", "raw_detections_all_satellites", "hotspots_aqua_scale", "ci95_lo", "ci95_hi",
+             "hotspots_viirs_scale", "viirs_scale_modelled", "fire_celldays_aqua_scale", "median_same_period",
+             "ratio_to_median", "percentile", "rank", "of_years", "satellites_used",
+             *[f"coverage_{s}" for s in RAW_OBS], *[f"raw_det_{s}" for s in RAW_OBS], "static_source_hotspots", "nrt_share"]
+CAL_GROUPS = {
+    "hotspots": ("Harmonized hotspots on the Aqua MODIS scale, with a 95% interval (the primary unit)", ["hotspots_aqua_scale", "ci95_lo", "ci95_hi"]),
+    "viirs": ("The same record on the VIIRS scale (modelled before 2012)", ["hotspots_viirs_scale", "viirs_scale_modelled"]),
+    "celldays": ("Fire cell-days (secondary unit)", ["fire_celldays_aqua_scale"]),
+    "history": ("This period against the same month or week in other years", ["median_same_period", "ratio_to_median", "percentile", "rank", "of_years"]),
+    "satellites": ("Which satellites fed each value and how much of the period each observed", ["satellites_used", *[f"coverage_{s}" for s in RAW_OBS]]),
+    "raw": ("Raw detections per satellite (they rise whenever a satellite is added: do not trend them)", ["raw_detections_all_satellites", *[f"raw_det_{s}" for s in RAW_OBS]]),
+    "static": ("Persistent heat sources (kilns, flares, industry), kept apart from vegetation fires", ["static_source_hotspots"]),
+    "flags": ("Quality flags: period still in progress, near-real-time data", ["partial", "provisional", "nrt_share"]),
+}
+DET_ORDER = ["latitude", "longitude", "acq_date", "acq_time", "satellite", "sensor", "confidence", "version", "quality", "frp",
+             "daynight", "scan", "track", "type", "static_source", "used_in_calendar"]
+DET_GROUPS = {
+    "where": ("Pixel centre (not the fire's location)", ["latitude", "longitude"]),
+    "when": ("Date, time (UTC) and day or night", ["acq_date", "acq_time", "daynight"]),
+    "satellite": ("Which satellite and product version", ["satellite", "sensor", "version", "quality"]),
+    "strength": ("Confidence and fire radiative power (MW)", ["confidence", "frp"]),
+    "pixel": ("Pixel size along and across the scan", ["scan", "track"]),
+    "class": ("Static-source type, and whether the calendar used the row", ["type", "static_source", "used_in_calendar"]),
+}
+_DET_SQL = {"latitude": "lat", "longitude": "lon", "acq_date": "strftime(acq_datetime, '%Y-%m-%d')",
+            "acq_time": "strftime(acq_datetime, '%H%M')", "static_source": "cls = 'static'", "used_in_calendar": "conf_ok"}
+
+
+def export_options():
+    """What can be exported and how: the one menu the web app, the REST API and MCP all show."""
+    grp = lambda g: [{"key": k, "label": lb, "columns": cs} for k, (lb, cs) in g.items()]  # noqa: E731
+    return {"formats": [{"key": k, "label": v[1]} for k, v in EXPORT_FORMATS.items()],
+            "calendar": {"granularity": ["month", "week"], "always": ["period"], "groups": grp(CAL_GROUPS),
+                         "range": "start and end as a year (2020) or a period (2020-03, 2020-W10)"},
+            "detections": {"groups": grp(DET_GROUPS), "max_days": 366, "range": "start and end as dates (YYYY-MM-DD)",
+                           "used_only": "true keeps only the detections the calendar used (drops low confidence)"}}
+
+
+def _pick(order, groups, columns, always=()):
+    """Group keys and/or column names (a list or comma text) in, columns out in the canonical order. Blank = all."""
+    names = [x.strip() for x in (columns.split(",") if isinstance(columns, str) else columns or []) if x.strip()]
+    if not names:
+        return list(order)
+    every = {c for _, cs in groups.values() for c in cs} | set(always)
+    bad = [x for x in names if x not in groups and x not in every]
+    if bad:
+        raise ValueError(f"unknown column or group: {', '.join(bad)}. Groups: {', '.join(groups)}")
+    want = set(always) | {c for x in names for c in (groups[x][1] if x in groups else [x])}
+    return [c for c in order if c in want]
+
+
+def _bound(p, hi):
+    """'2020' covers the whole year; '2020-03' and '2020-W10' stay as they are (period keys compare as text)."""
+    if not p:
+        return None
+    if not re.fullmatch(r"\d{4}(-(\d{2}|W\d{2}))?", p):
+        raise ValueError("start and end must be a year (2020) or a period (2020-03, 2020-W10)")
+    return p + "-~" if hi and len(p) == 4 else p
+
+
+def _prov(region_id):
+    a = audit(region_id)
+    p = a["provenance"]
+    return {"area": region_id, "unit": a["estimand"]["primary"], "acknowledgement": p["acknowledgement"],
+            "source": p["mirror"], "source_updated": p["mirror_updated"], "code_version": p["code_version"],
+            "reproduce": p["reproduce"], "caveat": "Detections are not fires and not burned area."}
+
+
+def _render(region_id, name, cols, rows, fmt, comments):
+    if fmt not in EXPORT_FORMATS:
+        raise ValueError(f"format must be one of {', '.join(EXPORT_FORMATS)}")
+    prov = _prov(region_id)
+    if fmt == "json":
+        text = json.dumps({"provenance": prov, "columns": cols, "rows": [dict(zip(cols, r)) for r in rows]},
+                          separators=(",", ":"), default=str)
+    else:
+        import csv
+        import io
+        buf = io.StringIO()
+        if comments:
+            buf.write(f"# Kiln Watch harmonized fire record — {region_id}\n# {prov['unit']}\n# {prov['acknowledgement']}\n"
+                      f"# source: {prov['source']} (updated {prov['source_updated']}); code {prov['code_version']}; "
+                      f"reproduce: {prov['reproduce']}\n")
+        w = csv.writer(buf, delimiter="\t" if fmt == "tsv" else ",", lineterminator="\n")
+        w.writerow(cols)
+        w.writerows(rows)
+        text = buf.getvalue()
+    return {"filename": f"kilnwatch-{region_id}-{name}.{fmt}", "media_type": EXPORT_FORMATS[fmt][0], "text": text,
+            "rows": len(rows), "columns": cols, "head": [dict(zip(cols, r)) for r in rows[:5]]}
+
+
+def _flat(r):
+    """One calendar row as the flat columns of the CSV (the order CAL_ORDER names)."""
+    h = r["vs_history"]
+    return {"period": r["period"], "partial": int(r["partial"]), "provisional": int(r["provisional"]),
+            "raw_detections_all_satellites": r["raw_detections_all_satellites"],
+            "hotspots_aqua_scale": r["hotspots_aqua_scale"]["value"], "ci95_lo": r["hotspots_aqua_scale"]["ci95"][0],
+            "ci95_hi": r["hotspots_aqua_scale"]["ci95"][1], "hotspots_viirs_scale": r["hotspots_viirs_scale"]["value"],
+            "viirs_scale_modelled": int(r["hotspots_viirs_scale"]["modelled"]),
+            "fire_celldays_aqua_scale": r["fire_celldays_aqua_scale"]["value"],
+            "median_same_period": h["median_same_period"], "ratio_to_median": h["ratio_to_median"],
+            "percentile": h["percentile"], "rank": h["rank"], "of_years": h["of_years"],
+            "satellites_used": "+".join(r["satellites_used"]),
+            **{f"coverage_{s}": r["coverage"].get(s) for s in RAW_OBS},
+            **{f"raw_det_{s}": r["raw_detections"][s] for s in RAW_OBS},
+            "static_source_hotspots": r["static_source_hotspots_aqua_scale"], "nrt_share": r["nrt_share"]}
+
+
+def export_calendar(region_id, granularity="month", columns=None, fmt="csv", start=None, end=None, comments=True):
+    """The harmonized calendar of a built area (a preset or one drawn on the map) with the chosen columns, format and years."""
+    cols = _pick(CAL_ORDER, CAL_GROUPS, columns, ("period",))
+    flat = [_flat(r) for r in get_calendar(region_id, granularity, _bound(start, False), _bound(end, True))["rows"]]
+    return _render(region_id, granularity, cols, [[r[c] for c in cols] for r in flat], fmt, comments)
+
+
+def export_detections(region_id, start, end, columns=None, fmt="csv", comments=True, used_only=False):
+    """The detections behind the calendar for up to 366 days, with the chosen columns and format."""
     m = _read(region_id, "meta")
     a, b = dt.date.fromisoformat(start), dt.date.fromisoformat(end)
     if b < a or (b - a).days > 366:
         raise ValueError("date range must be 1–366 days")
+    cols = _pick(DET_ORDER, DET_GROUPS, columns)
     con = duckdb.connect()
     _detections(con, region_id, m["bbox"], a, b)
-    cur = con.execute("""SELECT lat AS latitude, lon AS longitude, strftime(acq_datetime, '%Y-%m-%d') AS acq_date,
-                                strftime(acq_datetime, '%H%M') AS acq_time, satellite, sensor, confidence, version, quality,
-                                frp, daynight, scan, track, type, cls = 'static' AS static_source,
-                                conf_ok AS used_in_calendar
-                         FROM e ORDER BY acq_datetime""")
-    cols = [d[0] for d in cur.description]
-    lines = [",".join(cols)]
-    for row in cur.fetchall():
-        lines.append(",".join("" if v is None else str(v) for v in row))
-    return "\n".join(lines) + "\n"
+    sel = ", ".join(f"{_DET_SQL.get(c, c)} AS {c}" for c in cols)
+    rows = con.execute(f"SELECT {sel} FROM e {'WHERE conf_ok' if used_only else ''} ORDER BY acq_datetime").fetchall()
+    return _render(region_id, f"detections-{start}-{end}", cols, rows, fmt, comments)
+
+
+def hotspots_csv(region_id, start, end):
+    """The detections behind the calendar: FIRMS columns plus satellite, static-source flag and version."""
+    return export_detections(region_id, start, end, comments=False)["text"]
 
 
 def reports(region_id, period):

@@ -24,3 +24,5 @@ graphify-out/cache/
 .vercel
 .env*
 !.env.example
+# contact form messages (names, emails)
+data/feedback.jsonl

@@ -40,10 +40,11 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
             <th scope="col">Interval coverage (widened / out of sample)</th>
             <th scope="col">Chain closure</th>
             <th scope="col">Borrowed calibration error</th>
+            <th scope="col">Fire-size term, log error (ours → with term)</th>
             <th scope="col">Early-warning skill, day 15</th>
           </tr></thead>
           <tbody>{rows.map((m) => {
-            const s = m.steps.VIIRS_SNPP, d = m.denial.modis_ends_2016, bt = m.warning_backtest?.by_day?.["15"]?.elevated;
+            const s = m.steps.VIIRS_SNPP, d = m.denial.modis_ends_2016, bt = m.warning_backtest?.by_day?.["15"]?.elevated, fz = m.transfer_validation?.fire_size_term;
             return (
               <tr key={m.id}>
                 <th scope="row">{m.name}</th>
@@ -53,13 +54,14 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
                 <td className="num">{cov(d.ours_seasonal_eb.interval_coverage)} / {cov(d.ours_seasonal_eb.interval_coverage_out_of_sample)}</td>
                 <td className="num">{sgn(m.closure.veg_det_D?.[0]?.mismatch_pct)}</td>
                 <td className="num">{sgn(m.transfer_validation?.transferred_from_other_regions.bias_pct)}</td>
+                <td className="num">{fz ? `${fmt(fz.ours.log_mae, 3)} → ${fmt(fz.with_size_term.log_mae, 3)}` : "–"}</td>
                 <td className="num">{bt?.pss != null ? fmt(bt.pss, 2) : "not scored"}</td>
               </tr>
             );
           })}</tbody>
         </table>
       </div>
-      <p className="muted small">How to read it: a harmonized jump near ×1.00 means the satellite arrival left no artificial step, and raw jumps show how large the artifact would have been. Error if MODIS had ended is the bias of rebuilding 2017–2020 from VIIRS alone. Chain closure is how far two routes to the Aqua scale disagree. Early-warning skill is the Peirce skill score of the percentile rule run as if it were day 15 of each past month (1 is perfect, 0 is no better than chance).</p>
+      <p className="muted small">How to read it: a harmonized jump near ×1.00 means the satellite arrival left no artificial step, and raw jumps show how large the artifact would have been. Error if MODIS had ended is the bias of rebuilding 2017–2020 from VIIRS alone. Chain closure is how far two routes to the Aqua scale disagree. The fire-size term column is the mean absolute log error of predicting Aqua from Suomi-NPP over 2017–2020, without and with a term for the month's mean VIIRS fire power (lower is better). Early-warning skill is the Peirce skill score of the percentile rule run as if it were day 15 of each past month (1 is perfect, 0 is no better than chance).</p>
       {(short.length > 0 || worstTransfer.length > 0) && (
         <>
           <h3>Where it falls short</h3>

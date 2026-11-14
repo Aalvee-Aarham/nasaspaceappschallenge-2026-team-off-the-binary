@@ -822,6 +822,42 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .ex-alert fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .ex-alert input:not([type=checkbox]), .ex-alert select { background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 7px 9px; font: inherit; max-width: 420px; }
 .ex-alert .row { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Open questions page */
+.qa-list > li.qa { margin: 0 0 18px; }
+.qa-list .tag { margin-left: 0; }
+.tag.qa-solved { color: var(--green, #3DDC97); }
+.tag.qa-measured { color: var(--focus, #58A6FF); }
+.tag.qa-open { color: var(--gold); }
+/* Contact page */
+.contact form { max-width: 640px; }
+.contact .field { max-width: none; }
+.contact textarea { width: 100%; font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 8px; resize: vertical; }
+.contact .coord-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* explorer panel: labelled controls, download panel */
+.rec-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.btn.sm { padding: 5px 10px; font-size: 11px; }
+.ctl-grid { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 10px; align-items: flex-end; }
+.ctl { display: flex; flex-direction: column; gap: 4px; }
+.ctl-l { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.ctl .years { margin-left: 0; display: inline-flex; gap: 6px; align-items: center; }
+.story-wrap { margin: 6px 0 12px; }
+.story-wrap .story { margin: 0; }
+.story.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.linkish { background: none; border: 0; padding: 0; color: var(--focus); cursor: pointer; font-size: 12.5px; }
+.linkish:hover { text-decoration: underline; }
+.export { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px 14px; margin: 0 0 14px; display: grid; gap: 10px; }
+.export h3 { margin: 0; font-size: 14px; }
+.export .ctl-grid { margin: 0; }
+.export p { margin: 0; }
+.cols { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.cols legend { padding: 0; margin-bottom: 4px; font-weight: 600; font-size: 13px; }
+.colg { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.colg input { margin-top: 3px; }
+.colnames { display: block; word-break: break-word; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+@media print { .ctl-grid, .rec-actions, .export { display: none !important; } }
 
 /* ---------- "Is fire near you?" (PlaceRisk.tsx): big type, big targets, colour always paired with words ---------- */
 .pr { font-size: 16px; }
@@ -872,6 +908,8 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .pr-key .dot.fok { background: #fff; border: 3px solid #9AA6B5; }
 .pr-key .ring { width: 18px; height: 14px; border: 2px dashed #00A1FF; border-radius: 50%; display: inline-block; }
 .pr-pin { font-size: 34px; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+
+
 .pr-map .maplibregl-popup-content { color: #0A0E15; font-size: 14px; line-height: 1.4; border-radius: 8px; padding: 10px 14px; }
 .pr-sec { background: var(--raised); border: 1px solid #1F2835; border-radius: 12px; padding: clamp(16px, 2.6vw, 26px); }
 .pr-sec h3 { font-size: clamp(19px, 2vw, 23px); margin: 0 0 12px; letter-spacing: -.012em; }

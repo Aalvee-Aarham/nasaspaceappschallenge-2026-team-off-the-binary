@@ -1,0 +1,705 @@
+{
+ "built_at": "2026-11-14T03:17:40+00:00",
+ "code_version": "8ce7da0",
+ "period": [
+  2012,
+  2020
+ ],
+ "filters": "vegetation class (FIRMS type 1-3 dropped), MODIS confidence >= 30, VIIRS not low, standard processing; Aqua MODIS and Suomi-NPP VIIRS only",
+ "match_window": "same acq_date and day/night pass, within the 3 x 3 block of 0.01-degree cells (about 1.1 km)",
+ "areas": [
+  {
+   "id": "alberta",
+   "name": "Fort McMurray boreal forest",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.3,
+     "years": 5,
+     "edge_share_min": 0.167,
+     "edge_share_max": 0.591,
+     "edge_share_sd_pp": 16.7
+    },
+    "snpp": {
+     "median_scan_km": 0.43,
+     "years": 9,
+     "edge_share_min": 0.421,
+     "edge_share_max": 0.643,
+     "edge_share_sd_pp": 6.9
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2015,
+      2016,
+      2017,
+      2018
+     ],
+     "all": [
+      12.51,
+      9.23,
+      9.3,
+      11.05,
+      8.55
+     ],
+     "inner": [
+      7.52,
+      8.69,
+      10.25,
+      7.82,
+      12.11
+     ],
+     "outer": [
+      37.46,
+      9.73,
+      8.36,
+      20.76,
+      6.09
+     ],
+     "cv_all": 0.143,
+     "cv_inner": 0.184,
+     "cv_outer": 0.706
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 4336,
+     "seen_by_other": 3930,
+     "share_seen_by_other": 0.906,
+     "frp_median_matched_mw": 76.7,
+     "frp_median_alone_mw": 40.3
+    },
+    "snpp": {
+     "detections": 41700,
+     "seen_by_other": 19132,
+     "share_seen_by_other": 0.459,
+     "frp_median_matched_mw": 12.8,
+     "frp_median_alone_mw": 2.1
+    }
+   }
+  },
+  {
+   "id": "dhaka-kilns",
+   "name": "Dhaka brick-kiln belt",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.1,
+     "years": 0,
+     "edge_share_min": null,
+     "edge_share_max": null,
+     "edge_share_sd_pp": null
+    },
+    "snpp": {
+     "median_scan_km": 0.42,
+     "years": 9,
+     "edge_share_min": 0.366,
+     "edge_share_max": 0.504,
+     "edge_share_sd_pp": 5.0
+    },
+    "ratio": {
+     "years": [],
+     "all": [],
+     "inner": [],
+     "outer": [],
+     "cv_all": null,
+     "cv_inner": null,
+     "cv_outer": null
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 118,
+     "seen_by_other": 47,
+     "share_seen_by_other": 0.398,
+     "frp_median_matched_mw": 13.1,
+     "frp_median_alone_mw": 7.0
+    },
+    "snpp": {
+     "detections": 2079,
+     "seen_by_other": 97,
+     "share_seen_by_other": 0.047,
+     "frp_median_matched_mw": 5.4,
+     "frp_median_alone_mw": 1.9
+    }
+   }
+  },
+  {
+   "id": "la-rioja",
+   "name": "Chilecito, La Rioja",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.3,
+     "years": 5,
+     "edge_share_min": 0.369,
+     "edge_share_max": 0.517,
+     "edge_share_sd_pp": 4.8
+    },
+    "snpp": {
+     "median_scan_km": 0.45,
+     "years": 9,
+     "edge_share_min": 0.435,
+     "edge_share_max": 0.521,
+     "edge_share_sd_pp": 2.5
+    },
+    "ratio": {
+     "years": [
+      2014,
+      2016,
+      2017,
+      2018,
+      2020
+     ],
+     "all": [
+      6.74,
+      9.66,
+      9.99,
+      7.05,
+      6.73
+     ],
+     "inner": [
+      7.89,
+      8.15,
+      9.5,
+      6.12,
+      6.66
+     ],
+     "outer": [
+      5.67,
+      11.64,
+      10.66,
+      8.62,
+      6.83
+     ],
+     "cv_all": 0.183,
+     "cv_inner": 0.155,
+     "cv_outer": 0.259
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 966,
+     "seen_by_other": 816,
+     "share_seen_by_other": 0.845,
+     "frp_median_matched_mw": 28.2,
+     "frp_median_alone_mw": 20.2
+    },
+    "snpp": {
+     "detections": 8672,
+     "seen_by_other": 3158,
+     "share_seen_by_other": 0.364,
+     "frp_median_matched_mw": 8.0,
+     "frp_median_alone_mw": 3.6
+    }
+   }
+  },
+  {
+   "id": "n-california",
+   "name": "Northern California",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.3,
+     "years": 9,
+     "edge_share_min": 0.417,
+     "edge_share_max": 0.547,
+     "edge_share_sd_pp": 3.7
+    },
+    "snpp": {
+     "median_scan_km": 0.44,
+     "years": 9,
+     "edge_share_min": 0.405,
+     "edge_share_max": 0.573,
+     "edge_share_sd_pp": 4.5
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      7.84,
+      6.97,
+      7.95,
+      8.16,
+      6.07,
+      8.75,
+      7.77,
+      7.19,
+      9.69
+     ],
+     "inner": [
+      7.62,
+      6.55,
+      6.43,
+      9.45,
+      5.24,
+      9.18,
+      7.15,
+      7.76,
+      9.4
+     ],
+     "outer": [
+      8.11,
+      7.56,
+      9.64,
+      6.8,
+      7.19,
+      8.29,
+      8.48,
+      6.71,
+      9.99
+     ],
+     "cv_all": 0.125,
+     "cv_inner": 0.182,
+     "cv_outer": 0.136
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 30637,
+     "seen_by_other": 27782,
+     "share_seen_by_other": 0.907,
+     "frp_median_matched_mw": 41.9,
+     "frp_median_alone_mw": 27.1
+    },
+    "snpp": {
+     "detections": 260263,
+     "seen_by_other": 145022,
+     "share_seen_by_other": 0.557,
+     "frp_median_matched_mw": 7.1,
+     "frp_median_alone_mw": 2.9
+    }
+   }
+  },
+  {
+   "id": "niger-delta",
+   "name": "Niger Delta gas flares",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.1,
+     "years": 9,
+     "edge_share_min": 0.397,
+     "edge_share_max": 0.566,
+     "edge_share_sd_pp": 5.0
+    },
+    "snpp": {
+     "median_scan_km": 0.43,
+     "years": 9,
+     "edge_share_min": 0.421,
+     "edge_share_max": 0.515,
+     "edge_share_sd_pp": 3.1
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      5.21,
+      6.28,
+      6.86,
+      5.75,
+      8.04,
+      6.85,
+      7.67,
+      7.19,
+      6.1
+     ],
+     "inner": [
+      5.44,
+      6.83,
+      7.3,
+      5.71,
+      7.72,
+      6.12,
+      7.12,
+      8.09,
+      6.83
+     ],
+     "outer": [
+      4.97,
+      5.73,
+      6.48,
+      5.79,
+      8.53,
+      7.72,
+      8.4,
+      6.32,
+      5.54
+     ],
+     "cv_all": 0.129,
+     "cv_inner": 0.124,
+     "cv_outer": 0.185
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 17955,
+     "seen_by_other": 7544,
+     "share_seen_by_other": 0.42,
+     "frp_median_matched_mw": 15.1,
+     "frp_median_alone_mw": 11.5
+    },
+    "snpp": {
+     "detections": 119078,
+     "seen_by_other": 12501,
+     "share_seen_by_other": 0.105,
+     "frp_median_matched_mw": 6.2,
+     "frp_median_alone_mw": 4.1
+    }
+   }
+  },
+  {
+   "id": "parana-delta",
+   "name": "Paran\u00e1 Delta wetlands",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.3,
+     "years": 9,
+     "edge_share_min": 0.327,
+     "edge_share_max": 0.607,
+     "edge_share_sd_pp": 7.1
+    },
+    "snpp": {
+     "median_scan_km": 0.44,
+     "years": 9,
+     "edge_share_min": 0.421,
+     "edge_share_max": 0.511,
+     "edge_share_sd_pp": 2.7
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      4.99,
+      5.43,
+      6.03,
+      4.39,
+      7.3,
+      7.63,
+      7.75,
+      6.71,
+      7.13
+     ],
+     "inner": [
+      4.32,
+      4.87,
+      6.19,
+      3.42,
+      9.46,
+      7.91,
+      6.8,
+      5.99,
+      6.53
+     ],
+     "outer": [
+      5.96,
+      6.2,
+      5.82,
+      6.41,
+      5.91,
+      7.29,
+      9.19,
+      7.79,
+      7.81
+     ],
+     "cv_all": 0.18,
+     "cv_inner": 0.281,
+     "cv_outer": 0.158
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 8569,
+     "seen_by_other": 6802,
+     "share_seen_by_other": 0.794,
+     "frp_median_matched_mw": 27.3,
+     "frp_median_alone_mw": 15.5
+    },
+    "snpp": {
+     "detections": 56834,
+     "seen_by_other": 21627,
+     "share_seen_by_other": 0.381,
+     "frp_median_matched_mw": 10.4,
+     "frp_median_alone_mw": 4.9
+    }
+   }
+  },
+  {
+   "id": "punjab",
+   "name": "Punjab\u2013Haryana crop residue burning",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.1,
+     "years": 9,
+     "edge_share_min": 0.412,
+     "edge_share_max": 0.524,
+     "edge_share_sd_pp": 3.2
+    },
+    "snpp": {
+     "median_scan_km": 0.43,
+     "years": 9,
+     "edge_share_min": 0.44,
+     "edge_share_max": 0.513,
+     "edge_share_sd_pp": 2.3
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      5.55,
+      5.62,
+      6.1,
+      6.33,
+      5.9,
+      6.08,
+      5.72,
+      5.63,
+      5.18
+     ],
+     "inner": [
+      5.69,
+      5.36,
+      6.3,
+      6.42,
+      5.74,
+      5.9,
+      5.84,
+      5.62,
+      5.32
+     ],
+     "outer": [
+      5.42,
+      6.0,
+      5.92,
+      6.23,
+      6.06,
+      6.26,
+      5.58,
+      5.64,
+      5.05
+     ],
+     "cv_all": 0.056,
+     "cv_inner": 0.061,
+     "cv_outer": 0.065
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 154069,
+     "seen_by_other": 86351,
+     "share_seen_by_other": 0.56,
+     "frp_median_matched_mw": 14.4,
+     "frp_median_alone_mw": 11.6
+    },
+    "snpp": {
+     "detections": 889616,
+     "seen_by_other": 146383,
+     "share_seen_by_other": 0.165,
+     "frp_median_matched_mw": 6.0,
+     "frp_median_alone_mw": 4.7
+    }
+   }
+  },
+  {
+   "id": "rondonia",
+   "name": "Rond\u00f4nia deforestation arc",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.3,
+     "years": 9,
+     "edge_share_min": 0.374,
+     "edge_share_max": 0.51,
+     "edge_share_sd_pp": 4.3
+    },
+    "snpp": {
+     "median_scan_km": 0.44,
+     "years": 9,
+     "edge_share_min": 0.454,
+     "edge_share_max": 0.507,
+     "edge_share_sd_pp": 1.5
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      6.0,
+      5.49,
+      5.83,
+      6.29,
+      6.01,
+      5.6,
+      5.75,
+      6.41,
+      7.15
+     ],
+     "inner": [
+      5.88,
+      4.5,
+      5.25,
+      6.54,
+      6.05,
+      5.63,
+      5.01,
+      6.66,
+      6.75
+     ],
+     "outer": [
+      6.14,
+      7.14,
+      6.61,
+      6.03,
+      5.95,
+      5.56,
+      6.77,
+      6.17,
+      7.6
+     ],
+     "cv_all": 0.079,
+     "cv_inner": 0.127,
+     "cv_outer": 0.094
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 62941,
+     "seen_by_other": 48788,
+     "share_seen_by_other": 0.775,
+     "frp_median_matched_mw": 29.3,
+     "frp_median_alone_mw": 22.7
+    },
+    "snpp": {
+     "detections": 384393,
+     "seen_by_other": 126238,
+     "share_seen_by_other": 0.328,
+     "frp_median_matched_mw": 8.8,
+     "frp_median_alone_mw": 3.9
+    }
+   }
+  },
+  {
+   "id": "se-australia",
+   "name": "South-east Australia",
+   "scan": {
+    "aqua": {
+     "median_scan_km": 1.2,
+     "years": 9,
+     "edge_share_min": 0.316,
+     "edge_share_max": 0.621,
+     "edge_share_sd_pp": 8.4
+    },
+    "snpp": {
+     "median_scan_km": 0.43,
+     "years": 9,
+     "edge_share_min": 0.402,
+     "edge_share_max": 0.575,
+     "edge_share_sd_pp": 5.1
+    },
+    "ratio": {
+     "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+     ],
+     "all": [
+      3.73,
+      7.49,
+      7.26,
+      6.16,
+      4.69,
+      5.04,
+      6.81,
+      11.38,
+      9.01
+     ],
+     "inner": [
+      3.45,
+      8.6,
+      6.72,
+      7.68,
+      5.35,
+      7.05,
+      7.71,
+      14.05,
+      5.64
+     ],
+     "outer": [
+      3.98,
+      6.63,
+      7.87,
+      5.14,
+      4.1,
+      3.82,
+      6.09,
+      8.87,
+      16.3
+     ],
+     "cv_all": 0.322,
+     "cv_inner": 0.377,
+     "cv_outer": 0.529
+    }
+   },
+   "match": {
+    "aqua": {
+     "detections": 51739,
+     "seen_by_other": 41777,
+     "share_seen_by_other": 0.807,
+     "frp_median_matched_mw": 34.1,
+     "frp_median_alone_mw": 27.3
+    },
+    "snpp": {
+     "detections": 416988,
+     "seen_by_other": 186255,
+     "share_seen_by_other": 0.447,
+     "frp_median_matched_mw": 6.9,
+     "frp_median_alone_mw": 2.9
+    }
+   }
+  }
+ ]
+}

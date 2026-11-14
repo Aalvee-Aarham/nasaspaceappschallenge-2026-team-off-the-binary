@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RegionItem, api, apiOrigin } from "../api";
+import ExportPanel from "../Export";
 import Loader, { STEPS } from "../Loader";
 import { AreaPicker, AreaSelect, Code, Offline, PageHead, PageProps } from "./shared";
 
@@ -64,6 +65,15 @@ export function Download({ regions, online }: PageProps) {
       </section>
 
       <section>
+        <h2>Choose your own columns and format</h2>
+        <p className="muted small">Pick the table, the years, the columns and CSV, TSV or JSON. Works for the areas you built too.</p>
+        {area && <>
+          <AreaSelect regions={regions} value={area.id} onChange={setRid} />
+          <ExportPanel key={area.id} id={area.id} name={area.name} years={[2000, +end.slice(0, 4) || new Date().getFullYear()]} dataThrough={end} online={online} />
+        </>}
+      </section>
+
+      <section>
         <h2>Columns in the calendar CSV</h2>
         <table className="tbl">
           <tbody>{COLS.map(([c, d]) => <tr key={c}><td><code>{c}</code></td><td>{d}</td></tr>)}</tbody>
@@ -96,7 +106,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
   const busy = job?.status === "running";
   return (
     <>
-      <PageHead kicker="Any place on Earth" title="Create your dataset" lead="Give any box up to 16 square degrees (about 4° × 4°). Kiln Watch reads every MODIS and VIIRS detection since 2000, calibrates them onto one scale and builds the calendar, season and validation for it." />
+      <PageHead kicker="Any place on Earth" title="Create your dataset" lead="Give any box up to 16 square degrees (about 4° × 4°). Kiln Watch reads every MODIS and VIIRS detection since 2000, calibrates them onto one scale and builds the calendar, season and validation for it. The first build takes 5 to 10 minutes (one request per year, whatever the box size)." />
       {!online && <Offline what="Building a new area" />}
 
       <section>
@@ -108,7 +118,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
         <section>
           <h2>{job.status === "error" ? "The build failed" : "Building"}</h2>
           {job.status === "error" ? <p className="error">{job.error}</p> : <>
-            <Loader title="Building the 26-year record" steps={STEPS.build} expected={25} done={job.total ? job.done : undefined} total={job.total || undefined} />
+            <Loader title="Building the 26-year record" steps={STEPS.build} expected={600} eta="Plan on 5 to 10 minutes" done={job.total ? job.done : undefined} total={job.total || undefined} />
             <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. The area opens in the Explorer when ready.</p>
           </>}
         </section>

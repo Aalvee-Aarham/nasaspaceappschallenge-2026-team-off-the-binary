@@ -88,6 +88,35 @@ def test_kiln_evidence_endpoint():
     assert client.get("/api/regions/nowhere/kilns").status_code == 404
 
 
+def test_feedback_stored_and_refused_when_read_only():
+    import tempfile
+    from kw import feedback
+    assert client.post("/api/feedback", json={"message": "a real question here"}).status_code == 503  # read-only copy
+    real_path, tools.SERVERLESS = feedback.PATH, False
+    feedback.PATH = Path(tempfile.mkdtemp()) / "fb.jsonl"
+    try:
+        r = client.post("/api/feedback", json={"kind": "question", "message": "does the Aqua scale hold for peat?"},
+                        headers={"x-forwarded-for": "203.0.113.9"})
+        assert r.status_code == 200 and r.json()["stored"] and feedback.PATH.exists(), r.text
+        assert client.post("/api/feedback", json={"message": "short"}).status_code == 400
+    finally:
+        feedback.PATH, tools.SERVERLESS = real_path, True
+
+
+def test_export_columns_formats_and_old_csv_unchanged():
+    full = client.get("/api/regions/punjab/export.csv?granularity=month").text      # the original endpoint, all columns
+    cols = full.split("\n# ")[-1].split("\n")[1].split(",")
+    assert cols[:3] == ["period", "partial", "provisional"] and cols[-1] == "nrt_share", cols[:3]
+    r = client.get("/api/regions/punjab/export", params={"columns": "hotspots", "start": "2020", "end": "2021", "comments": "false"})
+    lines = r.text.strip().split("\n")
+    assert lines[0] == "period,hotspots_aqua_scale,ci95_lo,ci95_hi" and lines[1].startswith("2020-01") and lines[-1].startswith("2021-12"), lines[:2]
+    j = client.get("/api/regions/punjab/export", params={"format": "json", "columns": "period,percentile", "granularity": "week"}).json()
+    assert j["columns"] == ["period", "percentile"] and "provenance" in j and j["rows"][0].keys() == {"period", "percentile"}
+    assert client.get("/api/regions/punjab/export", params={"columns": "nope"}).status_code == 400
+    assert client.get("/api/regions/punjab/export", params={"format": "xml"}).status_code == 400
+    assert client.get("/api/regions/punjab/export", params={"kind": "detections"}).status_code == 400
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

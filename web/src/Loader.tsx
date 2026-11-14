@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** Messages for the slow jobs, in the order the work actually happens. */
 export const STEPS = {
@@ -42,8 +42,8 @@ const LATE = [
 ];
 
 /** An engaging wait: what is happening now, how long it has taken, and an honest progress hint. */
-export default function Loader({ steps, expected = 20, title, compact, done, total }: {
-  steps: string[]; expected?: number; title?: string; compact?: boolean; done?: number; total?: number;
+export default function Loader({ steps, expected = 20, title, compact, done, total, eta }: {
+  steps: string[]; expected?: number; title?: string; compact?: boolean; done?: number; total?: number; eta?: string;
 }) {
   const [t, setT] = useState(0);
   useEffect(() => {
@@ -51,12 +51,19 @@ export default function Loader({ steps, expected = 20, title, compact, done, tot
     const i = setInterval(() => setT((performance.now() - t0) / 1000), 250);
     return () => clearInterval(i);
   }, []);
-  const per = Math.max(2.6, expected / steps.length);
-  const late = t > expected;
-  const msg = late ? LATE[Math.floor((t - expected) / 5) % LATE.length] : steps[Math.min(steps.length - 1, Math.floor(t / per))];
   const real = total ? (done ?? 0) / total : null;
-  const p = real ?? Math.min(0.95, 1 - Math.exp(-t / (expected * 0.55)));
-  const k = late ? `l${Math.floor((t - expected) / 5)}` : `s${Math.floor(t / per)}`;
+  // With real progress, step 1 lasts while the downloads do; the rest cycle once they are finished (the calculation has no counter).
+  const tRead = useRef<number | null>(null);
+  if (real !== null && real >= 1 && tRead.current === null) tRead.current = t;
+  const reading = real !== null && real < 1;
+  const after = tRead.current === null ? 0 : t - tRead.current;
+  const per = reading || tRead.current !== null ? 12 : Math.max(2.6, expected / steps.length);
+  const late = t > expected;
+  const idx = reading ? 0 : tRead.current !== null ? Math.min(steps.length - 1, 1 + Math.floor(after / per)) : Math.min(steps.length - 1, Math.floor(t / per));
+  const msg = late && !reading ? LATE[Math.floor((t - expected) / 5) % LATE.length] : steps[idx];
+  // The bar never claims 100% while the calculation is still to run.
+  const p = real !== null ? (reading ? real * 0.85 : 0.85 + 0.14 * (1 - Math.exp(-after / 45))) : Math.min(0.95, 1 - Math.exp(-t / (expected * 0.55)));
+  const k = late && !reading ? `l${Math.floor((t - expected) / 5)}` : `s${idx}`;
   return (
     <div className={`loader ${compact ? "compact" : ""}`} role="status" aria-live="polite">
       <svg className="orbit" viewBox="0 0 64 64" aria-hidden>
@@ -80,8 +87,8 @@ export default function Loader({ steps, expected = 20, title, compact, done, tot
         <span className="lmsg" key={k}>{msg}…</span>
         <div className="lbar"><div style={{ width: `${Math.round(p * 100)}%` }} /></div>
         <span className="lmeta">
-          {Math.floor(t)} s{real !== null ? ` · ${done}/${total}` : expected ? ` · usually about ${expected < 60 ? `${expected} s` : `${Math.round(expected / 60)} min`}` : ""}
-          {!compact && !late && <> · step {Math.min(steps.length, Math.floor(t / per) + 1)} of {steps.length}</>}
+          {Math.floor(t)} s{real !== null ? ` · ${done}/${total} years read` : ""}{eta ? ` · ${eta}` : expected && real === null ? ` · usually about ${expected < 60 ? `${expected} s` : `${Math.round(expected / 60)} min`}` : ""}
+          {!compact && !late && <> · step {idx + 1} of {steps.length}</>}
         </span>
       </div>
     </div>

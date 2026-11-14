@@ -516,6 +516,10 @@ export function Method({ r, cls }: { r: Region; cls: Cls }) {
           <table className="tbl"><tbody>
             <Rows title="Geographic hold-out, Suomi-NPP → Aqua" sub={`all detections, test ${m.transfer_validation.test.join("–")}`}
               rows={[["Calibrated in this area", m.transfer_validation.calibrated_here], ["Transferred from the other areas", m.transfer_validation.transferred_from_other_regions]]} />
+            {m.transfer_validation.fire_size_term && (
+              <Rows title="Fire-size term, Suomi-NPP → Aqua" sub={`same test; slope ${fmt(m.transfer_validation.fire_size_term.slope, 2)} fitted on training years`}
+                rows={[["Ratio per calendar month (ours)", m.transfer_validation.fire_size_term.ours], ["Plus a term for mean VIIRS FRP per detection", m.transfer_validation.fire_size_term.with_size_term]]} />
+            )}
           </tbody></table>
         )}
       </section>
