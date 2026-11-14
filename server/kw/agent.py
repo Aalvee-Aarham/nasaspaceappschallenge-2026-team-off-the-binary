@@ -246,11 +246,18 @@ def _post(payload):
         try:
             return _groq(payload)
         except (urllib.error.HTTPError, OSError, KeyError, IndexError, ValueError) as ex:  # any Groq failure: fall back to Gemini
-            groq_err = ex
+            groq_err = f"{ex} {ex.read().decode('utf-8', 'replace')[:200]}" if isinstance(ex, urllib.error.HTTPError) else ex
+    try:
+        return _post_gemini(payload)
+    except RuntimeError as ex:
+        raise RuntimeError(f"{ex} (Groq: {groq_err})" if groq_err else str(ex)) from None
+
+
+def _post_gemini(payload):
     body = json.dumps(payload).encode()
     keys, why = _keys(), []
-    if not keys and groq_err:
-        raise RuntimeError(f"Groq failed ({groq_err}) and no Gemini fallback key is set.")
+    if not keys:
+        raise RuntimeError("no Gemini fallback key is set")
     for key in keys:  # the next key when this one is out of quota (429), overloaded (503) or refused (401/403)
         try:
             return _post_key(body, key)
