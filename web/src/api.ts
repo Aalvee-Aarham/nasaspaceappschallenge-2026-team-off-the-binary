@@ -178,7 +178,8 @@ export type RangeReports = Omit<Reports, "assessment" | "items"> & {
 };
 export type AgentReply = { answer: string; trace: { tool: string; args: Record<string, unknown>; ok: boolean }[]; actions: { name: string; args: Record<string, string> }[]; model: string | null; fallback?: string; charts?: unknown[] };
 export type Level = "elevated" | "watch" | "normal" | "quiet" | "insufficient";
-export type WarningRow = { region_id: string; name: string; country: string | null; level: Level; headline: string; as_of: string; stale: boolean; percentile: Num; next_4_weeks_median: Num };
+export type WarningRow = { region_id: string; name: string; country: string | null; level: Level; headline: string; as_of: string; stale: boolean; percentile: Num; next_4_weeks_median: Num;
+  backtest?: { pod: Num; far: Num; pss: Num; n: number } | null; backtest_reason?: string | null };
 export type Warnings = { as_of: string | null; count: number; alerts: WarningRow[]; rule: string; disclaimer: string };
 export type Warning = {
   region_id: string; name: string; level: Level; headline: string; as_of: string; stale: boolean; rule: string; caveat: string;
