@@ -55,6 +55,12 @@ def test_combine():
     assert abs(y - 5.0) < 1e-9, y
 
 
+def test_combine_details_exposes_normalized_weights():
+    y, var, weights = sc.combine_details([(10.0, 0.0, 10.0), (20.0, 0.0, 20.0)])
+    assert y == 15.0 and abs(sum(weights) - 1.0) < 1e-12
+    assert weights[0] == weights[1] == 0.5
+
+
 def test_versus_history_and_partial_exclusion():
     keys = [f"{y}-01" for y in range(2001, 2012)]
     vals = [10.0] * 10 + [40.0]

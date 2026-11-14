@@ -87,7 +87,8 @@ function MonthTable(p: GridProps) {
     const xs = p.years.map((y) => p.idx.get(key(y, m))).filter((i): i is number => i !== undefined && !b.partial[i] && s.v[i] !== null).map((i) => s.v[i]!).sort((a, c) => a - c);
     return xs.length >= 5 ? xs[Math.floor(xs.length / 2)] : null;
   });
-  const start = p.focus ?? p.selected ?? b.periods[b.periods.length - 1];
+  const visible = new Set(p.years.flatMap((y) => MONTH_SHORT.map((_, m) => key(y, m))).filter((k) => p.idx.has(k)));
+  const start = [p.focus, p.selected, b.periods[b.periods.length - 1]].find((k) => k && visible.has(k)) ?? [...visible][0];
   const move = (e: React.KeyboardEvent, k: string) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onOpen(k); return; }
     const d = ({ ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] } as Record<string, number[]>)[e.key];
@@ -145,7 +146,8 @@ function WeekGrid(p: GridProps) {
   const W = 420, L = 34, cols = 53, cw = (W - L) / cols, rh = 9;
   const H = p.years.length * rh + 16;
   const key = (y: number, c: number) => `${y}-W${String(c + 1).padStart(2, "0")}`;
-  const cur = p.focus ?? p.selected ?? b.periods[b.periods.length - 1];
+  const visible = new Set(p.years.flatMap((y) => Array.from({ length: cols }, (_, c) => key(y, c))).filter((k) => p.idx.has(k)));
+  const cur = [p.focus, p.selected, b.periods[b.periods.length - 1]].find((k) => k && visible.has(k)) ?? [...visible][0];
   const onKey = (e: React.KeyboardEvent) => {
     const i = p.idx.get(cur ?? "");
     if (i === undefined) return;
@@ -160,13 +162,16 @@ function WeekGrid(p: GridProps) {
     const d = ({ ArrowLeft: -1, ArrowRight: 1 } as Record<string, number>)[e.key];
     if (d) { e.preventDefault(); p.onFocus(b.periods[Math.max(0, Math.min(b.periods.length - 1, i + d))]); }
   };
+  const activeId = cur ? `week-${cur}` : undefined;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="weekgrid" role="grid" aria-label="Fire activity by ISO week and year. Arrow keys move, Enter opens." tabIndex={0} onKeyDown={onKey} onMouseLeave={() => p.onFocus(p.selected)}>
+    <>
+    <span className="sr-only" aria-live="polite">{cur && p.idx.has(cur) ? ariaFor(b, p, p.idx.get(cur)!) : "Choose a week."}</span>
+    <svg viewBox={`0 0 ${W} ${H}`} className="weekgrid" role="grid" aria-label="Fire activity by ISO week and year. Arrow keys move, Enter opens." aria-activedescendant={activeId} tabIndex={0} onKeyDown={onKey} onMouseLeave={() => p.onFocus(p.selected)}>
       <defs><pattern id="nod" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#1A2536" /><line x1="0" y1="0" x2="0" y2="4" stroke="#3A4A63" strokeWidth="1.2" /></pattern></defs>
       {[1, 14, 27, 40].map((w) => <text key={w} x={L + (w - 1) * cw} y={9} className="axis">W{w}</text>)}
       {p.years.map((y, r) => (
-        <g key={y} transform={`translate(0 ${13 + r * rh})`}>
-          <text x={L - 4} y={rh - 2} className="axis" textAnchor="end">{y}</text>
+        <g key={y} role="row" aria-label={String(y)} transform={`translate(0 ${13 + r * rh})`}>
+          <text x={L - 4} y={rh - 2} className="axis" textAnchor="end" aria-hidden="true">{y}</text>
           {Array.from({ length: cols }, (_, c) => {
             const k = key(y, c);
             const i = p.idx.get(k);
@@ -174,14 +179,16 @@ function WeekGrid(p: GridProps) {
             const st = cellStyle(b, p, i);
             const hi = k === cur || k === p.selected;
             return (
-              <rect key={c} x={L + c * cw} y={0} width={cw - 0.6} height={rh - 0.8} fill={st.bg ?? "url(#nod)"} opacity={b.partial[i] ? 0.6 : 1}
-                stroke={hi ? "var(--focus)" : undefined} strokeWidth={hi ? 1.2 : 0} className="cell"
-                onMouseEnter={() => p.onFocus(k)} onClick={() => p.onOpen(k)}><title>{ariaFor(b, p, i)}</title></rect>
+              <rect key={c} id={`week-${k}`} x={L + c * cw} y={0} width={cw - 0.6} height={rh - 0.8} fill={st.bg ?? "url(#nod)"} opacity={b.partial[i] ? 0.6 : 1}
+                stroke={hi ? "var(--focus)" : undefined} strokeWidth={hi ? 1.2 : 0} className="cell" role="gridcell" aria-colindex={c + 1}
+                tabIndex={k === cur ? 0 : -1} aria-label={ariaFor(b, p, i)} aria-selected={k === p.selected}
+                onMouseEnter={() => p.onFocus(k)} onFocus={() => p.onFocus(k)} onClick={() => p.onOpen(k)}><title>{ariaFor(b, p, i)}</title></rect>
             );
           })}
         </g>
       ))}
     </svg>
+    </>
   );
 }
 
@@ -388,12 +395,15 @@ export function Continuity({ r, cls }: { r: Region; cls: Cls }) {
       <section>
         <h3>Level change at each satellite arrival</h3>
         <table className="tbl">
-          <thead><tr><th>Arrival</th><th>Raw</th><th>Real change (Aqua only)</th><th>Harmonized</th><th>Left over</th></tr></thead>
-          <tbody>{Object.entries(m.steps).map(([s, st]) => (
-            <tr key={s}><td><i className="dot" style={{ background: SENSOR_COLOR[s] }} />{SHORT[s]} <span className="muted">{st.period}</span></td>
+          <thead><tr><th>Event</th><th>Raw</th><th>Real change (Aqua only)</th><th>Harmonized</th><th>Left over</th></tr></thead>
+          <tbody>{Object.entries(m.steps).map(([s, st]) => {
+            const measured = s === "MODIS_TIME_SHIFT";
+            const label = measured ? "MODIS time shift" : SHORT[s] ?? s;
+            const color = measured ? "#F6C64F" : SENSOR_COLOR[s];
+            return <tr key={s}><td><i className="dot" style={{ background: color }} />{label} <span className="muted">{st.period}</span></td>
               <td className="num">{ratio(st.raw_all_sensors)}</td><td className="num">{ratio(st.aqua_only)}</td><td className="num">{ratio(st.harmonized)}</td>
-              <td className="num strong">{ratio(st.harmonized_excess)}</td></tr>
-          ))}</tbody>
+              <td className="num strong">{ratio(st.harmonized_excess)}</td></tr>;
+          })}</tbody>
         </table>
         <p className="muted small">Deseasonalized mean of the 24 months after ÷ the 24 months before. Fires really do change between years, so the Aqua-only column is the real change; "left over" is harmonized ÷ Aqua-only, and ×1.00 means no artificial step.
           {m.placebo && ` The same test at ${m.placebo.n} dates with no satellite change gives harmonized ÷ Aqua-only ratios between ${ratio(m.placebo.excess_p05)} and ${ratio(m.placebo.excess_p95)} (5th–95th percentile); a step inside that range cannot be told apart from ordinary year-to-year variation.`}
@@ -413,10 +423,10 @@ export function Continuity({ r, cls }: { r: Region; cls: Cls }) {
 
       {drift.length > 0 && (
         <section>
-          <h3>Orbit drift signature</h3>
+          <h3>Acquisition-time and processing signature</h3>
           <LineChart x={driftYears.map(String)} name={`${m.id}-drift`} label="Yearly detection ratios between satellites" yFmt={(v) => v.toFixed(2)}
             lines={drift.map(([k, v], j) => ({ name: k.split("/").map((s) => SHORT[s]).join(" ÷ "), color: ["#E69F00", "#CC79A7", "#009E73"][j], vals: driftYears.map((y) => v.find((q) => q[0] === y)?.[1] ?? null) }))} />
-          <p className="muted small">Detections in co-observed months, per year. A ratio that is flat and then bends after about 2020 shows Terra and Aqua drifting from their crossing times, which is why the MODIS calibration stops at 2020.</p>
+          <p className="muted small">Detections in co-observed months, per year. A ratio that is flat and then bends after about 2020 shows Terra and Aqua moving away from their co-observation geometry. The reported MODIS acquisition times also shift at the measured onset; this is an archive change, not a physical sun-synchronous orbit drift.</p>
         </section>
       )}
 
@@ -467,6 +477,8 @@ export function Method({ r, cls }: { r: Region; cls: Cls }) {
   const den = m.denial.modis_ends_2016;
   const key = `${cls}_det_${dn}`;
   const fd = m.frp_distribution, fs = m.filter_sensitivity;
+  const recentUnclassified = (r.monthly.nrt_unclassified_share ?? []).slice(-12).filter((x): x is number => x !== null);
+  const latestUnclassified = recentUnclassified.at(-1) ?? null;
   const rangeOk = range[0] <= range[1] && (Date.parse(range[1]) - Date.parse(range[0])) / 86400000 <= 366;
   const dropped = Object.entries(fs.dropped_share_by_sensor_daynight).map(([k, v]) => {
     const sensor = k.slice(0, k.lastIndexOf("_"));
@@ -478,6 +490,10 @@ export function Method({ r, cls }: { r: Region; cls: Cls }) {
         <h3>What the number means</h3>
         <p>{m.estimand.primary}</p>
         <p className="small">{m.estimand.why_aqua}</p>
+        {m.estimand.model_scope && <p className="small"><b>Model scope:</b> {m.estimand.model_scope}</p>}
+        {latestUnclassified !== null && (
+          <p className="warn small"><b>Recent NRT classification:</b> {fmt(latestUnclassified * 100, 0)}% of this month’s vegetation detections were untyped NRT rows without FIRMS `type`; the static mask cannot separate them.</p>
+        )}
         <p className="muted small">{m.estimand.not}</p>
       </section>
 

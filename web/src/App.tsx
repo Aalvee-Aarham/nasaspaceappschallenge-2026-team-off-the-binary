@@ -4,7 +4,8 @@ import { AgentReply, CaseVerdict, Cls, FireCase, Health, Outlook, Region, Region
 import Detail, { RangeNews } from "./Detail";
 import ExportPanel from "./Export";
 import Loader, { STEPS } from "./Loader";
-import MapView, { Basemap, FIRE_LAYERS, Focus, Layers, OUTLOOK_COLOR, OUTLOOK_LABEL, Projection } from "./Map";
+import { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
+import type { Basemap, Focus, Layers, Projection } from "./mapConfig";
 import { Calendar, Continuity, Glance, SeasonView, useYearRange } from "./Record";
 import { Create, Download } from "./pages/Data";
 import { Mcp, N8n } from "./pages/Connect";
@@ -15,13 +16,14 @@ import News from "./pages/News";
 import AfterModis from "./pages/AfterModis";
 import Bangladesh from "./pages/Bangladesh";
 import { ALL_PAGES, LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
-import EarlyWarning from "./pages/Warning";
 import Timeline from "./Timeline";
 import CasesPage from "./pages/CasesPage";
 import CasesPanel from "./CasesPanel";
 import { VERDICTS, useCases } from "./casebook";
 
 const Landing = lazy(() => import("./pages/Home")); // three.js + gsap load only on the home page
+const MapView = lazy(() => import("./Map"));         // MapLibre loads only when the Explorer opens
+const EarlyWarning = lazy(() => import("./pages/Warning")); // the warning globe shares the lazy map chunk
 
 type Tab = "calendar" | "season" | "continuity";
 const TABS: Tab[] = ["calendar", "season", "continuity"];
@@ -265,9 +267,9 @@ export default function App() {
           {searchErr && <span className="search-err" role="alert">{searchErr}</span>}
         </form>
         <div className="datebox" aria-label="Map date">
-          <button className="icon" onClick={() => setDate(shift(date, -1))} aria-label="Previous day">‹</button>
+          <button className="icon" onClick={() => setDate(shift(date, -1))} aria-label="Previous day" disabled={date <= "2000-11-01"}>‹</button>
           <input type="date" value={date} min="2000-11-01" max={yesterday()} onChange={(e) => e.target.value && setDate(clampDate(e.target.value))} aria-label="Date shown on map" />
-          <button className="icon" onClick={() => setDate(shift(date, 1))} aria-label="Next day">›</button>
+          <button className="icon" onClick={() => setDate(shift(date, 1))} aria-label="Next day" disabled={date >= yesterday()}>›</button>
         </div>
         <div className="top-actions">
           <button className={`btn ghost ${drawing ? "on" : ""}`} onClick={() => { setDrawing(!drawing); setDraft(null); }} disabled={!online} title={online ? "" : "Needs the Kiln Watch API"}>
@@ -281,7 +283,7 @@ export default function App() {
       {pg !== "explore" ? (
         <main className="page" id="main" key={pg} ref={pageRef}>
           <div className="page-in">
-            {pg === "warning" && <EarlyWarning {...pageProps} />}
+            {pg === "warning" && <Suspense fallback={<div className="skeleton tall" />}><EarlyWarning {...pageProps} /></Suspense>}
             {pg === "after" && <AfterModis {...pageProps} />}
             {pg === "bangladesh" && <Bangladesh {...pageProps} />}
             {pg === "cases" && <CasesPage {...pageProps} />}
@@ -297,11 +299,13 @@ export default function App() {
         </main>
       ) : (
       <main className="stage">
-        <MapView regions={regions} region={region} month={month} date={date} layers={layers} basemap={basemap}
-          projection={projection} outlook={outlook} onOutlookPick={pickAround}
-          drawing={drawing} focus={focus} onPickRegion={openRegion}
-          cases={caseDots} selCase={selCase?.id ?? null} onPickCase={(id) => pickCase(cases.data?.cases.find((c) => c.id === id) ?? null)}
-          onDrawn={(b) => { setDrawing(false); setDraft(b); }} />
+        <Suspense fallback={<div className="map" aria-label="Loading the map" />}>
+          <MapView regions={regions} region={region} month={month} date={date} layers={layers} basemap={basemap}
+            projection={projection} outlook={outlook} onOutlookPick={pickAround}
+            drawing={drawing} focus={focus} onPickRegion={openRegion}
+            cases={caseDots} selCase={selCase?.id ?? null} onPickCase={(id) => pickCase(cases.data?.cases.find((c) => c.id === id) ?? null)}
+            onDrawn={(b) => { setDrawing(false); setDraft(b); }} />
+        </Suspense>
 
         {outlook && layers.outlook && !layersOpen && <MapKey o={outlook} />}
         {drawing && <div className="hint" role="status">Drag a box over the area you want to analyse. Press Esc to cancel.</div>}
@@ -325,7 +329,7 @@ export default function App() {
             ))}
             <h2>Kiln Watch</h2>
             <label className="check"><input type="checkbox" checked={layers.grid} onChange={(e) => setLayers({ ...layers, grid: e.target.checked })} /><i className="sw-grid" />Harmonized activity, {periodLabel(month)}</label>
-            <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />FIRMS persistent heat sources (flares, industry, some kilns)</label>
+            <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />FIRMS persistent heat sources (flares, industry; not a kiln inventory)</label>
             {!region && <p className="muted small">Open an area to see these.</p>}
             <h2>Base map</h2>
             {([["night", "Night lights (NASA Black Marble)"], ["dark", "Dark map"], ["satellite", "Satellite image of the day"], ["relief", "Blue Marble relief"]] as const).map(([k, l]) => (

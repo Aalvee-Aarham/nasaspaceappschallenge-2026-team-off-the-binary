@@ -91,19 +91,21 @@ We test the record the way the future will: by taking satellites away.
 
 | Region | Raw step ÷ Aqua | Harmonized step ÷ Aqua | Error, uncalibrated | Error, Kiln Watch | Rank ρ | Interval coverage, unwidened | Interval coverage, out of sample | Trend/yr raw | harmonized | Aqua only |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Dhaka brick-kiln belt | 10.58 | 1.12 | +1865.3% | +13.1% | 0.68 | 42% | 88% | 0.7 | 0.0 | 0.0 |
-| Punjab–Haryana crop residue burning | 4.48 | 0.93 | +469.7% | -5.8% | 0.98 | 94% | 92% | 72.5 | 0.0 | -0.1 |
-| Chilecito, La Rioja | 4.06 | 1.03 | +812.3% | -9.7% | 0.89 | 35% | 96% | 2.5 | 0.0 | 0.0 |
-| Rondônia deforestation arc | 5.61 | 1.07 | +516.5% | -0.6% | 0.98 | 77% | 96% | 18.1 | -0.1 | -0.2 |
-| Fort McMurray boreal forest | 7.43 | 1.18 | +1030.3% | -8.9% | 0.83 | 58% | 96% | 1.7 | 0.0 | 0.0 |
-| South-east Australia | 5.95 | 0.99 | +815.3% | +4.1% | 0.98 | 65% | 92% | 34.4 | -0.9 | -1.0 |
-| Northern California | 3.47 | 0.99 | +782.9% | +8.1% | 0.98 | 67% | 79% | 33.5 | 1.0 | 0.7 |
-| Paraná Delta wetlands | 5.27 | 1.01 | +597.0% | +27.5% | 0.94 | 79% | 92% | 6.0 | -1.6 | -1.7 |
-| Niger Delta gas flares | 6.44 | 0.95 | +580.5% | -1.7% | 0.98 | 77% | 100% | 34.3 | 0.2 | 0.1 |
+| Dhaka brick-kiln belt | 10.58 | 1.12 | +1767.3% | +13.1% | 0.68 | 42% | 88% | 1.5 | 0.0 | 0.0 |
+| Punjab–Haryana crop residue burning | 4.48 | 0.93 | +470.2% | -5.8% | 0.98 | 94% | 92% | 70.0 | 0.1 | -0.2 |
+| Chilecito, La Rioja | 4.06 | 1.03 | +812.2% | -9.7% | 0.89 | 35% | 96% | 3.3 | -0.0 | -0.0 |
+| Rondônia deforestation arc | 5.61 | 1.07 | +515.8% | -0.6% | 0.98 | 77% | 96% | 51.7 | -0.1 | -0.3 |
+| Fort McMurray boreal forest | 7.43 | 1.18 | +1032.3% | -8.9% | 0.83 | 58% | 96% | 1.3 | 0.0 | 0.0 |
+| South-east Australia | 5.95 | 0.99 | +813.7% | +4.1% | 0.98 | 65% | 92% | 38.7 | -0.9 | -1.0 |
+| Northern California | 3.47 | 0.99 | +785.4% | +8.1% | 0.98 | 67% | 79% | 29.3 | 1.2 | 1.2 |
+| Paraná Delta wetlands | 5.27 | 1.01 | +596.1% | +27.5% | 0.94 | 79% | 92% | 7.3 | -1.5 | -1.7 |
+| Niger Delta gas flares | 6.44 | 0.95 | +569.9% | -1.7% | 0.98 | 77% | 100% | 73.0 | 0.3 | 0.1 |
 
 Errors are from the MODIS-denial test (calibrate on 2012–2016, rebuild 2017–2020 from VIIRS alone). Intervals are widened
 so 95% of the 2017–2020 test months fall inside. To check that this is not circular, the widening is also fitted on
-2017–2018 alone and tested on 2019–2020: that is the out-of-sample column. Trends are Sen slopes for 2003–2020.
+2017–2018 alone and tested on 2019–2020: that is the out-of-sample column. Trends are seasonal Sen slopes for
+2003–2020: the median of the per-season Sen slopes, which is what a seasonal test should report, not the pooled slope
+over all months.
 How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/#pg=method).
 
 </details>
@@ -143,7 +145,7 @@ not used. An area-specific version is an open next step.
 
 **Where it still falls short.** We publish these, not hide them.
 
-- Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 7%.
+- Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 6%.
 - Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
 - No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
@@ -158,6 +160,16 @@ not used. An area-specific version is an open next step.
   it and the next month: those windows are judgement calls.
 - Kilns: the kiln map shows structures from the 2024-25 dry season, not kilns in operation, and is licensed non-commercial.
   Night lights and Sentinel-1 radar are consistent with kilns, not proof of them, and neither says whether a kiln is firing.
+
+**Checked against other data.** Two checks run outside the pipeline and publish their results, whether they pass or not.
+
+| Check | What it asks | Result |
+|---|---|---|
+| NASA MCD64A1 burned area, seven areas, 261–263 months each, 2003–2024 | Does the record track physical burned area, and is the 2012 jump real? | The raw detection count jumps ×4.89 in 2012; the harmonized record moves ×1.03; burned area, built from MODIS alone, moves ×0.72. The jump was an instrument change. Monthly rank correlation with burned area: 0.49 harmonized, 0.37 raw. |
+| APAD Bangladesh brick-kiln inventory, 4,760 operating kilns | Do the published persistent-heat cells correspond to mapped kilns? | No. At 1 km, 2 of 109 cells land on a kiln where randomly placed cells of the same number would land on 8.3%. The layer is a persistent-heat proxy, not a kiln inventory. |
+
+Both are re-runnable (`scripts/validation/`), fail closed, and publish their sources, hashes and limitations with the
+numbers: `data/validation/burned_area.json`, `data/validation/kilns_dhaka-kilns.json`.
 
 ---
 
@@ -263,7 +275,7 @@ curl -o hot.json  "$BASE/api/regions/punjab/export?kind=detections&format=json&c
 
 <p align="center"><img src="docs/readme/kilns.svg" alt="Dhaka brick-kiln belt: 717 mapped kilns, of which FIRMS sees about as many as random ground, and night lights in kiln season" width="100%"></p>
 
-<p align="center"><sub>The map shows kiln structures in the 2024-25 dry season, not kilns in operation; about 8 in 10 detections inside human-labelled footprints are kilns, about 2 in 10 outside. Licence CC BY-NC 4.0 (non-commercial). Night lights and radar are consistent with kilns, not proof: kilns sit on town edges that also brighten in winter, and radar also responds to buildings and moisture.</sub></p>
+<p align="center"><sub>The map shows kiln structures in the 2024-25 dry season, not kilns in operation; about 8 in 10 detections inside human-labelled footprints are kilns, about 2 in 10 outside. Licence CC BY-NC 4.0 (non-commercial). Night lights and radar are consistent with kilns, not proof: kilns sit on town edges that also brighten in winter, and radar also responds to buildings and moisture. A second, independently licensed inventory (APAD, CC BY 4.0) reaches the same conclusion about the persistent-heat cells: see <a href="#checked-against-other-data">Checked against other data</a>.</sub></p>
 
 ---
 
@@ -304,6 +316,7 @@ Casebook witnesses (build time only; needs `pip install earthengine-api`, `earth
 The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
 The worldwide fire months behind "Is fire near you?" (`data/global/fire_season.parquet`, committed): `python -m kw.globe season`.
 Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
+Record-level independent checks: `python scripts/validation/kilns.py` and `uv run --with rasterio --with numpy --with planetary-computer python scripts/validation/burned_area.py` (results committed in `data/validation/`).
 Analyst keys: set `GEMINI_API_KEY` and optional fallbacks `GEMINI_API_KEYS=key2,key3,...` in a git-ignored `.env` (and as
 secrets on Azure and Vercel). The analyst moves to the next key when one hits its free-tier quota, is overloaded or is
 refused, and uses the `gemini-flash-latest` alias so a retired model version does not break it. Never commit keys.
@@ -363,7 +376,7 @@ Every fire number in Kiln Watch comes from NASA data. The kiln map is the one ou
 | Worldview | [worldview.earthdata.nasa.gov](https://worldview.earthdata.nasa.gov) | "Open in Worldview" link for the same place and day |
 | FIRMS Fire Map | [firms.modaps.eosdis.nasa.gov/map](https://firms.modaps.eosdis.nasa.gov/map) | Link to the raw detections for the same place and day |
 
-| MODIS Burned Area MCD64A1, Collection 6.1 (via Google Earth Engine) | [lpdaac.usgs.gov/products/mcd64a1v061](https://lpdaac.usgs.gov/products/mcd64a1v061/) | A burn-scar witness for every fire case. MCD64A1 is guided by MODIS active fires, so it is not fully independent of the hotspot record |
+| MODIS Burned Area MCD64A1, Collection 6.1 (500 m) | [lpdaac.usgs.gov/products/mcd64a1v061](https://lpdaac.usgs.gov/products/mcd64a1v061/) | Two uses: a burn-scar witness for every fire case (via Google Earth Engine), and an area-level independent check of the monthly record (via the public Planetary Computer catalogue) that shows the 2012 jump was an instrument change. It is guided by MODIS active fires, so it is not fully independent of the hotspot record |
 | Black Marble VNP46A2, daily gap-filled night lights (via Google Earth Engine) | [blackmarble.gsfc.nasa.gov](https://blackmarble.gsfc.nasa.gov) | Kiln-season against monsoon brightness at 717 mapped kilns and 600 random places in the Dhaka belt (a second witness for kilns) |
 
 ### Other space agency data
@@ -385,6 +398,7 @@ NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
 | ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
 | WorldPop Global 2000-2020 population grid, 1 km (CC BY 4.0) | [worldpop.org](https://www.worldpop.org) | Modelled 2020 population in the 0.1° cells where the record shows fire (context, not impact) |
+| APAD / IGP asset-data-igp Bangladesh brick-kiln inventory (CC BY 4.0) | [registry.opendata.aws/asset-data-igp-brick-kilns-ban](https://registry.opendata.aws/asset-data-igp-brick-kilns-ban/) | Independent cross-check of the published persistent-heat cells against 4,760 operating kilns, with a random-placement baseline |
 | OpenStreetMap via the Overpass API (ODbL) | [openstreetmap.org](https://www.openstreetmap.org/copyright) | Hospitals and major roads in those cells (context, not impact); for "Is fire near you?", the schools, kindergartens, colleges, hospitals, clinics, care homes and fire stations within 25 km of any place, live |
 | OpenFreeMap | [openfreemap.org](https://openfreemap.org) | Vector base map |
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
@@ -402,7 +416,6 @@ We acknowledge the use of data and imagery from NASA's Fire Information for Reso
 (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
 
 Detections are not fires and not burned area. Kiln Watch is an independent project, not an official NASA product.
-
 ---
 
 ## Use of AI
