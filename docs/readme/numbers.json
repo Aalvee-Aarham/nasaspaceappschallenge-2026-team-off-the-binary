@@ -191,6 +191,13 @@
    "median_ratio": 1.014,
    "p75_ratio": 1.113
   },
+  "radar": {
+   "n": 717,
+   "median_dry_contrast_db": 0.41,
+   "median_rise_db": 0.67,
+   "dry_contrast_above_random_75th_pct": 33.6,
+   "rise_above_random_75th_pct": 54.5
+  },
   "inventory": {
    "n_in_area": 1615,
    "n_on_labelled_kiln": 717

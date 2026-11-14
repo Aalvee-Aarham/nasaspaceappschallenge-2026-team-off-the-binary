@@ -101,6 +101,10 @@ def test_shipped_kiln_evidence():
         assert 0 <= k["firms"][g]["viirs_any_pct"] <= 100 and 0 <= k["firms"][g]["modis_any_pct"] <= 100
     w, s, e, n = k["bbox"]
     assert all(w <= r[0] <= e and s <= r[1] <= n for r in k["kilns"])
+    if k.get("radar"):   # one viewing geometry, both seasons observed, shares are shares
+        r = k["radar"]
+        assert r["scenes"]["kiln_season"] > 0 and r["scenes"]["monsoon"] > 0 and r["mapped_kilns"]["n"] > 0
+        assert 0 <= r["mapped_kilns"]["rise_above_random_75th_pct"] <= 100 and "not proof" in r["note"]
 
 
 def test_shipped_case_files():

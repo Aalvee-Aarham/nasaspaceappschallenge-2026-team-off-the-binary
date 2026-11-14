@@ -243,8 +243,13 @@ function kilns(id) {
   g += T(bx, y0 + 190, "Night lights, kiln season vs monsoon", { size: 14, w: 600 });
   g += T(bx, y0 + 218, `${nl.mapped_kilns_rural.above_random_75th_pct}% of rural kilns brighten more than the`, { size: 13, fill: C.text });
   g += T(bx, y0 + 238, `random 75th percentile (25% would be chance).`, { size: 13, fill: C.text });
-  g += T(bx, y0 + 264, `Only ${f.static_sources.within_500m_of_mapped_kiln} of ${f.static_sources.n} FIRMS heat sources sit on a mapped kiln.`, { size: 13, fill: C.harm, w: 600 });
-  numbers.kilns = { area: m.name, mapped_kilns: f.mapped_kilns, random_places: f.random_places, static_sources: f.static_sources, night_lights: nl.mapped_kilns_rural, night_lights_random: nl.random_rural, inventory: { n_in_area: k.inventory.n_in_area, n_on_labelled_kiln: k.inventory.n_on_labelled_kiln } };
+  if (k.radar) {
+    g += T(bx, y0 + 270, "Sentinel-1 radar, kiln season vs monsoon", { size: 14, w: 600 });
+    g += T(bx, y0 + 298, `${k.radar.mapped_kilns.rise_above_random_75th_pct}% of kilns stand out more from their surroundings`, { size: 13, fill: C.text });
+    g += T(bx, y0 + 318, `than the random 75th percentile (25% would be chance).`, { size: 13, fill: C.text });
+  }
+  g += T(bx, y0 + 350, `Only ${f.static_sources.within_500m_of_mapped_kiln} of ${f.static_sources.n} FIRMS heat sources sit on a mapped kiln.`, { size: 13, fill: C.harm, w: 600 });
+  numbers.kilns = { area: m.name, mapped_kilns: f.mapped_kilns, random_places: f.random_places, static_sources: f.static_sources, night_lights: nl.mapped_kilns_rural, night_lights_random: nl.random_rural, radar: k.radar ? k.radar.mapped_kilns : null, inventory: { n_in_area: k.inventory.n_in_area, n_on_labelled_kiln: k.inventory.n_on_labelled_kiln } };
   save("kilns", svg(W, H, g));
 }
 

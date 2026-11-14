@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Persona, api } from "../api";
+import { Persona, api, apiOrigin } from "../api";
 import { Code, PageHead, PageProps } from "./shared";
 
 const TOOLS: [string, [string, string][]][] = [
@@ -61,7 +61,7 @@ const STDIO = `{
 }`;
 
 export function Mcp({ go }: PageProps) {
-  const url = `${location.origin}/mcp`;
+  const url = `${apiOrigin()}/mcp`;
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
   useEffect(() => { api.personas().then(setPs).catch(() => undefined); }, []);
@@ -171,7 +171,7 @@ export function Mcp({ go }: PageProps) {
 }
 
 export function N8n({ go }: PageProps) {
-  const base = location.origin;
+  const base = apiOrigin();
   return (
     <>
       <PageHead kicker="Automation" title="n8n alerts" lead="Kiln Watch can email you itself; n8n is for Slack, Telegram, Teams or anything else. Each alert has a secret token and n8n asks about it every morning." />

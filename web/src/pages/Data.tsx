@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RegionItem, api } from "../api";
+import { RegionItem, api, apiOrigin } from "../api";
 import Loader, { STEPS } from "../Loader";
 import { AreaPicker, AreaSelect, Code, Offline, PageHead, PageProps } from "./shared";
 
@@ -25,7 +25,7 @@ export function Download({ regions, online }: PageProps) {
   }, [end, rid]);
   const days = from && to ? (Date.parse(to) - Date.parse(from)) / 86400000 : 0;
   const bad = !online || !area || days < 0 || days > 366;
-  const base = location.origin;
+  const base = apiOrigin();
   return (
     <>
       <PageHead kicker="Open data" title="Download the data" lead="The harmonized calendar for every area as CSV or JSON, and the detections behind it. Every file carries its units, sources and the code version that made it." />
