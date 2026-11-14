@@ -94,6 +94,10 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.8); }
 
 .stage { position: relative; min-height: 0; }
 .map { position: absolute; inset: 0; }
+/* MapLibre's stylesheet sets .maplibregl-map { position: relative } and, since the map is lazy-loaded, arrives after
+   this file in the production bundle: two classes outrank one, so our containers stay absolute in any order
+   (otherwise the map and globe collapse to zero height). */
+.maplibregl-map.map, .maplibregl-map.ow-map { position: absolute; inset: 0; }
 .hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--night); border: 1px solid var(--focus); padding: 7px 14px; border-radius: var(--radius-m); z-index: 4; }
 .layers-toggle { position: absolute; top: 12px; left: 12px; z-index: 3; background: var(--night) !important; }
 .layers { position: absolute; top: 52px; left: 12px; width: 268px; max-height: calc(100% - 70px); overflow: auto; background: rgba(3, 5, 8, .96); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px 14px; z-index: 3; }
