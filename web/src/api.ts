@@ -5,7 +5,7 @@
 // (Vercel's own function cannot: builds take minutes). If that server does not answer, the site falls back to its own
 // read-only API, so the prebuilt areas always work.
 // ponytail: one probe at load; a sleeping free Space that wakes later is not retried until the page reloads.
-const REMOTE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").replace(/\/$/, "");
+const REMOTE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").trim().replace(/\/$/, "");
 let API = REMOTE;
 const ready: Promise<void> = REMOTE
   ? fetch(`${REMOTE}/api/health`, { signal: AbortSignal.timeout(15000) })

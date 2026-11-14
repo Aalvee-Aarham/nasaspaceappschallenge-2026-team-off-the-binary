@@ -201,13 +201,26 @@ Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py
 Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
 
 **Two hosts, one site.** Vercel serves the site and a read-only API (its functions stop after a minute, too short for a
-build). The `Dockerfile` runs the full app (port 7860), where new areas can be built. It runs on Azure Container Apps
-at <https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io> (one replica, scales to zero when idle;
-an area built there lives until the replica stops). The image is built by GitHub Actions
-(`.github/workflows/azure-image.yml`, on every push that touches the app) and pushed to the Azure registry; the app then
-needs `az containerapp update -n kiln-watch -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<sha>`.
-Set `VITE_API_BASE` to that address in the Vercel project and redeploy: the site then uses Azure for everything, and
-falls back to its own read-only API when Azure does not answer within 15 s.
+build). The full app (`Dockerfile`, site + API on port 7860, live builds on) runs on Azure Container Apps:
+<https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io>. The Vercel project sets
+`VITE_API_BASE` to that address, so the site sends every request to Azure and falls back to Vercel's own read-only API
+when Azure does not answer `/api/health` within 15 s.
+
+| Piece | Where | Notes |
+|---|---|---|
+| Container App `kiln-watch` | resource group `kiln-watch-rg`, East Asia (Azure for Students allows only five Asian/UAE regions) | 1 vCPU, 2 GiB, 0–1 replica: scales to zero when idle, never more than one copy (builds live on its disk) |
+| Registry `kilnwatch1114.azurecr.io` | same group, Basic tier | about US$5/month from student credits; the app itself stays inside the Container Apps free monthly grant for a demo |
+| Image build | GitHub Actions, `.github/workflows/azure-image.yml` | Azure for Students blocks ACR Tasks, so GitHub builds the image on every push to `main` that touches the app (secrets `ACR_USERNAME`, `ACR_PASSWORD`) |
+| Environment `kiln-watch-env` | same group | logs off (Log Analytics is billed) |
+
+Checked after deploy: health answers with `serverless: false`, the Vercel origin gets CORS, and a live 1°×1° build
+(northern Thailand) finished in about 5 minutes with the same Aqua drift onset (2023-01) as the prebuilt areas.
+
+Limits: the first request after idle waits a few seconds while a replica starts; an area built live lasts until the
+replica stops (the nine prebuilt areas are in the image). The workflow pushes images but does not roll them out; after
+it finishes run
+`az containerapp update -n kiln-watch -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<commit sha>`.
+Hugging Face Spaces would also run this `Dockerfile`, but Docker Spaces now need a PRO account.
 
 </details>
 
