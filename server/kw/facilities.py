@@ -13,7 +13,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from . import news, tools
 from .regions import PRESETS
@@ -69,7 +69,7 @@ def _tile(t):
     errs = []
     for url in tools.OVERPASS:
         try:
-            d = json.loads(news._get(url, timeout=90, data=urllib.parse.urlencode({"data": q}).encode()))
+            d = json.loads(news._get(url, timeout=tools.OVERPASS_DEADLINE_S + 5, data=urllib.parse.urlencode({"data": q}).encode()))
         except Exception as ex:  # noqa: BLE001 - try the next mirror, then report
             errs.append(f"{url.split('/')[2]}: {str(ex)[:100]}")
             continue
@@ -126,6 +126,8 @@ def facilities(west, south, east, north):
     if (x1 - x0) * TILE > MAX_SIDE or (y1 - y0) * TILE > MAX_SIDE:
         raise ValueError(f"zoom in: schools and hospitals load for at most {MAX_SIDE:g}° × {MAX_SIDE:g}° at a time")
     tiles = [(iy, ix) for iy in range(y0, y1) for ix in range(x0, x1)]
+    if tools.SERVERLESS:   # the function freezes after replying, so a background fetch never finishes: wait for it here
+        wait([_job(t) for t in tiles if _disk(t) is None], timeout=50)   # Vercel maxDuration is 60 s
     items, loading, failed, partial, truncated = [], 0, set(), False, False
     for t in tiles:
         v = _disk(t)   # cached tiles are read here, never queued behind slow fetches
