@@ -35,6 +35,9 @@
   <a href="#the-product">Product</a> ·
   <a href="#who-it-is-for">Who it is for</a> ·
   <a href="#how-it-is-built">How it is built</a> ·
+  <a href="#nasa-data-and-resources">NASA resources</a> ·
+  <a href="#use-of-ai">Use of AI</a> ·
+  <a href="#references">References</a> ·
   <a href="#team-off-the-binary">Team</a>
 </p>
 
@@ -172,28 +175,98 @@ Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://
 
 </details>
 
+---
+
+## NASA data and resources
+
+Every number in Kiln Watch comes from NASA data. Everything we used from NASA:
+
+| NASA resource | What we used | Where it appears |
+|---|---|---|
+| [**FIRMS**](https://earthdata.nasa.gov/firms) MODIS Collection 6.1 active fire | Terra and Aqua MODIS detections, 2000 to today | Every calendar, chart, download and test |
+| [**FIRMS**](https://earthdata.nasa.gov/firms) VIIRS 375 m active fire, Collection 2 | Suomi-NPP, NOAA-20 and NOAA-21 VIIRS detections | Every calendar, chart, download and test |
+| FIRMS archive as GeoParquet ([Portolan mirror](https://source.coop/portolan-mirrors/firms-catalog), CC0) | The same FIRMS records, queried in place with DuckDB | Data pipeline (`server/kw/firms.py`) |
+| [**GIBS**](https://gibs.earthdata.nasa.gov) fire layers | `MODIS_Combined_Thermal_Anomalies_All`, `VIIRS_SNPP_Thermal_Anomalies_375m_All`, `VIIRS_NOAA20_Thermal_Anomalies_375m_All`, `VIIRS_NOAA21_Thermal_Anomalies_375m_All` | Daily fire overlay on the map |
+| [**GIBS**](https://gibs.earthdata.nasa.gov) imagery layers | `MODIS_Terra_CorrectedReflectance_TrueColor`, `VIIRS_NOAA20_CorrectedReflectance_TrueColor` | Satellite base maps |
+| **Black Marble** (VIIRS Day/Night Band, `VIIRS_Black_Marble`) | Night lights | Globe night view |
+| **Blue Marble** (`BlueMarble_ShadedRelief_Bathymetry` and Earth textures) | Earth imagery | Globe base map, 3D Earth on the home page |
+| [**NASA 3D Resources**](https://science.nasa.gov/3d-resources/) | Aqua, Terra and Suomi-NPP satellite models (`web/public/models/*.glb`) | Home page 3D scenes |
+| [**EONET**](https://eonet.gsfc.nasa.gov) (Earth Observatory Natural Event Tracker) API | Wildfire events | News page and cell inspector |
+| [**Worldview**](https://worldview.earthdata.nasa.gov) and the [FIRMS Fire Map](https://firms.modaps.eosdis.nasa.gov/map) | Deep links to the same place and day | "Open in Worldview" / FIRMS buttons |
+| NASA Earthdata, LAADS DAAC, LP DAAC and MODIS Land documentation | Sensor status and data attributes (see [References](#references)) | Method and sensor timeline |
+
+We acknowledge the use of data and imagery from NASA's Fire Information for Resource Management System (FIRMS)
+(https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
+
 <details>
-<summary><b>Data and credits</b></summary>
+<summary><b>Other data and software</b></summary>
 
 <br>
 
 | Source | Used for |
 |---|---|
-| **NASA FIRMS** (MODIS C6.1, VIIRS 375 m C2), read from the Portolan GeoParquet mirror (CC0) | Every detection and every number |
-| **NASA GIBS**, **NASA Black Marble** (VIIRS Day/Night Band), **NASA Blue Marble** | Daily fire layers, imagery, night lights |
-| **NASA EONET**, GDACS (EC JRC, UN OCHA) | Wildfire events |
-| GDELT Project, Google News RSS | News reports beside the data |
-| NASA 3D Resources | Satellite models on the home page |
+| GDACS (EC JRC, UN OCHA) | Wildfire events |
+| GDELT Project, Google News RSS, ReliefWeb (optional) | News reports beside the data |
 | OpenFreeMap, OpenStreetMap, Nominatim | Base map and place search |
-| DuckDB, FastAPI, MCP Python SDK, React, MapLibre GL JS, three.js, GSAP, Lenis, Vite | Software |
+| DuckDB, FastAPI, Uvicorn, MCP Python SDK | Server |
+| React, MapLibre GL JS, three.js, GSAP, Lenis, Vite, TypeScript | Web app |
+| iso-kit (MIT, `web/src/lib/`) | Isometric drawing helpers |
 
-We acknowledge the use of data and imagery from NASA's Fire Information for Resource Management System (FIRMS)
-(https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
-
-**AI use.** Built with AI assistance (Claude Code); the in-app analyst uses Google Gemini. No AI system produces any number
-in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
+</details>
 
 Detections are not fires and not burned area. Kiln Watch is an independent project, not an official NASA product.
+
+---
+
+## Use of AI
+
+| Tool | Used for | Data it worked on |
+|---|---|---|
+| Claude Fable 5.2, Gemini Argon | Planning: brief, literature and rules review, method design | Public challenge page, papers, NASA/NOAA docs |
+| Claude Opus (Claude Code), Gemini Flash | Developing and writing code, running builds and tests | Our source code; public FIRMS data |
+| Gemini 2.5 Flash (optional, at run time) | In-app analyst that puts tool results into words | Pipeline output only; every tool call is shown |
+
+No AI system produces any number in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
+
+---
+
+## References
+
+<details>
+<summary><b>Papers, NASA documentation and challenge sources</b></summary>
+
+<br>
+
+**Challenge**
+- [Harmonization of MODIS and VIIRS Hot Spots, challenge page](https://www.spaceappschallenge.org/2026/challenges/modis-and-viirs-hot-spots/?tab=details)
+
+**Sensor status**
+- [Transitioning from Suomi NPP VIIRS & OMPS: What FIRMS Users Need to Know](https://www.earthdata.nasa.gov/news/blog/transitioning-from-suomi-npp-viirs-omps-what-firms-users-need-know) (NASA Earthdata)
+- [MODIS to VIIRS Transition](https://ladsweb.modaps.eosdis.nasa.gov/learn/modis-to-viirs-transition) (LAADS DAAC)
+- [Aqua MODIS Acquisition Plan Through August 2026](https://lpdaac.usgs.gov/news/aqua-modis-acquisition-plan-through-august-2026/) (LP DAAC)
+- [Terra orbital drift](https://modis-land.gsfc.nasa.gov/news.html) (MODIS Land)
+- [VIIRS Instruments Become More Essential As Terra and Aqua Drift](https://www.earthdata.nasa.gov/news/feature-articles/viirs-instruments-become-more-essential-terra-aqua-drift-traditional-orbits) (NASA Earthdata)
+- [NASA continuity workshop slides](https://www.earthdata.nasa.gov/s3fs-public/2023-03/RFI_TAA_continuity_workshop.pdf)
+- [Drifting away from MODIS in the CAMS Global Fire Assimilation System](https://atmosphere.copernicus.eu/drifting-away-modis-cams-global-fire-assimilation-system)
+- [NOAA-21 Active Fires provisional readme](https://www.star.nesdis.noaa.gov/JPSS/documents/AMM/N21/NOAA-21_Active_Fires_Provisional_Readme.pdf) · [NOAA-20 Active Fire maturity review](https://www.star.nesdis.noaa.gov/JPSS/documents/AMM/N20/Land_ActiveFires_Iband_Beta_Provisional.pdf)
+
+**FIRMS data**
+- [Active Fire Data Attributes for MODIS and VIIRS](https://www.earthdata.nasa.gov/data/tools/firms/active-fire-data-attributes-modis-viirs) · [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq)
+- [VIIRS Collection 2 375 m Active Fire User Guide](https://ladsweb.modaps.eosdis.nasa.gov/archive/Document%20Archive/Science%20Data%20Product%20Documentation/VIIRS_C2_AF-375m_User_Guide_1.0.pdf)
+- [MODIS Fire User Guide, Collection 6.1](https://lpdaac.usgs.gov/documents/1005/MOD14_User_Guide_V61.pdf)
+- [Systematic Absence of Low-Confidence Nighttime Fire Detections in VIIRS (preprint)](https://arxiv.org/pdf/2510.26816)
+
+**Harmonization science**
+- [Observation operator and detection limits for MODIS and VIIRS FRP products (GMD, 2026)](https://gmd.copernicus.org/articles/19/10123/2026/)
+- [Li et al. 2018, Comparison of FRP estimates from VIIRS and MODIS](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2017jd027823)
+- [FRP correction and spatiotemporal fusion of MYD14 and VNP14IMG (Remote Sensing, 2026)](https://doi.org/10.3390/rs18101650)
+- [MODIS versus VIIRS in Northeast Asia](https://doi.org/10.3390/rs12182870) · [FRP missed by MODIS in Africa](https://www.mdpi.com/2072-4292/12/10/1561) · [MODIS Aqua versus VIIRS in Punjab](https://pmc.ncbi.nlm.nih.gov/articles/PMC6108185/)
+- [VFEIv0 VIIRS-based emission inventory](https://gmd.copernicus.org/articles/15/8085/2022/gmd-15-8085-2022.html) · [GFED5NRT (ESSD, 2026)](https://essd.copernicus.org/articles/18/7535/2026/)
+- [Prior-based mask for persistent heat sources (Remote Sensing, 2026)](https://www.mdpi.com/2072-4292/18/6/904) · [GOFC-GWIS global static thermal anomalies](https://gofcgold.umd.edu/sites/default/files/2024-11/GOFC_GWIS_2024_Roberts_short.pdf)
+- [ESA CCI Soil Moisture ATBD (CDF matching, triple collocation)](https://admin.climate.esa.int/media/documents/ESA_CCI_SM_RD_D2.1_v2_ATBD_v06.1_issue_1.1.pdf) · [Harmonized DMSP–VIIRS night lights](https://www.nature.com/articles/s41597-020-0510-y)
+
+**Related tools**
+- [NASA FEDS / fireatlas](https://earth-information-system.github.io/fireatlas/docs) · [Global Forest Watch fire data](https://blog.globalforestwatch.org/fires/wildfire-trends-gfw-fire-data/) · [Our World in Data, GWIS record](https://ourworldindata.org/grapher/annual-number-of-fires)
 
 </details>
 
