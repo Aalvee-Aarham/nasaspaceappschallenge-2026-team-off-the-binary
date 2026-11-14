@@ -423,11 +423,17 @@ export default function MapView(p: Props) {
     const src = m.getSource("facilities") as GeoJSONSource;
     m.setLayoutProperty("facilities", "visibility", p.layers.facilities ? "visible" : "none");
     if (!p.layers.facilities) { facRef.current?.(null); return; }
-    let debounce = 0, poll = 0, lastKey = "", ctl: AbortController | null = null;
+    let debounce = 0, poll = 0, lastKey = "", ctl: AbortController | null = null, first = true;
     const load = async () => {
       const b = m.getBounds();
       const w = Math.max(-180, b.getWest()), e = Math.min(180, b.getEast()), s = b.getSouth(), n = b.getNorth();
-      if (e - w > FAC_MAX || n - s > FAC_MAX) { facRef.current?.({ state: "zoom", n: 0 }); return; }
+      if (e - w > FAC_MAX || n - s > FAC_MAX) {
+        facRef.current?.({ state: "zoom", n: 0 });
+        // Just switched on from a wide view: go to town level on the same centre, so the dots appear without hunting
+        if (first) { first = false; m.easeTo({ zoom: Math.max(m.getZoom(), 11.5), duration: 1200 }); }
+        return;
+      }
+      first = false;
       const box = [Math.floor(w / FAC_TILE), Math.floor(s / FAC_TILE), Math.ceil(e / FAC_TILE), Math.ceil(n / FAC_TILE)].map((v) => v * FAC_TILE);
       const key = box.join(",");
       if (key === lastKey) return;   // same tiles, already complete
