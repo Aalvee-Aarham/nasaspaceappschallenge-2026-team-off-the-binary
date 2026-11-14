@@ -20,6 +20,8 @@ COPY --chown=user data/regions/ data/regions/
 # 30-day outlook snapshot (rebuilt daily where the global aggregate exists; served as-is otherwise)
 COPY --chown=user data/global/outlook.json data/global/outlook.json
 COPY --chown=user data/sensor_days.parquet data/sensor_days.parquet
+# Aqua drift onset: live builds must leave out drifting Aqua exactly like the prebuilt areas
+COPY --chown=user data/aqua_overpass.json data/aqua_overpass.json
 COPY --chown=user --from=web /web/dist web/dist
 ENV KW_DATA=/app/data PYTHONUNBUFFERED=1
 WORKDIR /app/server
