@@ -6,6 +6,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
@@ -228,7 +229,7 @@ function prepare(model: THREE.Object3D, size: number, G: number): Sat {
     const mat = new THREE.ShaderMaterial({
       uniforms: { map: { value: old.map ?? null }, hasMap: { value: old.map ? 1 : 0 }, op },
       vertexShader: HOLO_VS, fragmentShader: HOLO_FS, side: THREE.DoubleSide, transparent: true,
-      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, // keep the edge lines clear of the faces
+      polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2, // keep the edge lines clear of the faces (shimmer as the model sways)
     });
     old.dispose();
     for (const { geo, mid } of split(m, half, G)) {
@@ -308,10 +309,19 @@ export function mountScene(canvas: HTMLCanvasElement, scroller: HTMLElement, ph:
   const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 })); // multisampled: the line work stays crisp
   composer.addPass(new RenderPass(scene, camera));
+  // Catch-all for the black box: any NaN/Inf pixel (from any material, incl. the line work or a half-float overflow) is
+  // blurred by the bloom's separable passes into a black rectangle, so scrub the frame before the bloom sees it.
+  // Tested on the exponent bits: Windows' D3D shader compiler optimises isnan()/isinf() and x!=x away.
+  composer.addPass(new ShaderPass({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: "varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }",
+    fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+void main(){ vec4 c=texture2D(tDiffuse,vUv); uvec4 e=floatBitsToUint(c)&0x7f800000u;
+  gl_FragColor=any(equal(e,uvec4(0x7f800000u))) ? vec4(0.,0.,0.,1.) : clamp(c,0.,32.); }`,
+  }));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.8, 0.42);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
-
   let disposed = false;
   const intro = { v: 0 };
   const manager = new THREE.LoadingManager(() => { if (!disposed) { gsap.to(intro, { v: 1, duration: 3, ease: "power3.out" }); onReady(); } });
