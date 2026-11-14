@@ -16,7 +16,7 @@ import EarlyWarning from "./pages/Warning";
 import Timeline from "./Timeline";
 import CasesPage from "./pages/CasesPage";
 import CasesPanel from "./CasesPanel";
-import { useCases } from "./casebook";
+import { VERDICTS, useCases } from "./casebook";
 
 const Landing = lazy(() => import("./pages/Home")); // three.js + gsap load only on the home page
 
@@ -49,7 +49,7 @@ export default function App() {
   const [period, setPeriod] = useState<string | null>(h0.p ?? null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [casesOpen, setCasesOpen] = useState(h0.cases === "1");
-  const [caseFilter, setCaseFilter] = useState<CaseVerdict | null>(null);
+  const [caseFilter, setCaseFilter] = useState<CaseVerdict | null>((VERDICTS as string[]).includes(h0.v) ? (h0.v as CaseVerdict) : null);
   const [selCase, setSelCase] = useState<FireCase | null>(null);
   const [date, setDate] = useState(clampDate(h0.d ?? yesterday()));
   const [layers, setLayers] = useState<Layers>({
@@ -109,9 +109,11 @@ export default function App() {
     if (tab !== "calendar") q.set("t", tab);
     if (basemap !== "night") q.set("b", basemap);
     if (casesOpen) q.set("cases", "1");
+    if (casesOpen && caseFilter) q.set("v", caseFilter);
+    if (casesOpen && (selCase?.id ?? linkedCase.current)) q.set("case", (selCase?.id ?? linkedCase.current)!);   // kept while the linked case loads
     if (projection !== "globe") q.set("pj", "flat");
     history.replaceState(null, "", "#" + q.toString());
-  }, [pg, regionId, period, date, granularity, scale, cls, tab, basemap, projection, casesOpen]);
+  }, [pg, regionId, period, date, granularity, scale, cls, tab, basemap, projection, casesOpen, caseFilter, selCase]);
 
   // custom-area build polling
   useEffect(() => {
@@ -218,8 +220,17 @@ export default function App() {
   };
 
   const cases = useCases(casesOpen && pg === "explore" ? regionId : null, online);
-  useEffect(() => { setSelCase(null); setCaseFilter(null); }, [regionId]);
+  const casesArea = useRef(regionId);   // reset only when the area really changes, so a shared link's filter and case survive the load
+  useEffect(() => { if (casesArea.current === regionId) return; casesArea.current = regionId; setSelCase(null); setCaseFilter(null); }, [regionId]);
   const pickCase = (c: FireCase | null) => { setSelCase(c); if (c) setFocus({ center: [c.lon, c.lat], zoom: 9, n: Date.now() }); };
+  const linkedCase = useRef<string | null>(h0.case ?? null);   // a case named in the link opens once the area's cases load
+  useEffect(() => {
+    const id = linkedCase.current;
+    if (!id || !cases.data) return;
+    linkedCase.current = null;
+    const c = cases.data.cases.find((x) => x.id === id);
+    if (c) pickCase(c);
+  }, [cases.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const caseDots = casesOpen && pg === "explore" ? (cases.data?.cases ?? []).filter((c) => !caseFilter || c.verdict === caseFilter) : null;
   const pageProps: PageProps = { regions, online, go: setPg, openRegion: (id) => openRegion(id), refresh: refreshRegions, area: regionId };
   const area = draft ? Math.abs((draft[2] - draft[0]) * (draft[3] - draft[1])) : 0;

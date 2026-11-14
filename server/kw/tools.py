@@ -311,8 +311,14 @@ def warnings(min_level=None):
         except (NotFound, KeyError, StopIteration):
             continue  # area built before a field existed; skipped, not guessed
         if min_level is None or LEVELS.index(w["level"]) <= LEVELS.index(min_level):
+            bt = w.get("backtest") or {}
+            e = (bt.get("by_day") or {}).get("15", {}).get("elevated") if bt.get("scored") else None
             out.append({k: w[k] for k in ("region_id", "name", "country", "level", "headline", "as_of", "stale")}
-                       | {"percentile": (w["month"] or {}).get("percentile"), "next_4_weeks_median": w["next_4_weeks"]["median"]})
+                       | {"percentile": (w["month"] or {}).get("percentile"), "next_4_weeks_median": w["next_4_weeks"]["median"],
+                          # how the same rule did on the 15th of every earlier month here (pod: share of top-tenth months it
+                          # had flagged; far: share of its flags that were wrong; pss: 0 = chance, 1 = perfect)
+                          "backtest": {k: e.get(k) for k in ("pod", "far", "pss", "n")} if e else None,
+                          "backtest_reason": None if e else bt.get("reason") or "not backtested"})
     out.sort(key=lambda a: (LEVELS.index(a["level"]), -(a["percentile"] or 0)))
     return {"as_of": as_of, "count": len(out), "alerts": out,
             "rule": sc.WARNING_RULE, "disclaimer": "Climatological outlook, not a forecast or an official alert."}

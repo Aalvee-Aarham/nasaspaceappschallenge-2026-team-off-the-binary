@@ -91,7 +91,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
             </ul>
             <div className="scroll-x" style={{ marginTop: 14 }}>
               <table className="tbl click watch-tbl">
-                <thead><tr><th>Level</th><th>Area</th><th>This month vs earlier years</th><th>Usual next 4 weeks</th></tr></thead>
+                <thead><tr><th>Level</th><th>Area</th><th>This month vs earlier years</th><th>Usual next 4 weeks</th><th title="The same rule run on the 15th of every earlier month here">Rule's record here</th></tr></thead>
                 <tbody>
                   {all.alerts.map((a) => (
                     <tr key={a.region_id} className={sel === a.region_id ? "sel" : ""} onClick={() => setSel(a.region_id)} tabIndex={0}
@@ -100,12 +100,14 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
                       <td>{a.name}{a.stale && <span className="tag">stale data</span>}</td>
                       <td className="num">{a.level === "insufficient" || a.percentile === null ? "–" : `${ordinal(Math.round(a.percentile))} percentile`}</td>
                       <td className="num">{a.level === "insufficient" || a.next_4_weeks_median === null ? "–" : `${fmt(a.next_4_weeks_median)} hotspots`}</td>
+                      <td className="small">{a.backtest ? <>caught {fmt((a.backtest.pod ?? 0) * 100, 0)}% · {fmt((a.backtest.far ?? 0) * 100, 0)}% false · skill {a.backtest.pss ?? "–"}</> : <span className="muted" title={a.backtest_reason ?? undefined}>not scored</span>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             {sel && <Detail id={sel} {...detail} />}
+            <p className="muted small">Rule's record here: the same rule run on the 15th of every earlier month in that area. Caught: the share of months that ended in the top tenth that it had already flagged "elevated". False: the share of its "elevated" flags that were wrong. Skill: 0 is chance, 1 is perfect. Sparse areas are not scored.</p>
             <p className="muted small">Every area you check is added here and refreshed from NASA FIRMS whenever its data is more than six hours old.</p>
           </>
         )}

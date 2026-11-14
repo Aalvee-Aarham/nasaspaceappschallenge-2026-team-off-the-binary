@@ -73,6 +73,13 @@ def test_cases_and_exposure_endpoints():
     assert client.get("/api/regions/nowhere/exposure").status_code == 404
 
 
+def test_watchlist_rows_carry_the_backtest():
+    rows = tools.warnings()["alerts"]
+    assert rows and all("backtest" in a for a in rows)
+    for a in rows:   # a score, or a stated reason: never a silent blank
+        assert (a["backtest"] and 0 <= a["backtest"]["pod"] <= 1) or a["backtest_reason"], a["region_id"]
+
+
 def test_kiln_evidence_endpoint():
     k = client.get("/api/regions/dhaka-kilns/kilns")
     assert k.status_code == 200 and k.json()["inventory"]["license"] and k.json()["firms"]["mapped_kilns"]["n"] > 0

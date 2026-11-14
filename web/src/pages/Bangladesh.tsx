@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { KilnEvidence, Num, api, fmt } from "../api";
+import { compact, useExposure } from "../casebook";
 import { PageHead, PageProps, useRegion } from "./shared";
 
 // ponytail: English only. A Bangla toggle needs strings written or reviewed by a native speaker; add { en, bn } here then.
@@ -13,6 +14,7 @@ export default function Bangladesh({ go, openRegion, online }: PageProps) {
     api.kilns("dhaka-kilns").then((x) => live && setK(x)).catch((e) => live && setKerr(e.message));
     return () => { live = false; };
   }, [online]);
+  const ex = useExposure("dhaka-kilns", null, online).data;
   const m = region?.meta;
   const st = m?.steps.VIIRS_SNPP;
 
@@ -35,6 +37,19 @@ export default function Bangladesh({ go, openRegion, online }: PageProps) {
             {online && !k && !kerr && <div className="skeleton tall" />}
             {k && <Kilns k={k} />}
           </section>
+
+          {ex && (
+            <section>
+              <h2>Who lives where fire is seen</h2>
+              <div className="cx-stats">
+                <div className="cx-stat"><span>Cells with fire since 2000</span><b>{fmt(ex.fire_cells)}</b></div>
+                <div className="cx-stat"><span>People living in them</span><b>{compact(ex.population)}</b></div>
+                <div className="cx-stat"><span>Hospitals</span><b>{ex.hospitals == null ? "–" : fmt(ex.hospitals)}</b></div>
+                <div className="cx-stat"><span>Schools</span><b>{ex.schools == null ? "–" : fmt(ex.schools)}</b></div>
+              </div>
+              <p className="muted small">People (WorldPop 2020, modelled), hospitals and schools (OpenStreetMap) inside the 11 km cells where the harmonized record shows any vegetation-fire detection since 2000. Around Dhaka those cells include the city, so this is context, not the number of people affected by fire or by kiln smoke. {ex.caveat}</p>
+            </section>
+          )}
 
           <section>
             <h2>What you can do with it</h2>
