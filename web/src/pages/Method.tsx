@@ -14,12 +14,31 @@ const STEPS: [string, string][] = [
   ["Comparison", "Median, ratio, percentile and rank against the same period in other complete years. Fire counts are skewed, so there are no sigma thresholds. The Early warning level uses the same percentiles."],
 ];
 
-const LIMITS = [
+const WHY: [string, string][] = [
+  ["It is measured on what we publish.", "The gap between sensors is measured on monthly detection totals, the very quantity in the record, so no model of fire physics has to be right first. VIIRS sees many small fires MODIS cannot (Schroeder et al. 2014; Giglio et al. 2016), and the ratio absorbs that difference as it is."],
+  ["A ratio of totals, not a regression.", "Both sensors count with error, so a regression of one on the other is biased toward zero (regression dilution, Frost & Thompson 2000). For Poisson counts with a common rate ratio, the ratio of the two totals is the maximum-likelihood estimate of that ratio."],
+  ["Seasonal, but not over-fitted.", "Each calendar month has its own ratio, pulled toward the all-year ratio by empirical Bayes (Efron & Morris 1975), with the between-month variance estimated from the data by the method of moments (DerSimonian & Laird 1986). A month with little data borrows strength; a month with plenty keeps its own value."],
+  ["No near-simultaneous pairs needed.", "Methods that match single fires or pixels need the two satellites to look within minutes. Aqua's afternoon pass has drifted later since 2020, so those pairs become rare. Monthly totals only need both satellites to have flown that month."],
+  ["Tested by taking satellites away.", "MODIS is switched off in 2017–2020 and rebuilt from VIIRS; Suomi-NPP is withheld; calibration is borrowed from other areas. Intervals are widened by split conformal prediction (Lei et al. 2018) and checked on months the widening never saw. Trends use Sen's slope (Sen 1968)."],
+  ["The main alternative was tried, and lost.", "MODIS detects a fire only above a certain fire power, so the sensor ratio could follow the fire mix. We added a term for the month's mean VIIRS fire power per detection, fitted on 2012–2016 and scored on 2017–2020. It helps a few areas with large fires, but it does not help on average and it inflates bias in others: see the fire-size column of the scorecard and the Evidence below. It is not used."],
+];
+
+const REFS: [string, string][] = [
+  ["Schroeder, Oliva, Giglio & Csiszar (2014). The New VIIRS 375 m active fire detection data product. Remote Sensing of Environment 143, 85–96", "https://doi.org/10.1016/j.rse.2013.12.008"],
+  ["Giglio, Schroeder & Justice (2016). The collection 6 MODIS active fire detection algorithm and fire products. Remote Sensing of Environment 178, 31–41", "https://doi.org/10.1016/j.rse.2016.02.054"],
+  ["Frost & Thompson (2000). Correcting for regression dilution bias. JRSS A 163(2), 173–189", "https://doi.org/10.1111/1467-985X.00164"],
+  ["Efron & Morris (1975). Data analysis using Stein's estimator and its generalizations. JASA 70(350), 311–319", "https://doi.org/10.1080/01621459.1975.10479864"],
+  ["DerSimonian & Laird (1986). Meta-analysis in clinical trials. Controlled Clinical Trials 7(3), 177–188", "https://doi.org/10.1016/0197-2456(86)90046-2"],
+  ["Lei, G'Sell, Rinaldo, Tibshirani & Wasserman (2018). Distribution-free predictive inference for regression. JASA 113(523), 1094–1111", "https://doi.org/10.1080/01621459.2017.1307116"],
+  ["Sen (1968). Estimates of the regression coefficient based on Kendall's tau. JASA 63(324), 1379–1389", "https://doi.org/10.1080/01621459.1968.10480934"],
+];
+
+export const LIMITS = [
   "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals, schools and roads are an OpenStreetMap snapshot from the query date; farmland is ESA WorldCover 2021 cropland, one year of land cover. No fire perimeter, no smoke, no fire spread, no crop loss and no impact estimate.",
   "An outside event (EONET, GDACS) is one point on a fire that can span several cells and start before its first hotspots, so it is matched to the record in its 0.1° cell and the 8 around it, in the event month and the next. Those windows are judgement calls, not fitted. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen, and a witness whose search failed or does not reach back that far is shown as \"could not look\".",
   "The burned-area witness (MODIS MCD64A1) sums the burn scar mapped in the case cell and its 8 neighbours that month. It confirms fire on the ground, but its mapping is guided by MODIS active fires, so it is not fully independent of the hotspot record.",
   "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
-  "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",
+  "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased. A fire-size term was tested and did not help on average; in some large-fire areas it did (scorecard), so an area-specific version is the open next step.",
   "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua's data changed after 2020 (orbit drift, and a new MODIS archive version); from the onset measured from the data the record uses VIIRS only, still on the Aqua 2002–2020 scale.",
   "MODIS changes collection (6.03 to 61.03) at the start of 2023; this is listed but not yet step-tested.",
   "Near-real-time rows cannot be compared with standard processing from the mirror, so those months are labelled provisional, not adjusted.",
@@ -56,6 +75,17 @@ export default function MethodPage({ regions }: PageProps) {
       <section>
         <h2>Six steps</h2>
         <ol className="steps long">{STEPS.map(([t, d]) => <li key={t}><b>{t}.</b> {d}</li>)}</ol>
+      </section>
+
+      <section>
+        <h2>Why this method</h2>
+        <ul className="plain">
+          {WHY.map(([t, d]) => <li key={t}><b>{t}</b> {d}</li>)}
+        </ul>
+        <p className="muted small">Each part is a published, standard tool; the way they are put together for MODIS and VIIRS is ours, and the tests on this page are its proof.</p>
+        <ul className="plain small">
+          {REFS.map(([t, u]) => <li key={u}><a href={u} target="_blank" rel="noreferrer">{t}</a></li>)}
+        </ul>
       </section>
 
       <section>

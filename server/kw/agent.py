@@ -14,7 +14,7 @@ import datetime as dt
 from . import charts, news_more, outlook, tools
 
 # gemini-flash-latest was measured hanging 60 s+ on tool calls while gemini-2.5-flash answers in ~2 s, so pin the fast one.
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")   # an alias: follows Google's current Flash, so a retired version never breaks the analyst
 MAX_STEPS = 8
 
 SYSTEM = """You are the analyst inside Kiln Watch, a web app that harmonizes NASA FIRMS MODIS and VIIRS active-fire
@@ -182,21 +182,26 @@ def _call(contents):
 
 
 def _keys():
-    return [k for k in dict.fromkeys((os.environ.get("GEMINI_API_KEY"), os.environ.get("GEMINI_API_KEY_FALLBACK"))) if k]
+    """GEMINI_API_KEY first, then GEMINI_API_KEY_FALLBACK, then GEMINI_API_KEYS (comma-separated), duplicates dropped."""
+    extra = (os.environ.get("GEMINI_API_KEYS") or "").replace(";", ",").split(",")
+    keys = (os.environ.get("GEMINI_API_KEY"), os.environ.get("GEMINI_API_KEY_FALLBACK"), *extra)
+    return [k for k in dict.fromkeys((k or "").strip() for k in keys) if k]
 
 
 def _post(payload):
     body = json.dumps(payload).encode()
-    keys = _keys()
-    for key in keys:  # next key only when this one hits its quota (429)
+    keys, why = _keys(), []
+    for key in keys:  # the next key when this one is out of quota (429), overloaded (503) or refused (401/403)
         try:
             return _post_key(body, key)
-        except _RateLimited:
-            if key == keys[-1]:
-                raise RuntimeError("Gemini free-tier rate limit reached — wait a minute and retry.") from None
+        except _NextKey as ex:
+            why.append(str(ex))
+    if why and all(w == "429" for w in why):
+        raise RuntimeError(f"Gemini free-tier rate limit reached on all {len(keys)} keys. Wait a minute and retry.")
+    raise RuntimeError(f"Gemini is busy or refused every key ({', '.join(why)}). Try again in a minute.")
 
 
-class _RateLimited(Exception):
+class _NextKey(Exception):
     pass
 
 
@@ -212,10 +217,10 @@ def _post_key(body, key):
                 return res
         except urllib.error.HTTPError as ex:
             detail = ex.read().decode("utf-8", "replace")[:300]
-            if ex.code == 503 and model != FALLBACK:
+            if ex.code in (404, 503) and model != FALLBACK:   # retired or overloaded model: try the fallback model
                 continue
-            if ex.code == 429:
-                raise _RateLimited from None
+            if ex.code in (401, 403, 429, 503):
+                raise _NextKey(str(ex.code)) from None
             raise RuntimeError(f"Gemini error {ex.code}: {detail}") from None
         except (TimeoutError, urllib.error.URLError) as ex:
             if model != FALLBACK:

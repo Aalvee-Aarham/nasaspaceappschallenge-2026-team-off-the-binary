@@ -2,12 +2,12 @@ import { ReactNode, RefObject, useEffect, useState } from "react";
 import Lenis from "lenis";
 import { Level, LEVEL_LABEL, PlaceCandidate, Region, RegionItem, api } from "../api";
 
-export type Page = "home" | "explore" | "warning" | "after" | "cases" | "bangladesh" | "news" | "download" | "create" | "method" | "mcp" | "n8n";
+export type Page = "home" | "explore" | "warning" | "after" | "cases" | "bangladesh" | "news" | "download" | "create" | "method" | "questions" | "contact" | "mcp" | "n8n";
 /** Every routable page (hash links); `PAGES` is the shorter top-bar list. */
-export const ALL_PAGES: readonly Page[] = ["home", "explore", "warning", "after", "cases", "method", "bangladesh", "mcp", "n8n", "news", "download", "create"];
+export const ALL_PAGES: readonly Page[] = ["home", "explore", "warning", "after", "cases", "method", "questions", "bangladesh", "mcp", "n8n", "news", "download", "create", "contact"];
 export const PAGES: readonly (readonly [Page, string])[] = [
   ["explore", "Explorer"], ["warning", "Early warning"], ["after", "After MODIS"], ["cases", "Cases & exposure"],
-  ["method", "Proof"], ["bangladesh", "Bangladesh"], ["mcp", "Connect"],
+  ["method", "Proof"], ["questions", "Open questions"], ["bangladesh", "Bangladesh"], ["mcp", "Connect"], ["contact", "Contact"],
 ];
 
 export type PageProps = {

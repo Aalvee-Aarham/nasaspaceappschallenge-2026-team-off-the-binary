@@ -2,12 +2,15 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import Analyst from "./Analyst";
 import { AgentReply, CaseVerdict, Cls, FireCase, Health, Outlook, Region, RegionItem, SCALE_LABEL, SHORT, Scale, View, Warnings, api, fmt, periodLabel } from "./api";
 import Detail, { RangeNews } from "./Detail";
+import ExportPanel from "./Export";
 import Loader, { STEPS } from "./Loader";
 import MapView, { Basemap, FIRE_LAYERS, Focus, Layers, OUTLOOK_COLOR, OUTLOOK_LABEL, Projection } from "./Map";
 import { Calendar, Continuity, Glance, SeasonView, useYearRange } from "./Record";
 import { Create, Download } from "./pages/Data";
 import { Mcp, N8n } from "./pages/Connect";
 import MethodPage from "./pages/Method";
+import Questions from "./pages/Questions";
+import Contact from "./pages/Contact";
 import News from "./pages/News";
 import AfterModis from "./pages/AfterModis";
 import Bangladesh from "./pages/Bangladesh";
@@ -62,6 +65,8 @@ export default function App() {
   const [layersOpen, setLayersOpen] = useState(window.innerWidth > 900);
   const [analystOpen, setAnalystOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [seed, setSeed] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [draft, setDraft] = useState<number[] | null>(null);
@@ -284,6 +289,8 @@ export default function App() {
             {pg === "download" && <Download {...pageProps} />}
             {pg === "create" && <Create {...pageProps} job={job} build={(b, n) => startBuild(b, n)} goDraw={() => { setPg("explore"); setDrawing(true); }} />}
             {pg === "method" && <MethodPage {...pageProps} />}
+            {pg === "questions" && <Questions {...pageProps} />}
+            {pg === "contact" && <Contact {...pageProps} />}
             {pg === "mcp" && <Mcp {...pageProps} />}
             {pg === "n8n" && <N8n {...pageProps} />}
           </div>
@@ -347,8 +354,8 @@ export default function App() {
                 <p className="error">{job.error}</p>
                 <button className="btn" onClick={() => setJob(null)}>Back</button>
               </> : <>
-                <Loader steps={STEPS.build} expected={25} done={job.total ? job.done : undefined} total={job.total || undefined} />
-                <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. The first build reads every detection since 2000; after that the area opens instantly.</p>
+                <Loader steps={STEPS.build} expected={600} eta="Plan on 5 to 10 minutes" done={job.total ? job.done : undefined} total={job.total || undefined} />
+                <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. It reads 26 years of detections, one request per year, so it takes about as long for a small box as a large one. It keeps running on the server if you close this tab, and the finished area appears under Your areas. Next time it opens instantly.</p>
               </>}
             </div>
           ) : draft ? (
@@ -356,7 +363,7 @@ export default function App() {
               <h2>Analyse this area?</h2>
               <p className="num">{draft[1].toFixed(2)}°, {draft[0].toFixed(2)}° to {draft[3].toFixed(2)}°, {draft[2].toFixed(2)}°</p>
               {area > 16 ? <p className="error">This box is {area.toFixed(1)} square degrees. Draw one up to 16 (about 4° × 4°).</p>
-                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes a few minutes.</p>}
+                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes <b>5 to 10 minutes</b>: it reads every detection since 2000, one request per year. A smaller box does not make it faster; after the first build the area opens instantly.</p>}
               {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker to build any place.</p>}
               <div className="row">
                 <button className="btn" onClick={() => startBuild()} disabled={area > 16 || !!health?.serverless}>Build record</button>
@@ -384,34 +391,44 @@ export default function App() {
                   <p className="muted small">{region.meta.country ? `${region.meta.country}, ` : ""}data through {region.meta.data_through}</p>
                   {(() => { const w = ew?.alerts.find((a) => a.region_id === regionId); return w && <button className="chiplink" onClick={() => setPg("warning")} title={w.headline}>Early warning: <LevelChip level={w.level} /></button>; })()}
                 </div>
-                <button className="icon" onClick={() => openRegion(null)} aria-label="Close area">✕</button>
+                <div className="rec-actions">
+                  {online && <button className={`btn ghost sm ${exportOpen ? "on" : ""}`} onClick={() => setExportOpen(!exportOpen)} aria-expanded={exportOpen}>Download</button>}
+                  <button className="btn ghost sm" onClick={() => navigator.clipboard?.writeText(location.href).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500); }).catch(() => undefined)} title="Copy a link to this exact view">{linkCopied ? "Copied" : "Copy link"}</button>
+                  <button className="icon" onClick={() => openRegion(null)} aria-label="Close area">✕</button>
+                </div>
               </header>
-              {region.meta.story && <p className="story">{region.meta.story}</p>}
+              {exportOpen && <ExportPanel key={region.meta.id} id={region.meta.id} name={region.meta.name} years={yearBounds} dataThrough={region.meta.data_through} online={online} onClose={() => setExportOpen(false)} />}
+              {region.meta.story && <Story text={region.meta.story} />}
               <nav className="tabs" role="tablist">
                 {([["calendar", "Calendar"], ["season", "Season"], ["continuity", "Continuity"]] as const).map(([k, l]) => (
                   <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
                 ))}
               </nav>
               {tab !== "season" && (
-                <div className="seg-row">
-                  <Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Persistent heat"]]} />
-                  {tab === "calendar" && <Seg value={granularity} onChange={(g) => { setGranularity(g); setPeriod(null); }} options={[["month", "Month"], ["week", "Week"]]} />}
+                <div className="ctl-grid">
+                  <div className="ctl"><span className="ctl-l">Fire type</span><Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Persistent heat"]]} /></div>
+                  {tab === "calendar" && <div className="ctl"><span className="ctl-l">Step</span><Seg value={granularity} onChange={(g) => { setGranularity(g); setPeriod(null); }} options={[["month", "Month"], ["week", "Week"]]} /></div>}
                 </div>
               )}
               {tab === "calendar" && (
                 <>
                   <Glance meta={region.meta} />
-                  <div className="seg-row">
-                    <Seg value={view} onChange={setView} options={[["value", "Hotspots"], ["median", "vs. median"], ["recent", "vs. recent years"]]} />
+                  <div className="ctl-grid">
+                    <div className="ctl"><span className="ctl-l">Colour by</span><Seg value={view} onChange={setView} options={[["value", "Hotspots"], ["median", "vs. median"], ["recent", "vs. recent years"]]} /></div>
                     {view === "value" && (
-                      <select value={scale} onChange={(e) => setScale(e.target.value as Scale)} aria-label="Unit">
-                        {SCALES.map((s) => <option key={s} value={s}>{SCALE_LABEL[s]}</option>)}
-                      </select>
+                      <label className="ctl"><span className="ctl-l">Unit</span>
+                        <select value={scale} onChange={(e) => setScale(e.target.value as Scale)}>
+                          {SCALES.map((s) => <option key={s} value={s}>{SCALE_LABEL[s]}</option>)}
+                        </select>
+                      </label>
                     )}
-                    <span className="years small">
-                      <label>Years <select value={years[0]} onChange={(e) => setYears([+e.target.value, Math.max(+e.target.value, years[1])])} aria-label="From year">{range(yearBounds).map((y) => <option key={y}>{y}</option>)}</select></label>
-                      <label> to <select value={years[1]} onChange={(e) => setYears([Math.min(years[0], +e.target.value), +e.target.value])} aria-label="To year">{range(yearBounds).map((y) => <option key={y}>{y}</option>)}</select></label>
-                    </span>
+                    <div className="ctl"><span className="ctl-l">Years shown</span>
+                      <span className="years small">
+                        <select value={years[0]} onChange={(e) => setYears([+e.target.value, Math.max(+e.target.value, years[1])])} aria-label="From year">{range(yearBounds).map((y) => <option key={y}>{y}</option>)}</select>
+                        to
+                        <select value={years[1]} onChange={(e) => setYears([Math.min(years[0], +e.target.value), +e.target.value])} aria-label="To year">{range(yearBounds).map((y) => <option key={y}>{y}</option>)}</select>
+                      </span>
+                    </div>
                   </div>
                   {online && !newsOpen && (
                     <button className="btn ghost" onClick={() => setNewsOpen(true)}>News and reports for chosen years</button>
@@ -444,6 +461,17 @@ export default function App() {
           <span>Data: NASA FIRMS (MODIS, VIIRS) via <a href="https://source.coop/portolan-mirrors/firms-catalog" target="_blank" rel="noreferrer">Portolan mirror</a>, imagery NASA GIBS. Not an official NASA product.</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/** The area's story, two lines until asked for more (the panel is already long). */
+function Story({ text }: { text: string }) {
+  const [more, setMore] = useState(false);
+  return (
+    <div className="story-wrap">
+      <p className={`story ${more ? "" : "clamp"}`}>{text}</p>
+      {text.length > 150 && <button className="linkish" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Less" : "More"}</button>}
     </div>
   );
 }

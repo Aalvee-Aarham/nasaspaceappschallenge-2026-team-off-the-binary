@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
   <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
-  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-39%20tools-3DDC97?style=for-the-badge" alt="MCP server, 39 tools"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-40%20tools-3DDC97?style=for-the-badge" alt="MCP server, 40 tools"></a>
 </p>
 
 <p align="center">
@@ -36,6 +36,7 @@
   <a href="#the-problem-in-one-picture">Problem</a> ·
   <a href="#the-fix">Fix</a> ·
   <a href="#the-proof">Proof</a> ·
+  <a href="#open-questions-from-nasas-discussions">Open questions</a> ·
   <a href="#the-product">Product</a> ·
   <a href="#who-it-is-for">Who it is for</a> ·
   <a href="#how-it-is-built">How it is built</a> ·
@@ -67,7 +68,7 @@ flowchart LR
 ```
 
 - **Why Aqua?** Its afternoon orbit is the only one flown continuously from 2002 through every VIIRS satellite.
-- **How?** Ratio of totals per calendar month, day and night apart, shrunk by empirical Bayes. No black box.
+- **How?** Ratio of totals per calendar month, day and night apart, shrunk by empirical Bayes. No black box. [Why this method](#why-this-method).
 - **Which satellites, when?** Read from the data. Suomi-NPP's end on 2 November 2026 was detected, not typed in.
 - **What about Aqua's drift?** Its overpass time is read from the FIRMS timestamps, and the MODIS archive version from the
   data. Both changed in 2023 (the pass moved more than 15 minutes later; version 61.03 replaced 6.03). From 2023 the
@@ -107,6 +108,39 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 
 </details>
 
+### Why this method
+
+- **Measured on what we publish.** The sensor gap is measured on monthly detection totals, the quantity in the record, so no
+  model of fire physics has to be right first. VIIRS sees many small fires MODIS cannot ([Schroeder et al. 2014](https://doi.org/10.1016/j.rse.2013.12.008);
+  [Giglio et al. 2016](https://doi.org/10.1016/j.rse.2016.02.054)), and the ratio absorbs that difference as it is.
+- **A ratio of totals, not a regression.** Both sensors count with error, so regressing one on the other biases the slope
+  toward zero ([regression dilution, Frost & Thompson 2000](https://doi.org/10.1111/1467-985X.00164)). For Poisson counts with
+  a common rate ratio, the ratio of totals is its maximum-likelihood estimate.
+- **Seasonal, not over-fitted.** One ratio per calendar month, shrunk toward the all-year ratio by empirical Bayes
+  ([Efron & Morris 1975](https://doi.org/10.1080/01621459.1975.10479864)), with the between-month variance estimated by the
+  method of moments ([DerSimonian & Laird 1986](https://doi.org/10.1016/0197-2456(86)90046-2)).
+- **No near-simultaneous pairs needed.** Fire-by-fire or pixel matching needs the two satellites to look within minutes.
+  Aqua's pass has drifted later since 2020, so such pairs become rare. Monthly totals only need both satellites in orbit that month.
+- **Tested by taking satellites away**, with intervals widened by split conformal prediction
+  ([Lei et al. 2018](https://doi.org/10.1080/01621459.2017.1307116)) and checked out of sample. Trends use
+  [Sen's slope (1968)](https://doi.org/10.1080/01621459.1968.10480934).
+
+Each part is a published, standard tool. The way they are combined for MODIS and VIIRS is ours, and the tests above are its proof.
+
+**The main alternative was tried, and lost.** MODIS detects a fire only above a certain fire power, so the sensor ratio could
+follow the fire mix. We added a term for the month's mean Suomi-NPP fire power per detection to the Suomi-NPP → Aqua ratio,
+fitted on 2012–2016 and scored on 2017–2020 (`transfer_validation.fire_size_term` in each `meta.json`):
+
+| | Ratio per calendar month (ours) | Plus a fire-size term |
+|---|---|---|
+| Mean absolute log error, 9 areas | **0.459** | 0.460 |
+| Areas where it lowers the log error | – | 3 of 9 (Fort McMurray, Rondônia, south-east Australia) |
+| Areas where it raises the error in detections | – | 6 of 9 |
+| Bias, Northern California / Paraná Delta | +21.0% / +36.9% | +50.1% / +140.2% |
+
+It helps in some large-fire areas, but its slope does not hold from the training years to the test years elsewhere, so it is
+not used. An area-specific version is an open next step.
+
 **Where it still falls short.** We publish these, not hide them.
 
 - Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 7%.
@@ -127,6 +161,45 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 
 ---
 
+## Open questions from NASA's discussions
+
+We read every thread about this challenge on NASA's Space Apps GitHub (14 November 2026). For each question, the table gives our
+answer. The full page, with tables built from the data, is
+[Open questions](https://kiln-watch-seven.vercel.app/#pg=questions).
+
+| Thread | Question | Our answer | Status |
+|---|---|---|---|
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | MODIS- or VIIRS-equivalent? (reply: either, if justified) | Aqua MODIS scale. Converting VIIRS down is well-posed; going up would invent small fires. The VIIRS-scale view marks pre-2012 months *modelled* | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Standard FIRMS archive, or swath products? (reply: FIRMS) | FIRMS standard and near-real-time. NRT rows have no `type` flag, so cells are typed from their standard-processing history; NRT months are *provisional* | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Suomi-NPP stopped; continuity with NOAA-20/21? (reply: yes) | The question says 2 Nov 2022. The data says Suomi-NPP's last day is **2026-11-02**, detected rather than typed in. NASA's own pages disagree on the hour (FIRMS blog 13:00 UTC, FIRMS FAQ 15:40 UTC); we count days, so the record does not depend on it. The chain NOAA-21 → NOAA-20 → Suomi-NPP → Aqua carries the record on | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Users and time step? (reply: responders to scientists; monthly solid, weekly if readable) | Monthly calendar by default, a weekly grid one switch away, daily detections behind every cell | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Is Earth Engine acceptable? (reply: yes, prefer NASA resources) | The fire record uses FIRMS only. Earth Engine is used at build time for witnesses (MCD64A1, Black Marble, Sentinel-1) | Built in |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | Off-nadir pixels grow to about 2 km. How to harmonize? | **Measured**, 2012–2020. Where fire is frequent, the share of Aqua detections in the outer half of the swath moves ±3–5 points a year, and Suomi-NPP ÷ Aqua is the same in the inner and outer halves (Punjab 5.8 and 5.8). So a ratio of monthly totals absorbs it. In event-driven seasons it does not: Fort McMurray ±17 points, outer ratio 16.5 against 9.3 inner | Measured; not yet stratified |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | Some hotspots only VIIRS sees, some only MODIS | **Measured**: 40–91% of Aqua detections have a Suomi-NPP detection within about 1 km on the same day and pass; only 5–56% of Suomi-NPP detections have an Aqua one. The VIIRS-only ones are small fires (median FRP 1.9–4.9 MW against 5.4–12.8 MW matched). We calibrate totals, never pair points, so they are kept | Measured |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | The global CSV is about 45 GB. Global, or one place? | DuckDB reads only an area's rows from remote GeoParquet. Nine areas are prebuilt; any box up to 16 square degrees can be built on demand | Built in |
+| [#2016](https://github.com/nasa/spaceapps/discussions/2016), [#1959](https://github.com/nasa/spaceapps/discussions/1959) | One region? Own FIRMS downloads? (replies: yes; document them) | Nine areas plus draw-your-own. Every file records products, versions, period, box and code version | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) (reply) | Cloud: no detection may mean no clear view | **Not solved yet.** We divide by the days each satellite observed, not by cloud-free views. Next step: use the cloud class of the MYD14A1 fire mask as a clear-sky denominator | Open |
+
+**Raised elsewhere, in NASA pages and papers:**
+
+| Source | Problem | Our answer | Status |
+|---|---|---|---|
+| [Earthdata alert](https://www.earthdata.nasa.gov/data/alerts-outages/transition-from-modis-viirs), [CAMS](https://atmosphere.copernicus.eu/drifting-away-modis-cams-global-fire-assimilation-system) | Terra and Aqua are drifting and will stop (CAMS: Terra January 2027, Aqua around September 2027) | Aqua's drift onset is measured from FIRMS timestamps; from it the record runs on VIIRS on the Aqua scale. Tested by switching MODIS off | Built in |
+| [FIRMS blog](https://www.earthdata.nasa.gov/news/blog/transitioning-from-suomi-npp-viirs-omps-what-firms-users-need-know) | Terra is the only morning overpass; NASA is "investigating alternatives" | The record is defined on Aqua's afternoon and post-midnight passes, which NOAA-20/21 continue, so it stays consistent. But it never measured morning burning, and nothing here replaces Terra | Open |
+| [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq) | NRT differs from standard data: geolocation, no type, day/night by orbit direction instead of solar zenith | NRT months are *provisional* and typed from cell history. The day/night rule is not reconciled, so at high latitudes a provisional month can put detections in the other half | Partly |
+| [Li et al. 2018](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2017jd027823) | VIIRS FRP about 47% lower than MODIS for large boreal fires | We harmonize counts, not FRP. FRP totals must not be compared across the 2012 switch | Open |
+| [arXiv 2510.26816](https://arxiv.org/pdf/2510.26816) | Low-confidence VIIRS detections systematically absent at night | VIIRS low confidence is dropped day and night alike; day and night are calibrated apart | Built in |
+| [GMD 2026](https://gmd.copernicus.org/articles/19/10123/2026/) | Detection probability varies by region (under 30% for MODIS in some equatorial areas) | Each area has its own calibration. Where both sensors miss (cloud, short fires) the record stays low in every year: the cloud item above | Partly |
+
+Every other limitation is listed on the [Proof page](https://kiln-watch-seven.vercel.app/#pg=method) and under "Where it still
+falls short" above. A question we have not answered? Use the
+[contact form](https://kiln-watch-seven.vercel.app/#pg=contact) or [open an issue](https://github.com/Aalvee-Aarham/nasaspaceappschallenge-2026-team-off-the-binary/issues/new).
+
+`nasa/MODIS-VIIRS-Data-Resources` holds access tutorials. Its five issues are closed documentation pull requests, none about
+harmonization. Re-run the checks with `python scripts/discussion_checks.py` (writes `data/regions/discussion_checks.json`).
+
+---
+
 ## The product
 
 <table>
@@ -136,7 +209,7 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 </tr>
 <tr>
 <td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
-<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 39 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 39-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 40 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 40-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
 </tr>
 </table>
 
@@ -162,7 +235,21 @@ Same answer for Claude through the MCP tool `check_place_fire_risk`; every endpo
 
 **Bangladesh.** The Dhaka kiln belt is counted from a published kiln map and night lights, with NASA's fire product measured against it, not used to find kilns.
 
-Also in the box: draw-your-own area, weekly view, season start and peak, news and event reports beside the data, CSV and SVG downloads, a printable brief.
+Also in the box: draw-your-own area, weekly view, season start and peak, news and event reports beside the data, CSV, TSV and JSON downloads where you pick the columns, years and format (Explorer panel, `/api/regions/{id}/export`, MCP `export_data`), SVG charts, a printable brief.
+
+**Download exactly what you need.** Any built area, including one you drew, exports as CSV, TSV or JSON. You choose the table
+(the monthly or weekly calendar, or the individual detections for up to a year), the years or dates, and the column groups
+(harmonized hotspots with intervals, history against other years, satellites and coverage, raw counts, quality flags). The same
+choices are in the Explorer panel (Download), on the Download page, in the API and in MCP (`export_data`, which lists the column
+groups and asks you which you want). Files start with `#` comment lines (unit, source, code version) unless you switch them off;
+JSON carries the same provenance in a block. Raw per-satellite counts are optional and labelled: they rise whenever a satellite is added.
+
+```bash
+BASE=https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io
+curl "$BASE/api/export/options"                      # formats, column groups, limits
+curl -o punjab.csv "$BASE/api/regions/punjab/export?columns=hotspots,history&start=2015&end=2025"
+curl -o hot.json  "$BASE/api/regions/punjab/export?kind=detections&format=json&columns=where,strength&start=2025-04-01&end=2025-04-30&used_only=true"
+```
 
 ---
 
@@ -211,13 +298,19 @@ uvicorn kw.api:app --port 8000        # built regions are committed: calendars w
 cd web && npm install && npm run dev  # http://localhost:5173
 ```
 
-Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s: `python -m kw.globe` (one-off, 1.8 GB).
+Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s once `python -m kw.globe` has run (one-off, 1.8 GB). Without it, as on the hosted server, the first build of a drawn area takes 5 to 10 minutes: it reads 26 yearly files, 4 at a time (`KW_FETCH_WORKERS`; 8 measured slower). The time depends on the years, not the box size.
 Casebook witnesses (build time only; needs `pip install earthengine-api`, `earthengine authenticate` and `EE_PROJECT` in a git-ignored `.env`):
 `python scripts/build_burned.py && python -m kw.cases` (burned area), `python scripts/build_kilns.py` (Dhaka kiln evidence, needs `python -m kw.firms` first).
 The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
 The worldwide fire months behind "Is fire near you?" (`data/global/fire_season.parquet`, committed): `python -m kw.globe season`.
 Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
-Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
+Analyst keys: set `GEMINI_API_KEY` and optional fallbacks `GEMINI_API_KEYS=key2,key3,...` in a git-ignored `.env` (and as
+secrets on Azure and Vercel). The analyst moves to the next key when one hits its free-tier quota, is overloaded or is
+refused, and uses the `gemini-flash-latest` alias so a retired model version does not break it. Never commit keys.
+MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
+Contact form: messages go to `POST /api/feedback` and are appended to `data/feedback.jsonl` (git-ignored). With the SMTP
+settings and `CONTACT_EMAILS` (comma-separated) set, each one is also mailed. The read-only Vercel copy refuses it, and on
+Azure the file lasts only as long as the replica, so set the emails before relying on it.
 
 **Two hosts, one site.** Vercel serves the site and a read-only API (its functions stop after a minute, too short for a
 build). The full app (`Dockerfile`, site + API on port 7860, live builds on) runs on Azure Container Apps:
@@ -234,6 +327,9 @@ when Azure does not answer `/api/health` within 15 s.
 
 Checked after deploy: health answers with `serverless: false`, the Vercel origin gets CORS, and a live 1°×1° build
 (northern Thailand) finished in about 5 minutes with the same Aqua drift onset (2023-01) as the prebuilt areas.
+That build read the 26 yearly files one at a time. They are now read four at a time (`KW_FETCH_WORKERS`; eight was slower on a
+local test), which took a full 27-year fetch on a development machine from an estimated 3.5 minutes (27 years at about 8 s) to 90 s, with identical rows. The Azure timing after this change has
+not been measured yet, so the site promises 5 to 10 minutes.
 
 Limits: the first request after idle waits a few seconds while a replica starts; an area built live lasts until the
 replica stops (the nine prebuilt areas are in the image). The workflow pushes images but does not roll them out; after
@@ -294,7 +390,7 @@ NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
 | DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
 | FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
-| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 39-tool MCP server for Claude, Cursor and n8n |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 40-tool MCP server for Claude, Cursor and n8n |
 | Google Earth Engine | [earthengine.google.com](https://earthengine.google.com) | Build time only: reads MCD64A1 and Black Marble for the committed witness files; the live demo needs no Earth Engine |
 | Google Gemini API | [ai.google.dev](https://ai.google.dev) | Optional in-app analyst |
 | React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |
@@ -315,7 +411,7 @@ Detections are not fires and not burned area. Kiln Watch is an independent proje
 |---|---|---|
 | Claude Fable 5.2, Gemini Argon | Planning: brief, literature and rules review, method design | Public challenge page, papers, NASA/NOAA docs |
 | Claude Opus (Claude Code), Gemini Flash | Developing and writing code, running builds and tests | Our source code; public FIRMS data |
-| Gemini 2.5 Flash (optional, at run time) | In-app analyst that puts tool results into words | Pipeline output only; every tool call is shown |
+| Gemini Flash, `gemini-flash-latest` (optional, at run time) | In-app analyst that puts tool results into words | Pipeline output only; every tool call is shown |
 
 No AI system produces any number in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
 
@@ -355,6 +451,11 @@ No AI system produces any number in the calendar, charts or downloads. Details: 
 - [VFEIv0 VIIRS-based emission inventory](https://gmd.copernicus.org/articles/15/8085/2022/gmd-15-8085-2022.html) · [GFED5NRT (ESSD, 2026)](https://essd.copernicus.org/articles/18/7535/2026/)
 - [Prior-based mask for persistent heat sources (Remote Sensing, 2026)](https://www.mdpi.com/2072-4292/18/6/904) · [GOFC-GWIS global static thermal anomalies](https://gofcgold.umd.edu/sites/default/files/2024-11/GOFC_GWIS_2024_Roberts_short.pdf)
 - [ESA CCI Soil Moisture ATBD (CDF matching, triple collocation)](https://admin.climate.esa.int/media/documents/ESA_CCI_SM_RD_D2.1_v2_ATBD_v06.1_issue_1.1.pdf) · [Harmonized DMSP–VIIRS night lights](https://www.nature.com/articles/s41597-020-0510-y)
+
+**Fire products and statistical methods behind the calibration**
+- [Schroeder et al. 2014, The New VIIRS 375 m active fire detection data product (RSE 143)](https://doi.org/10.1016/j.rse.2013.12.008) · [Giglio et al. 2016, The collection 6 MODIS active fire detection algorithm (RSE 178)](https://doi.org/10.1016/j.rse.2016.02.054)
+- [Frost & Thompson 2000, Correcting for regression dilution bias (JRSS A)](https://doi.org/10.1111/1467-985X.00164) · [Efron & Morris 1975, Stein's estimator and its generalizations (JASA)](https://doi.org/10.1080/01621459.1975.10479864) · [DerSimonian & Laird 1986, Meta-analysis in clinical trials](https://doi.org/10.1016/0197-2456(86)90046-2)
+- [Lei et al. 2018, Distribution-free predictive inference for regression (JASA)](https://doi.org/10.1080/01621459.2017.1307116) · [Sen 1968, Regression coefficient based on Kendall's tau (JASA)](https://doi.org/10.1080/01621459.1968.10480934)
 
 **Related tools**
 - [NASA FEDS / fireatlas](https://earth-information-system.github.io/fireatlas/docs) · [Global Forest Watch fire data](https://blog.globalforestwatch.org/fires/wildfire-trends-gfw-fire-data/) · [Our World in Data, GWIS record](https://ourworldindata.org/grapher/annual-number-of-fires)

@@ -1,8 +1,6 @@
 """HTTP API. Run: uvicorn kw.api:app --port 8000   (from server/)"""
 import contextlib
-import csv
 import html
-import io
 import os
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
@@ -23,7 +21,7 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.routing import Route
 
-from . import agent, alerts, mcp_server, news_more, outlook, personas, tools
+from . import agent, alerts, feedback, mcp_server, news_more, outlook, personas, tools
 from .build import OUT
 
 
@@ -228,31 +226,36 @@ def timeline_reports(rid: str, start: str, end: str):
     return _guard(tools.timeline_reports, rid, start, end)
 
 
+@app.get("/api/export/options")
+def export_options():
+    """The menu for /export: formats, column groups and date limits (the web app and MCP show the same one)."""
+    return tools.export_options()
+
+
+def _download(res):
+    return PlainTextResponse(res["text"], media_type=res["media_type"],
+                             headers={"Content-Disposition": f'attachment; filename="{res["filename"]}"'})
+
+
+@app.get("/api/regions/{rid}/export")
+def export_any(rid: str, kind: str = "calendar", format: str = "csv", columns: str = "", granularity: str = "month",
+               start: str = "", end: str = "", comments: bool = True, used_only: bool = False):
+    """Download an area (a preset or one you drew) in the format and columns you choose.
+    kind=calendar: monthly or weekly harmonized record (start/end as 2020 or 2020-03). kind=detections: the
+    individual detections (start/end as YYYY-MM-DD, up to 366 days). columns: group keys or column names,
+    blank for all. See /api/export/options."""
+    if kind == "calendar":
+        return _download(_guard(tools.export_calendar, rid, granularity, columns, format, start, end, comments))
+    if kind == "detections":
+        if not (start and end):
+            raise HTTPException(400, "detections need start and end (YYYY-MM-DD)")
+        return _download(_guard(tools.export_detections, rid, start, end, columns, format, comments, used_only))
+    raise HTTPException(400, "kind must be 'calendar' or 'detections'")
+
+
 @app.get("/api/regions/{rid}/export.csv")
 def export(rid: str, granularity: str = "month"):
-    cal = _guard(tools.get_calendar, rid, granularity)
-    meta = _guard(tools.audit, rid)
-    buf = io.StringIO()
-    buf.write(f"# Kiln Watch harmonized fire record — {rid}\n# {meta['estimand']['primary']}\n")
-    buf.write(f"# {meta['provenance']['acknowledgement']}\n# source: {meta['provenance']['mirror']} "
-              f"(updated {meta['provenance']['mirror_updated']}); code {meta['provenance']['code_version']}; "
-              f"reproduce: {meta['provenance']['reproduce']}\n")
-    w = csv.writer(buf, lineterminator="\n")
-    obs = list(tools.RAW_OBS)
-    w.writerow(["period", "partial", "provisional", "raw_detections_all_satellites", "hotspots_aqua_scale", "ci95_lo",
-                "ci95_hi", "hotspots_viirs_scale", "viirs_scale_modelled", "fire_celldays_aqua_scale", "median_same_period",
-                "ratio_to_median", "percentile", "rank", "of_years", "satellites_used",
-                *[f"coverage_{s}" for s in obs], *[f"raw_det_{s}" for s in obs], "static_source_hotspots", "nrt_share"])
-    for r in cal["rows"]:
-        h = r["vs_history"]
-        w.writerow([r["period"], int(r["partial"]), int(r["provisional"]), r["raw_detections_all_satellites"],
-                    r["hotspots_aqua_scale"]["value"], *r["hotspots_aqua_scale"]["ci95"], r["hotspots_viirs_scale"]["value"],
-                    int(r["hotspots_viirs_scale"]["modelled"]), r["fire_celldays_aqua_scale"]["value"],
-                    h["median_same_period"], h["ratio_to_median"], h["percentile"], h["rank"], h["of_years"],
-                    "+".join(r["satellites_used"]), *[r["coverage"].get(s) for s in obs],
-                    *[r["raw_detections"][s] for s in obs], r["static_source_hotspots_aqua_scale"], r["nrt_share"]])
-    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
-                             headers={"Content-Disposition": f'attachment; filename="kilnwatch-{rid}-{granularity}.csv"'})
+    return _download(_guard(tools.export_calendar, rid, granularity))
 
 
 @app.get("/api/regions/{rid}/hotspots.csv")
@@ -290,6 +293,17 @@ def _public_base(request: Request, client_origin=None):
     if alerts.smtp_ready():
         raise HTTPException(503, "PUBLIC_URL must be set on a server that sends email")
     return str(request.base_url)
+
+
+@app.post("/api/feedback")
+def feedback_create(request: Request, body: dict = Body(...)):
+    """Contact form: {kind, message, name?, email?, page?}. Stored on the server; mailed to CONTACT_EMAILS when SMTP is set."""
+    if tools.SERVERLESS:
+        raise HTTPException(503, "The contact form needs the full Kiln Watch server; this copy is read-only.")
+    # Behind Azure's ingress the socket peer is the proxy; the proxy appends the real client as the last entry.
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[-1].strip() if fwd else (request.client.host if request.client else "?")
+    return _guard(feedback.submit, body, ip)
 
 
 @app.post("/api/alerts")

@@ -10,6 +10,7 @@ import datetime as dt
 import json
 import os
 import sys
+import urllib.parse
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -54,8 +55,9 @@ def list_regions() -> list:
 
 @mcp.tool(title="Build an area", annotations=WRITE)
 def create_custom_area(west: float, south: float, east: float, north: float, name: str = "") -> dict:
-    """Start building a harmonized 2000-present record for any box (max 16 square degrees). Usually ~20 s with the
-    global aggregate, minutes otherwise. Poll get_custom_area_status with the returned id."""
+    """Start building a harmonized 2000-present record for any box (max 16 square degrees). Plan on 5 to 10 minutes
+    the first time on the hosted server (it reads 26 years; a smaller box does not make it faster). Poll
+    get_custom_area_status with the returned id, then use export_data to download it."""
     return tools.start_aoi([west, south, east, north], name or None)
 
 
@@ -96,6 +98,33 @@ def query_hotspots(west: float, south: float, east: float, north: float, start: 
     b = _date(end, dt.date.today())
     a = _date(start, b - dt.timedelta(days=13))
     return tools.global_hotspots([west, south, east, north], a, b)
+
+
+@mcp.tool(title="Export data (CSV, TSV, JSON)", annotations=RO)
+def export_data(region_id: str, kind: str = "calendar", format: str = "csv", columns: str = "", granularity: str = "month",
+                start: str = "", end: str = "", used_only: bool = False) -> dict:
+    """Prepare a download of a built area (a preset or one made with create_custom_area): a download link plus the
+    row count, the columns and a 5-row preview. The file itself is fetched from `download_url`; it is never pasted
+    into the chat. ASK THE USER which format and columns they want unless they already said: `options` lists every
+    column group. kind='calendar' is the harmonized monthly or weekly record (start/end as 2020 or 2020-03).
+    kind='detections' is the individual detections behind it (start/end as YYYY-MM-DD, up to 366 days).
+    columns: group keys and/or column names, blank for all (period is always kept). format: csv, tsv or json.
+    used_only (detections): drop the low-confidence rows the calendar ignores."""
+    if kind == "calendar":
+        res = tools.export_calendar(region_id, granularity, columns, format, start or None, end or None)
+        q = {"kind": kind, "format": format, "granularity": granularity, "columns": columns, "start": start, "end": end}
+    elif kind == "detections":
+        if not (start and end):
+            raise ValueError("detections need start and end (YYYY-MM-DD)")
+        res = tools.export_detections(region_id, start, end, columns, format, True, used_only)
+        q = {"kind": kind, "format": format, "columns": columns, "start": start, "end": end, "used_only": str(used_only).lower()}
+    else:
+        raise ValueError("kind must be 'calendar' or 'detections'")
+    url = f"{_base()}/api/regions/{region_id}/export?" + urllib.parse.urlencode({k: v for k, v in q.items() if v != ""})
+    return {"download_url": url, "filename": res["filename"], "format": format, "rows": res["rows"], "columns": res["columns"],
+            "preview": res["head"], "options": tools.export_options(),
+            "note": "CSV/TSV start with # comment lines (unit, source, code version); add &comments=false to drop them. "
+                    "Detections are not fires and not burned area."}
 
 
 @mcp.tool(title="Situation brief", annotations=RO_WEB)

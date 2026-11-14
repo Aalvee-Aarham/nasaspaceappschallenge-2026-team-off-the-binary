@@ -95,7 +95,7 @@ const TOUR: [string, string, Page | "punjab"][] = [
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
   ["Early warning", "And how often it was right in past years.", "warning"],
   ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
-  ["Ask Claude", "A 38-tool MCP server over the same record.", "mcp"],
+  ["Ask Claude", "A 40-tool MCP server over the same record.", "mcp"],
 ];
 const TILES: [string, Page][] = [
   ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],
@@ -536,7 +536,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
         <section className="h3d-flat wall">
           <div className="head" data-reveal>
             <h2 className="h3d-h">Fire regimes<br />on one scale</h2>
-            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since 2000 and takes a few minutes.</p>
+            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since 2000 and takes 5 to 10 minutes.</p>
           </div>
           <ul className="cells" data-reveal>
             {presets.map((r) => (

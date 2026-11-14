@@ -7,6 +7,7 @@ import datetime as dt
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import duckdb
@@ -18,6 +19,7 @@ DATA = Path(os.environ.get("KW_DATA", Path(__file__).resolve().parents[2] / "dat
 CACHE = DATA / "cache"
 FIRST_YEAR = 2000
 LIVE_TTL_S = 6 * 3600  # re-pull the current year after 6 h
+FETCH_WORKERS = int(os.environ.get("KW_FETCH_WORKERS", "4"))  # years read at once for a new area
 
 # Attested first dates (FIRMS data_availability, quoted by the mirror). Last dates are measured, see sensor_days().
 SENSOR_START = {
@@ -75,19 +77,29 @@ def fetch_region(region_id: str, bbox, progress=None):
     folder.mkdir(parents=True, exist_ok=True)
     years = list(range(FIRST_YEAR, current_year() + 1))
     con = connect()
-    for i, y in enumerate(years):
+    con.execute("SET enable_http_metadata_cache = true")  # parquet footers are read once, then shared by every worker
+    done = []
+
+    def one(y):
         out = folder / f"{y}.parquet"
         if not _fresh(out, y):
             for attempt in range(3):
                 try:
-                    fetch_year(con, bbox, y, out)
+                    fetch_year(con.cursor(), bbox, y, out)
                     break
                 except duckdb.Error:
                     if attempt == 2:
                         raise
                     time.sleep(5 * (attempt + 1))
+        done.append(y)  # list.append is atomic; len(done) is the number of finished years
         if progress:
-            progress(y, i + 1, len(years))
+            progress(y, len(done), len(years))
+
+    # Each year is one latency-bound request (~8 s here, independent of box size), so years run side by side.
+    # Same rows, same files as the one-at-a-time loop; only the waiting overlaps. ponytail: 4 workers (8 measured slower: the mirror contends), tune if
+    # the host has more cores or the mirror starts throttling.
+    with ThreadPoolExecutor(FETCH_WORKERS) as ex:
+        list(ex.map(one, years))
     return folder
 
 

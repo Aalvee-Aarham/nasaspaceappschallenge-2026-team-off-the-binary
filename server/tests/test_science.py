@@ -233,6 +233,17 @@ def test_place_level():
     assert sc.place_level(None, 0.1, None, recent_ok=False) == "unknown"   # a failed live check is never "low"
     assert sc.place_level(None, 0.6, None, recent_ok=False) == "watch"     # history alone still says something
 
+def test_size_term():
+    beta = [2.0] * 12
+    # ratio truly follows fire size: ref = 2 * src * exp(0.5 * x) with x the log-FRP anomaly
+    train = [(m, 2.0 * 100 * math.exp(0.5 * x), 100.0, x) for m in (1, 2) for x in (-1.0, 0.0, 1.0)]
+    slope, pred = sc.size_term(train, [(1, 0.0, 100.0, 1.0)], beta)
+    assert 0.45 < slope < 0.5                                     # +0.5 offsets shrink it a touch
+    assert abs(pred[0] - 200 * math.exp(slope)) < 1e-9
+    flat, same = sc.size_term([(1, 200.0, 100.0, 0.3)] * 3, [(1, 0.0, 100.0, 0.9)], beta)
+    assert flat == 0.0 and same == [200.0]                         # no spread in size: the term does nothing
+    assert sc.log_mae([10.0], [10.0]) == 0.0 and sc.log_mae([], []) is None
+
 
 if __name__ == "__main__":
     for name, fn in list(globals().items()):

@@ -57,7 +57,8 @@ export type Meta = {
   calibration: Record<string, Link[]>;
   closure: Record<string, { sensor: string; reference: string; window: string[]; direct: number; composed: number; mismatch_pct: number; n: number }[]>;
   validation: Record<string, { sensor: string; reference: string; train: string[]; test: string[]; ours_seasonal_eb: Metric; baseline_single_ratio: Metric; uncalibrated: Metric }[]>;
-  transfer_validation: { train: string[]; test: string[]; calibrated_here: Metric; transferred_from_other_regions: Metric } | null;
+  transfer_validation: { train: string[]; test: string[]; calibrated_here: Metric; transferred_from_other_regions: Metric;
+    fire_size_term?: { slope: number; ours: Metric & { log_mae: Num }; with_size_term: Metric & { log_mae: Num } } } | null;
   denial: {
     modis_ends_2016: { train: string[]; test: string[]; n: number; ours_seasonal_eb: Metric; baseline_single_ratio: Metric; uncalibrated: Metric; interval_scale: number;
       series?: { periods: string[]; aqua: Num[]; predicted: Num[]; lo: Num[]; hi: Num[] } };
@@ -169,6 +170,15 @@ export type StaticPts = { points: [number, number, number, number, number, numbe
 export type RegionItem = { id: string; name: string; country: string | null; bbox: number[]; story: string | null; data_through: string; built_at?: string; preset: boolean; sensors_last?: Record<string, string> };
 export type Region = { meta: Meta; monthly: Block; weekly: Block; grid: Grid; statics: StaticPts };
 
+/** scripts/discussion_checks.py: scan-angle and single-sensor checks for nasa/spaceapps discussion #1786. */
+type Match = { detections: number; seen_by_other: number; share_seen_by_other: number | null; frp_median_matched_mw: number | null; frp_median_alone_mw: number | null };
+type Edge = { median_scan_km: number; years: number; edge_share_min: number | null; edge_share_max: number | null; edge_share_sd_pp: number | null };
+export type Checks = {
+  built_at: string; code_version: string | null; period: number[]; filters: string; match_window: string;
+  areas: { id: string; name: string; match: { aqua: Match; snpp: Match };
+    scan: { aqua: Edge; snpp: Edge; ratio: { years: number[]; all: number[]; inner: number[]; outer: number[]; cv_all: number | null; cv_inner: number | null; cv_outer: number | null } } }[];
+};
+
 export type Evidence = {
   period: string; start: string; end: string;
   daily: { date: string; sensor: string; class: string; detections: number; frp_mw: number }[];
@@ -274,6 +284,13 @@ export const LEVEL_LABEL: Record<Level, string> = { elevated: "Elevated", watch:
 export type Health = { ok: boolean; agent: boolean; email?: boolean; serverless?: boolean; model: string | null; regions: number; data_through: string | null };
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
 
+export type ExportGroup = { key: string; label: string; columns: string[] };
+export type ExportOptions = {
+  formats: { key: string; label: string }[];
+  calendar: { granularity: string[]; always: string[]; groups: ExportGroup[]; range: string };
+  detections: { groups: ExportGroup[]; max_days: number; range: string; used_only: string };
+};
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   await ready;
   const r = await fetch(API + url, init);
@@ -331,7 +348,12 @@ export const api = {
   ask: (message: string, history: { role: string; text: string }[], context: unknown) => json<AgentReply>("/api/agent", post({ message, history, context })),
   csvUrl: (id: string, g: string) => `${API}/api/regions/${id}/export.csv?granularity=${g}`,
   hotspotsUrl: (id: string, start: string, end: string) => `${API}/api/regions/${id}/hotspots.csv?start=${start}&end=${end}`,
+  exportOptions: () => json<ExportOptions>("/api/export/options"),
+  exportUrl: (id: string, q: Record<string, string>) => `${apiOrigin()}/api/regions/${id}/export?${new URLSearchParams(q)}`,
   ratioTableUrl: () => `${API}/data/regions/calibration_table.csv`,
+  checks: () => json<Checks>("/data/regions/discussion_checks.json"),
+  feedback: (body: { kind: string; message: string; name?: string; email?: string; page?: string; website?: string }) =>
+    json<{ stored: boolean; emailed: boolean }>("/api/feedback", post(body)),
 };
 
 // ---------- shared helpers ----------

@@ -970,19 +970,22 @@ def build_region(region_id, info, progress=None, source=None):
 
 
 def transfer_validation(region_ids):
-    """Geographic hold-out: calibrate Suomi-NPP→Aqua on every other preset (2012–2016), test here (2017–2020)."""
+    """Geographic hold-out: calibrate Suomi-NPP→Aqua on every other preset (2012–2016), test here (2017–2020).
+    Also the fire-size check: does a term for the month's mean VIIRS FRP per detection improve the same test?"""
     data = {}
     for rid in region_ids:
         m = json.loads((OUT / rid / "monthly.json").read_text(encoding="utf-8"))
         cov, raw = m["coverage"], m["raw"]
-        data[rid] = [(k, sc.calendar_month(k), raw["MODIS_A"]["det"][i] / cov["MODIS_A"][i], raw["VIIRS_SNPP"]["det"][i] / cov["VIIRS_SNPP"][i])
+        V = raw["VIIRS_SNPP"]
+        data[rid] = [(k, sc.calendar_month(k), raw["MODIS_A"]["det"][i] / cov["MODIS_A"][i], V["det"][i] / cov["VIIRS_SNPP"][i],
+                      math.log(V["frp"][i] / V["det"][i]) if V["det"][i] and V["frp"][i] else None)
                      for i, k in enumerate(m["periods"]) if "2012-02" <= k <= "2020-12"
                      and cov["MODIS_A"][i] >= TRAIN_COVERAGE and cov["VIIRS_SNPP"][i] >= TRAIN_COVERAGE]
     out = {}
     for rid, pairs in data.items():
-        others = [(mo, r, s) for o, ps in data.items() if o != rid for k, mo, r, s in ps if k <= "2016-12"]
-        own = [(mo, r, s) for k, mo, r, s in pairs if k <= "2016-12"]
-        test = [(mo, r, s) for k, mo, r, s in pairs if k >= "2017-01"]
+        others = [(mo, r, s) for o, ps in data.items() if o != rid for k, mo, r, s, _ in ps if k <= "2016-12"]
+        own = [(mo, r, s) for k, mo, r, s, _ in pairs if k <= "2016-12"]
+        test = [(mo, r, s) for k, mo, r, s, _ in pairs if k >= "2017-01"]
         if not others or not test:
             continue
         fo, fs = sc.ratio_calibration(others), sc.ratio_calibration(own)
@@ -990,6 +993,14 @@ def transfer_validation(region_ids):
         out[rid] = {"train": ["2012-02", "2016-12"], "test": ["2017-01", "2020-12"],
                     "calibrated_here": sc.metrics([fs["beta"][mo - 1] * s for mo, _, s in test], truth),
                     "transferred_from_other_regions": sc.metrics([fo["beta"][mo - 1] * s for mo, _, s in test], truth)}
+        tr = [(mo, r, s, x) for k, mo, r, s, x in pairs if k <= "2016-12" and x is not None]
+        te = [(mo, r, s, x) for k, mo, r, s, x in pairs if k >= "2017-01" and x is not None]
+        if len(tr) >= 10 and te:
+            slope, sized = sc.size_term(tr, te, fs["beta"])
+            ours, t2 = [fs["beta"][mo - 1] * s for mo, _, s, _ in te], [r for _, r, _, _ in te]
+            out[rid]["fire_size_term"] = {"slope": _r(slope, 3),
+                                          "ours": sc.metrics(ours, t2) | {"log_mae": sc.log_mae(ours, t2)},
+                                          "with_size_term": sc.metrics(sized, t2) | {"log_mae": sc.log_mae(sized, t2)}}
     return out
 
 

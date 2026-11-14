@@ -326,8 +326,8 @@ function CheckPlace({ online, onBuilt, detail }: { online: boolean; onBuilt: () 
       {err && <p className="error">{err}</p>}
       {job && (job.status === "error" ? <p className="error">The build failed: {job.error}</p> : (
         <div style={{ marginTop: 12 }}>
-          <Loader title="Building this place's 26-year record" steps={STEPS.build} expected={25} done={job.total ? job.done : undefined} total={job.total || undefined} />
-          <p className="small muted" style={{ marginTop: 6 }}>{job.stage ?? "starting"}. The first time takes a little while; after that it is instant.</p>
+          <Loader title="Building this place's 26-year record" steps={STEPS.build} expected={600} eta="Plan on 5 to 10 minutes" done={job.total ? job.done : undefined} total={job.total || undefined} />
+          <p className="small muted" style={{ marginTop: 6 }}>{job.stage ?? "starting"}. The first time takes 5 to 10 minutes; after that it is instant.</p>
         </div>
       ))}
       {rid && <div style={{ marginTop: 16 }}><Detail id={rid} {...detail} /></div>}
