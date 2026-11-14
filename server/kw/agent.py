@@ -6,6 +6,7 @@ browser, which moves the map / calendar.
 """
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -177,7 +178,9 @@ def available():
     return bool(os.environ.get("GROQ_API_KEY") or _keys())
 
 
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# Groq's free tier allows 8K tokens/minute per model and one analyst step is ~3K, so a rate-limited model hands over to the next
+GROQ_MODELS = [m.strip() for m in os.environ.get("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b").split(",") if m.strip()]
+GROQ_MODEL = GROQ_MODELS[0]
 
 
 def _lower_types(s):
@@ -207,22 +210,28 @@ def _groq(payload):
             msgs += [{"role": "tool", "tool_call_id": i, "content": json.dumps(r["response"], default=str)} for i, r in zip(ids, resps)]
         else:
             msgs.append({"role": "user", "content": text})
-    body = {"model": GROQ_MODEL, "messages": msgs, "temperature": payload.get("generationConfig", {}).get("temperature", 0.2)}
+    body = {"messages": msgs, "temperature": payload.get("generationConfig", {}).get("temperature", 0.2)}
     if payload.get("tools"):
         body["tools"] = [{"type": "function", "function": _lower_types(d)} for d in payload["tools"][0]["functionDeclarations"]]
-    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", "User-Agent": "kiln-watch",
-                                          "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        msg = json.load(r)["choices"][0]["message"]
-    text = msg.get("content") or ""
+    for n, model in enumerate(GROQ_MODELS):
+        req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps({**body, "model": model}).encode(),
+                                     headers={"Content-Type": "application/json", "User-Agent": "kiln-watch",
+                                              "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                msg = json.load(r)["choices"][0]["message"]
+            break
+        except urllib.error.HTTPError as ex:
+            if ex.code not in (429, 498, 500, 502, 503) or n == len(GROQ_MODELS) - 1:  # rate limit or overload: next model
+                raise
+    text = re.sub(r"<think>.*?</think>", "", msg.get("content") or "", flags=re.S).strip()  # qwen inlines its reasoning
     if payload.get("generationConfig", {}).get("responseMimeType") == "application/json":  # no JSON mode for arrays: cut the fences/prose
         lo, hi = min((text.find(b) for b in "[{" if b in text), default=0), max(text.rfind("]"), text.rfind("}"))
         text = text[lo:hi + 1] if hi >= lo else text
     parts = ([{"text": text}] if text else []) + [
         {"functionCall": {"name": t["function"]["name"], "args": json.loads(t["function"].get("arguments") or "{}") or {}}}
         for t in msg.get("tool_calls") or []]
-    return {"candidates": [{"content": {"role": "model", "parts": parts}}], "_model": f"groq/{GROQ_MODEL}"}
+    return {"candidates": [{"content": {"role": "model", "parts": parts}}], "_model": f"groq/{model}"}
 
 
 FALLBACK = "gemini-flash-lite-latest"  # tried when the main model is overloaded or silent
@@ -254,6 +263,10 @@ def _post(payload):
 
 
 def _post_gemini(payload):
+    for c in payload.get("contents", []):  # tool calls Groq made carry no signature; Gemini 3 accepts this documented placeholder
+        for p in c.get("parts", []):
+            if "functionCall" in p:
+                p.setdefault("thoughtSignature", "skip_thought_signature_validator")
     body = json.dumps(payload).encode()
     keys, why = _keys(), []
     if not keys:
