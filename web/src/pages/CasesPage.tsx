@@ -115,8 +115,9 @@ export default function CasesPage({ regions, online, area }: PageProps) {
           <details className="cx-more">
             <summary>What the verdicts mean, and the limits</summary>
             <ul className="plain small">
-              <li><b>Five witnesses</b> are asked about each fire: the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS and the news. A witness that could not see says so; missing news is never read as "no fire".</li>
+              <li><b>Six witnesses</b> are asked about each fire: the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area and the news. A witness that could not look says so and gives the reason (a failed search, GDELT before 2017, GDACS before 2021); missing news is never read as "no fire".</li>
               <li><b>Farmland:</b> ESA WorldCover 2021 cropland, one year of land cover. It does not say what was growing the month of a fire, and fire on farmland is often residue burning by the farmers themselves.</li>
+              <li><b>Where an event meets the record.</b> An EONET or GDACS point is one spot on a fire that can span several cells, so it is matched to hotspots in its 11 km cell and the 8 around it, in the event month and the next. Burned area is the burn scar MODIS mapped in the same block; it is guided by MODIS hotspots, so it is not fully independent of the record.</li>
               <li><b>All nine areas</b> have cases and exposure. People: WorldPop 2020 (modelled). Hospitals, schools and roads: OpenStreetMap, which maps some places far better than others, so a low count can mean few mappers.</li>
               {roadsFailed.length > 0 && <li><b>Roads are missing</b> for {roadsFailed.join(", ")}: the OpenStreetMap query failed. Shown as "–", never as zero.</li>}
               <li><b>Context, not impact.</b> A cell counts if one detection fell anywhere in its 11 km. There is no fire outline, smoke or spread model.</li>

@@ -209,6 +209,12 @@ def test_split_coverage_fits_on_early_tests_on_late():
     assert sc.split_coverage(zk[:5] + zk[-4:]) is None                          # fewer than 10 fit months
 
 
+def test_shrunk_ratio():
+    assert sc.shrunk_ratio(0, 0, 1.7) == 1.7                       # no co-observed detections: the worldwide ratio
+    assert abs(sc.shrunk_ratio(1000, 500, 1.0) - 2.0) < 0.1         # plenty of data: the cell's own ratio
+    assert 1.0 < sc.shrunk_ratio(10, 5, 1.0) < 2.0                  # a little data: pulled toward the pooled ratio
+
+
 def test_contingency():
     r = sc.contingency([(True, True)] * 6 + [(False, True)] * 2 + [(True, False)] * 2 + [(False, False)] * 90)
     assert (r["hits"], r["misses"], r["false_alarms"], r["correct_negatives"]) == (6, 2, 2, 90)

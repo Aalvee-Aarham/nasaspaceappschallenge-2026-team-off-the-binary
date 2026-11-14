@@ -191,7 +191,12 @@ export default function App() {
       const [p] = await r.json();
       if (!p) { setSearchErr(`No place called “${q}”.`); return; }
       const [s, n, w, ea] = p.boundingbox.map(Number);
+      const cx = (w + ea) / 2, cy = (s + n) / 2, r2 = (v: number) => Math.round(v * 100) / 100;
+      const inside = regions.find((r) => r.bbox[0] <= cx && cx <= r.bbox[2] && r.bbox[1] <= cy && cy <= r.bbox[3]);
+      if (inside) { openRegion(inside.id); return; }   // the place lies in a built area: open its record
+      setRegionId(null); setPeriod(null);
       setFocus({ bbox: [w, s, ea, n], n: Date.now() });
+      setDraft([r2(Math.max(-180, cx - 1)), r2(Math.max(-90, cy - 1)), r2(Math.min(180, cx + 1)), r2(Math.min(90, cy + 1))]);   // offer a 2° box to build
     } catch { setSearchErr("Place search is unavailable right now."); } finally { setSearching(false); }
   };
 
@@ -302,7 +307,7 @@ export default function App() {
             ))}
             <h2>Kiln Watch</h2>
             <label className="check"><input type="checkbox" checked={layers.grid} onChange={(e) => setLayers({ ...layers, grid: e.target.checked })} /><i className="sw-grid" />Harmonized activity, {periodLabel(month)}</label>
-            <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />Persistent heat sources (kilns, flares, industry)</label>
+            <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />FIRMS persistent heat sources (flares, industry, some kilns)</label>
             {!region && <p className="muted small">Open an area to see these.</p>}
             <h2>Base map</h2>
             {([["night", "Night lights (NASA Black Marble)"], ["dark", "Dark map"], ["satellite", "Satellite image of the day"], ["relief", "Blue Marble relief"]] as const).map(([k, l]) => (
@@ -341,8 +346,9 @@ export default function App() {
               <p className="num">{draft[1].toFixed(2)}°, {draft[0].toFixed(2)}° to {draft[3].toFixed(2)}°, {draft[2].toFixed(2)}°</p>
               {area > 16 ? <p className="error">This box is {area.toFixed(1)} square degrees. Draw one up to 16 (about 4° × 4°).</p>
                 : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes a few minutes.</p>}
+              {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker, or on the Hugging Face Space, to build any place.</p>}
               <div className="row">
-                <button className="btn" onClick={() => startBuild()} disabled={area > 16}>Build record</button>
+                <button className="btn" onClick={() => startBuild()} disabled={area > 16 || !!health?.serverless}>Build record</button>
                 <button className="btn ghost" onClick={() => { setDraft(null); setDrawing(true); }}>Redraw</button>
                 <button className="btn ghost" onClick={() => setDraft(null)}>Cancel</button>
               </div>
@@ -377,7 +383,7 @@ export default function App() {
               </nav>
               {tab !== "season" && (
                 <div className="seg-row">
-                  <Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Kilns & static heat"]]} />
+                  <Seg value={cls} onChange={setCls} options={[["veg", "Vegetation fires"], ["static", "Persistent heat"]]} />
                   {tab === "calendar" && <Seg value={granularity} onChange={(g) => { setGranularity(g); setPeriod(null); }} options={[["month", "Month"], ["week", "Week"]]} />}
                 </div>
               )}
@@ -510,7 +516,7 @@ function OutlookKey({ o }: { o: Outlook }) {
       {(["watch", "above", "season"] as const).map((c) => (
         <div key={c}><i className={`od ${c}`} style={{ background: OUTLOOK_COLOR[c] }} /><span>{OUTLOOK_LABEL[c]} <b className="num">{fmt(o.counts[c])}</b></span></div>
       ))}
-      <p className="muted small">0.5° cells, Aqua MODIS {o.baseline_years[0]}–{o.baseline_years[1]} against the last 30 days to {o.as_of}. A climatological outlook, not a forecast. Click a dot for details.</p>
+      <p className="muted small">0.5° cells on the Aqua MODIS scale ({o.baseline_years[0]}–{o.baseline_years[1]}) against the last 30 days to {o.as_of}, counted by NOAA-20 VIIRS so it carries on without Aqua. A climatological outlook, not a forecast. Click a dot for details.</p>
     </div>
   );
 }
@@ -551,7 +557,7 @@ function OutlookCard({ o, onFly, onPickAround }: { o: Outlook; onFly: (b: number
           })}
         </ol>
       )}
-      <p className="muted small">Aqua MODIS only, compared with the same days in {o.baseline_years[0]}–{o.baseline_years[1]}. It says what is usual and how unusual today is; it does not predict weather or fire.</p>
+      <p className="muted small">On the Aqua MODIS scale, from NOAA-20 VIIRS today, compared with the same days in {o.baseline_years[0]}–{o.baseline_years[1]}. It says what is usual and how unusual today is; it does not predict weather or fire.</p>
     </section>
   );
 }

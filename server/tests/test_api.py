@@ -73,6 +73,14 @@ def test_cases_and_exposure_endpoints():
     assert client.get("/api/regions/nowhere/exposure").status_code == 404
 
 
+def test_kiln_evidence_endpoint():
+    k = client.get("/api/regions/dhaka-kilns/kilns")
+    assert k.status_code == 200 and k.json()["inventory"]["license"] and k.json()["firms"]["mapped_kilns"]["n"] > 0
+    assert "caveat" in k.json() and len(k.json()["kilns"]) == k.json()["inventory"]["n_in_area"]
+    assert client.get("/api/regions/punjab/kilns").status_code == 404          # only the Dhaka belt has an inventory
+    assert client.get("/api/regions/nowhere/kilns").status_code == 404
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

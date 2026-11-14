@@ -126,6 +126,18 @@ def get_casebook_overview() -> dict:
     return tools.casebook_overview()
 
 
+@mcp.tool(title="Brick-kiln evidence", annotations=RO)
+def get_kiln_evidence(region_id: str = "dhaka-kilns") -> dict:
+    """Evidence about brick kilns in an area (built for the Dhaka belt): a published Sentinel-2 kiln inventory, the share
+    of mapped kilns NASA FIRMS (VIIRS, MODIS) sees against random places, and Black Marble night lights in kiln season
+    against the monsoon. FIRMS barely sees kilns, so it is measured here, never used to find them. Kiln structures, not
+    kilns in operation."""
+    out = tools.kilns(region_id)
+    out.pop("kilns", None)  # the per-kiln map data is for the web page, not for a model's context
+    out.pop("static_sources", None)
+    return out
+
+
 @mcp.tool(title="Exposure in the fire cells", annotations=RO)
 def get_exposure(region_id: str, period: str = "") -> dict:
     """Population, hospitals and major roads in the 0.1 degree cells where the harmonized record shows fire. A context

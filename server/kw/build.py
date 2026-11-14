@@ -960,6 +960,8 @@ def build_region(region_id, info, progress=None, source=None):
         tmp = folder / f"{name}.json.tmp"
         tmp.write_text(json.dumps(obj, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, folder / f"{name}.json")
+    if cases_mod.realign_exposure(folder, grid) == "stale":   # the grid gained or lost a cell: exposure rows no longer match
+        print(f"WARNING {region_id}: exposure.json no longer matches the grid; run scripts/build_exposure.py {region_id}", flush=True)
     cases_mod.annotate_meta(meta, folder)   # feature flags, method text and external sources, from the files now on disk
     tmp = folder / "meta.json.tmp"
     tmp.write_text(json.dumps(meta, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")

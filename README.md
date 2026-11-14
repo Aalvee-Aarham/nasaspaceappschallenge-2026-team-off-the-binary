@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
   <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
-  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-31%20tools-3DDC97?style=for-the-badge" alt="MCP server, 31 tools"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-38%20tools-3DDC97?style=for-the-badge" alt="MCP server, 38 tools"></a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 <p align="center"><sub>Demo video: link added after upload (see <code>docs/demo/SUBMISSION.md</code>).</sub></p>
 
-<p align="center"><sub>The live demo serves the nine prebuilt regions. Run it locally to build any place on Earth.</sub></p>
+<p align="center"><sub>The live demo serves the nine prebuilt regions. Run it with Docker (or on a Hugging Face Space, see the Dockerfile) to build any place on Earth.</sub></p>
 
 <p align="center">
   <a href="#the-problem-in-one-picture">Problem</a> ·
@@ -114,6 +114,16 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
 - No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
   scored months lean toward active ones, so its skill numbers there are not yet comparable across areas.
+- The 30-day outlook now runs on NOAA-20 VIIRS put on the Aqua scale, so it does not stop with Aqua. Held out on 2022 the
+  total is off by +0.9% and the cell ranking agrees at ρ = 0.84, but its "above normal" flag agrees with Aqua's own on only
+  41% of cells (NOAA-20 finds 681 of Aqua's 1,325 and adds 318): the two satellites sample different small fires. A single
+  dot is a hint; the named regions group neighbouring cells. Other shrinkage weights gave 38–42%, so this is not a tuning issue.
+- The casebook's news witness is only as good as GDELT (2017 on) and Google News; GDACS wildfire events start in 2021. A witness
+  that could not look is shown as "could not look" with its reason, never as "nothing found". MODIS burned area is guided by
+  MODIS hotspots, so it is not fully independent of the record. Event points are matched to hotspots in their cell, the 8 around
+  it and the next month: those windows are judgement calls.
+- Kilns: the kiln map shows structures from the 2024-25 dry season, not kilns in operation, and is licensed non-commercial.
+  Night lights are consistent with kilns, not proof. We have no Sentinel-1 radar check.
 
 ---
 
@@ -126,9 +136,13 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 </tr>
 <tr>
 <td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
-<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 31 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 35-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 38 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 38-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
 </tr>
 </table>
+
+**Cases & exposure.** Each fire case is heard by six witnesses (the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area, the news) and gets a plain verdict. Each witness that could not look says why. Beside it: how many people, hospitals and schools sit in the cells where fire was seen (context, never impact).
+
+**Bangladesh.** The Dhaka kiln belt is counted from a published kiln map and night lights, with NASA's fire product measured against it, not used to find kilns.
 
 Also in the box: draw-your-own area, weekly view, season start and peak, news and event reports beside the data, CSV and SVG downloads, a printable brief.
 
@@ -139,12 +153,12 @@ Also in the box: draw-your-own area, weekly view, season start and peak, news an
 | Anywhere on Earth | At home, in Bangladesh |
 |---|---|
 | **Fire managers** see whether this month is unusual against 26 comparable years, not 14. | **Dhaka's brick-kiln belt** is our home test case, and where raw counts mislead most: a 10.6× false jump. |
-| **Scientists** get a record with intervals, provenance and the calibration table to download. | Kilns are small, hot and steady. VIIRS sees them; MODIS mostly cannot. |
-| **Everyone after MODIS.** Terra and Aqua are near the end of their lives. The denial test shows the record carries on without them. | We separate them from vegetation fires, so a kiln season is never mistaken for a wildfire season. |
+| **Scientists** get a record with intervals, provenance and the calibration table to download. | **NASA's fire product cannot count kilns, so we do not ask it to.** We measured it: of 717 kilns on a published Sentinel-2 kiln map, 4.6% had a VIIRS hotspot within 500 m in the 2024-25 dry season, against 4.2% of random places far from any kiln. MODIS: 0% against 0.2%. |
+| **Everyone after MODIS.** Terra and Aqua are near the end of their lives. The denial test shows the record carries on without them, and the 30-day outlook is now counted by NOAA-20 VIIRS, so it does not stop with Aqua. | Kilns are counted from the kiln map and checked against NASA Black Marble night lights: 40.5% of rural kilns brighten more between the monsoon and the dry season than the random 75th percentile (25% would be chance). Only 6 of the 109 FIRMS "persistent heat sources" sit on a mapped kiln, so we stopped calling them kilns. |
 
-<p align="center"><img src="docs/readme/kilns.svg" alt="Dhaka brick-kiln belt: persistent heat sources by month, active from November to April" width="100%"></p>
+<p align="center"><img src="docs/readme/kilns.svg" alt="Dhaka brick-kiln belt: 717 mapped kilns, of which FIRMS sees about as many as random ground, and night lights in kiln season" width="100%"></p>
 
-<p align="center"><sub>Labelled "likely kilns": the cells are not yet checked against a kiln inventory. That check is next.</sub></p>
+<p align="center"><sub>The map shows kiln structures in the 2024-25 dry season, not kilns in operation; about 8 in 10 detections inside human-labelled footprints are kilns, about 2 in 10 outside. Licence CC BY-NC 4.0 (non-commercial). Night lights are consistent with kilns, not proof: kilns sit on town edges that also brighten in winter.</sub></p>
 
 ---
 
@@ -164,10 +178,10 @@ flowchart LR
 
 | For the judges | Where to look |
 |---|---|
-| **Best Use of Data** | Every number traces to FIRMS detections. Denial tests, placebo tests, measured interval coverage. Downloads for all of it. |
-| **Best Use of Technology** | Remote GeoParquet queried in place. One tool layer behind the app, the AI analyst and a remote MCP endpoint. |
-| **Galactic Impact** | A record that survives the end of MODIS, a worldwide outlook, and alerts for any box on Earth. |
-| **Local Impact** | Bangladesh's kiln belt, separated from vegetation fire and tracked by season. |
+| **Best Use of Data** | Every fire number traces to FIRMS detections. Denial tests, placebo tests, measured interval coverage; fire cases heard by six witnesses (EONET, GDACS, MODIS burned area, news); kilns from a published map and Black Marble. Downloads for all of it. |
+| **Best Use of Technology** | Remote GeoParquet queried in place. One tool layer behind the app, the AI analyst and a remote MCP endpoint. Earth Engine at build time only, so the live demo needs none. |
+| **Galactic Impact** | A record that survives the end of MODIS, a worldwide outlook now counted by NOAA-20 with its held-out error published, and alerts for any box on Earth. |
+| **Local Impact** | Bangladesh's kiln belt: we measured that NASA's fire product cannot count kilns (4.6% of mapped kilns against 4.2% of random ground) and count them from a published map and night lights instead. |
 
 <details>
 <summary><b>Run it</b> (Python 3.11+, Node 20+)</summary>
@@ -180,7 +194,10 @@ cd web && npm install && npm run dev  # http://localhost:5173
 ```
 
 Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s: `python -m kw.globe` (one-off, 1.8 GB).
-Tests: `python server/tests/test_science.py`. Figures on this page: `node scripts/readme_figures.mjs`.
+Casebook witnesses (build time only; needs `pip install earthengine-api`, `earthengine authenticate` and `EE_PROJECT` in a git-ignored `.env`):
+`python scripts/build_burned.py && python -m kw.cases` (burned area), `python scripts/build_kilns.py` (Dhaka kiln evidence, needs `python -m kw.firms` first).
+The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
+Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
 Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
 
 </details>
@@ -189,7 +206,7 @@ Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://
 
 ## Data used
 
-Every number in Kiln Watch comes from NASA data.
+Every fire number in Kiln Watch comes from NASA data. The kiln map is the one outside number, and it is labelled as such.
 
 ### NASA data
 
@@ -209,15 +226,23 @@ Every number in Kiln Watch comes from NASA data.
 | Worldview | [worldview.earthdata.nasa.gov](https://worldview.earthdata.nasa.gov) | "Open in Worldview" link for the same place and day |
 | FIRMS Fire Map | [firms.modaps.eosdis.nasa.gov/map](https://firms.modaps.eosdis.nasa.gov/map) | Link to the raw detections for the same place and day |
 
+| MODIS Burned Area MCD64A1, Collection 6.1 (via Google Earth Engine) | [lpdaac.usgs.gov/products/mcd64a1v061](https://lpdaac.usgs.gov/products/mcd64a1v061/) | A burn-scar witness for every fire case. MCD64A1 is guided by MODIS active fires, so it is not fully independent of the hotspot record |
+| Black Marble VNP46A2, daily gap-filled night lights (via Google Earth Engine) | [blackmarble.gsfc.nasa.gov](https://blackmarble.gsfc.nasa.gov) | Kiln-season against monsoon brightness at 717 mapped kilns and 600 random places in the Dhaka belt (a second witness for kilns) |
+
 ### Other space agency data
 
-None. NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
+| Dataset | Link | How we used it |
+|---|---|---|
+| ESA Copernicus Sentinel-2 L2A, through the Bangladesh kiln map below | [sentinels.copernicus.eu](https://sentinels.copernicus.eu) | Kiln structures seen in 10 m imagery; Kiln Watch uses the published detections, not the imagery |
+
+NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 
 ### Other datasets
 
 | Dataset / API / library | Link | How we used it |
 |---|---|---|
-| GDACS (EC JRC, UN OCHA) | [gdacs.org](https://www.gdacs.org) | Wildfire alerts beside the data |
+| Bangladesh brick kilns from space, dry season 2024-25 (Sentinel-2 detector trained on SentinelKilnDB; CC BY-NC 4.0, non-commercial) | [github.com/deluair/bangladesh-brick-kilns](https://github.com/deluair/bangladesh-brick-kilns) | The kiln inventory: 717 detections on human-labelled kilns and 1,615 in all inside the Dhaka box. Kiln structures, not kilns in operation; its own audit finds about 8 in 10 right inside labelled footprints and about 2 in 10 outside |
+| GDACS (EC JRC, UN OCHA) | [gdacs.org](https://www.gdacs.org) | Wildfire events of every alert level (2021 onward) beside the data and as a case witness |
 | GDELT DOC API | [gdeltproject.org](https://www.gdeltproject.org) | News reports for a place and month (2017+) |
 | Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
 | ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
@@ -227,7 +252,8 @@ None. NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
 | DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
 | FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
-| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 35-tool MCP server for Claude, Cursor and n8n |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 38-tool MCP server for Claude, Cursor and n8n |
+| Google Earth Engine | [earthengine.google.com](https://earthengine.google.com) | Build time only: reads MCD64A1 and Black Marble for the committed witness files; the live demo needs no Earth Engine |
 | Google Gemini API | [ai.google.dev](https://ai.google.dev) | Optional in-app analyst |
 | React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |
 | MapLibre GL JS | [maplibre.org](https://maplibre.org) | Map and globe |

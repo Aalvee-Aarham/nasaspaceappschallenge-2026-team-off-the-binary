@@ -57,6 +57,52 @@ def test_assemble_dedupes_by_cell_and_month_and_gets_agency_only():
     assert sum(counts.values()) == len(kept)
 
 
+def test_near_match_neighbour_and_next_month():
+    cells = [(10.0, 20.0), (10.1, 20.0)]
+    look, per = {c: i for i, c in enumerate(cells)}, {"2020-01", "2020-02"}
+    m = lambda gm: cases.near_match(gm, look, (10.0, 20.0), "2020-01", per)  # noqa: E731
+    assert m({"2020-01": [[0, 4.0]]}) == ("cell", 4.0)
+    assert m({"2020-01": [[1, 3.0]]}) == ("neighbour", 3.0)           # the event point sits one cell off the fire
+    assert m({"2020-02": [[0, 2.0]]}) == ("cell_next_month", 2.0)     # the event started before the first hotspots
+    assert m({}) == (None, 0)                                         # nothing near, nothing next month: the record missed it
+    assert cases.next_period("2020-12") == "2021-01" and cases.next_period("2020-03") == "2020-04"
+
+
+def test_burn_scar_counts_like_an_agency_record_and_gaps_are_reasons():
+    assert cases.verdict("quiet", {}, None, None, None, {"km2": 5}) == "agency_only"
+    assert cases.verdict("fire", {}, None, None, None, {"km2": 5}) == "corroborated"
+    assert cases.verdict("abstain", {}, None, None, None, {"km2": 5}) == "abstained"
+    u = cases.unavailable("2019-05", {"press": "rate-limited"})
+    assert u["press"].startswith("the search failed") and "2021" in u["disaster_system"]
+    assert cases.unavailable("2024-05", {}) == {}
+    assert "2017" in cases.unavailable("2015-05", {})["press"] and "press" not in cases.unavailable("2015-05", {}, press_found=True)
+
+    def case(period):
+        return {"cell": [10.0, 20.0], "period": period, "verdict": "insufficient", "witnesses": {
+            "satellite": {"state": "quiet"}, "cross_family": {}, "agency": None, "disaster_system": None, "press": None}}
+    tab = {"through": "2020-12", "cells": {"10.0,20.0|2020-01": 7.5, "10.0,20.0|2020-02": 0}}
+    out = cases.apply_burned({"cases": [case("2020-01"), case("2020-02"), case("2021-03"), case("2019-01")]}, tab)["cases"]
+    assert out[0]["verdict"] == "agency_only" and out[0]["witnesses"]["burned_area"]["km2"] == 7.5
+    assert out[1]["verdict"] == "insufficient" and out[1]["witnesses"]["burned_area"] is None and "burned_area" not in out[1]["witnesses"]["unavailable"]
+    assert "published to 2020-12" in out[2]["witnesses"]["unavailable"]["burned_area"]      # beyond the product: could not look
+    assert "did not cover" in out[3]["witnesses"]["unavailable"]["burned_area"]              # not queried: could not look, never "none"
+    assert "not been run" in cases.apply_burned({"cases": [case("2020-01")]}, None)["cases"][0]["witnesses"]["unavailable"]["burned_area"]
+
+
+def test_shipped_kiln_evidence():
+    f = REGIONS / "dhaka-kilns" / "kilns.json"
+    if not f.exists():
+        return
+    k = json.loads(f.read_text(encoding="utf-8"))
+    assert k["inventory"]["n_on_labelled_kiln"] == sum(r[4] for r in k["kilns"]) and k["inventory"]["n_in_area"] == len(k["kilns"])
+    assert all(len(r) == len(k["fields"]) for r in k["kilns"]) and all(len(r) == len(k["static_fields"]) for r in k["static_sources"])
+    assert k["firms"]["static_sources"]["n"] == len(k["static_sources"])
+    for g in ("mapped_kilns", "random_places"):
+        assert 0 <= k["firms"][g]["viirs_any_pct"] <= 100 and 0 <= k["firms"][g]["modis_any_pct"] <= 100
+    w, s, e, n = k["bbox"]
+    assert all(w <= r[0] <= e and s <= r[1] <= n for r in k["kilns"])
+
+
 def test_shipped_case_files():
     for d in sorted(p for p in REGIONS.iterdir() if (p / "cases.json").exists()):
         c = json.loads((d / "cases.json").read_text(encoding="utf-8"))
@@ -67,6 +113,13 @@ def test_shipped_case_files():
             assert x["verdict"] in cases.VERDICTS and s["state"] in ("fire", "quiet", "abstain"), (d.name, x["id"])
             if s["state"] != "abstain":
                 assert (s["coverage"] or 0) > 0, (d.name, x["id"], "a witness that could see must have coverage")
+            gaps = x["witnesses"].get("unavailable")
+            assert isinstance(gaps, dict), (d.name, x["id"], "every case must say which witnesses could not look")
+            if x["witnesses"]["press"] is None and x["period"] < cases.PRESS_FROM and "press" not in gaps:
+                gn = next((s for s in c["sources"] if s["name"] == "Google News RSS"), None)   # it looked and found nothing: a real answer
+                assert gn and gn["searched"] and not gn["error"], (d.name, x["id"], "no news before 2017 must be 'could not look', not 'none'")
+            if x["period"] < cases.GDACS_FROM:
+                assert "disaster_system" in gaps, (d.name, x["id"])
         assert len({x["id"] for x in c["cases"]}) == len(c["cases"]), d.name
 
 

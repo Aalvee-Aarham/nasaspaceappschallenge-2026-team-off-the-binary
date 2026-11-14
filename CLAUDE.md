@@ -14,11 +14,13 @@ NASA Space Apps 2026 "Harmonization of MODIS and VIIRS Hot Spots". One consisten
 - `server/kw/science.py` — all statistics (stdlib only); tests in `server/tests/test_science.py`
 - `server/kw/tools.py` — deterministic query functions shared by `api.py` (FastAPI), `mcp_server.py` (MCP) and `agent.py` (Gemini)
 - `server/kw/news.py` — NASA EONET + GDELT DOC (2017+) + optional ReliefWeb ; `news_more.py` adds Google News RSS, GDACS, worldwide feed, free-text place search
-- `server/kw/outlook.py` — worldwide 0.5° 30-day outlook from the global aggregate (rule `science.outlook_cell`)
+- `server/kw/outlook.py` — worldwide 0.5° 30-day outlook from the global aggregate (rule `science.outlook_cell`); Aqua MODIS before its measured drift onset, NOAA-20 on the Aqua scale after it and for the last 30 days (per-cell ratio, held-out error published in the file)
 - `server/kw/alerts.py` — email (double opt-in, SMTP env) + n8n alerts; `personas.py` — Claude characters (MCP prompts, subagents); `charts.py` — analyst chart specs from pipeline data only
 - `server/kw/cases.py` — the casebook: fire cases heard by witnesses (record cell+area, MODIS-vs-VIIRS cross-check, EONET, GDACS, press), verdicts, `data/regions/<area>/cases.json`; `python -m kw.cases [area]` rebuilds it from the committed files
 - `scripts/build_exposure.py` — build-time only (needs `rasterio`): WorldPop 2020 + OSM hospitals/schools/roads + ESA WorldCover cropland on the 0.1° grid (`--add` adds schools and farmland to a built file) → `exposure.json`; context, never impact
-- `server/kw/mcp_server.py` — 36 tools, 4 prompts, resources; also mounted by the API at `/mcp`
+- `scripts/build_burned.py` — build-time only (needs `earthengine-api`, `EE_PROJECT` in `.env`): MODIS MCD64A1 burn scar per case → `burned_area.json`, applied by `python -m kw.cases <area>`
+- `scripts/build_kilns.py` — build-time only (Earth Engine + the raw FIRMS cache): Dhaka kiln inventory (deluair/bangladesh-brick-kilns, CC BY-NC), how little FIRMS sees of it, Black Marble night lights → `kilns.json`. FIRMS cannot count kilns (measured: no better than random ground); never use it to find them
+- `server/kw/mcp_server.py` — 38 tools, 4 prompts, resources; also mounted by the API at `/mcp`
 - `web/src` — React + MapLibre UI (`App.tsx` shell + hash routing, `Map.tsx`, `Record.tsx` calendar/continuity/method, `Detail.tsx` cell inspector, `Timeline.tsx`, `Analyst.tsx` + `Chart.tsx`, `Loader.tsx` for every slow wait)
 - `web/src/pages/` — one file per page: `Warning` (early warning), `News`, `Data` (Download + Create), `Method`, `Connect` (MCP + n8n); `shared.tsx` has the page list
 - Early warning: rule in `science.warning_level`, assembly in `tools.early_warning`/`warnings`; keep it a climatological outlook, never a forecast
@@ -33,3 +35,5 @@ NASA Space Apps 2026 "Harmonization of MODIS and VIIRS Hot Spots". One consisten
 - Missing news ≠ evidence of absence; never label "silent ignition" or "artifact proven".
 - Sensor availability is measured from data (`sensor_days`), never hard-coded end dates.
 - Detections are not fires and not burned area.
+- A witness that could not look (search failed, or the source does not reach back that far: GDELT 2017, GDACS 2021, MCD64A1 to its last month) is `unavailable[...]` with the reason, never "nothing found".
+- Never call FIRMS persistent heat sources "kilns": only 6 of 109 in Dhaka sit on a mapped kiln.

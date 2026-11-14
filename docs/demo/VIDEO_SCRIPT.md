@@ -13,7 +13,7 @@ Sources: **R** = README.md · **M** = `data/regions/<area>/meta.json` · **L** =
 | 1 | 0–6 s | Explorer on Punjab, raw vs harmonized calendar (`#pg=explore`, Punjab) | "In 2012 a sharper satellite started counting smaller fires. Nothing changed on the ground. The record did." | R "The problem" |
 | 2 | 6–14 s | Proof page scorecard (`#pg=method`) | "Kiln Watch puts every satellite on one scale. Raw counts jump up to 10.6 times. Ours stay near 1." | R stats: raw 3.5–10.6×, harmonized 0.93–1.19× |
 | 3 | 14–22 s | After MODIS page, press "MODIS ends in 2016" (`#pg=after`) | "Take MODIS away, and the record rebuilt from VIIRS alone still follows what Aqua really saw." | M `denial.modis_ends_2016` (Punjab ρ 0.98 in R results table) |
-| 4 | 22–30 s | Live link on screen | "Detections are not fires. Every number comes from NASA FIRMS. kiln-watch-seven.vercel.app" | R footer |
+| 4 | 22–30 s | Live link on screen | "Detections are not fires. The fire record comes from NASA FIRMS. kiln-watch-seven.vercel.app" | R footer |
 
 ## 2-minute cut
 
@@ -24,8 +24,8 @@ Sources: **R** = README.md · **M** = `data/regions/<area>/meta.json` · **L** =
 | 3 | 0:35–1:05 | Proof scorecard, all nine areas, then After MODIS: toggle MODIS off, toggle Suomi-NPP withheld | "Proof: we test the record by taking satellites away. Nine areas, one scorecard. Rebuilt from VIIRS alone, Punjab's error falls from plus 470 percent to minus 6." | R results table, Punjab: +469.7% → −5.8% |
 | 4 | 1:05–1:20 | After MODIS "Aqua is drifting" chart | "Aqua itself is drifting. From 2023 the record runs on VIIRS alone, so it carries on when MODIS is switched off." | M `aqua_overpass.onset`; R "The fix" (2023) |
 | 5 | 1:20–1:35 | Early warning page, backtest line | "Early warning compares this month with every earlier year, and shows how often that rule was right. It never forecasts." | L Warning page (read the day-15 numbers off the page; do not quote one not on screen) |
-| 6 | 1:35–1:50 | Bangladesh page, kiln-season chart; then the MCP page and Claude answering | "Built for Bangladesh's brick-kiln belt, where raw counts rise 10.6 times with no change on the ground. And a 35-tool MCP server, so Claude asks Kiln Watch for every number." | R Dhaka raw 10.58; R "35-tool" |
-| 7 | 1:50–2:00 | Home page, live link | "Detections are not fires. Every number comes from NASA FIRMS. kiln-watch-seven.vercel.app" | R footer |
+| 6 | 1:35–1:50 | Bangladesh page, kiln map and the FIRMS-against-random-ground bars; then the MCP page and Claude answering | "Built for Bangladesh's brick-kiln belt, where raw counts rise 10.6 times with no change on the ground. And a 38-tool MCP server, so Claude asks Kiln Watch for every number." | R Dhaka raw 10.58; R "36-tool" |
+| 7 | 1:50–2:00 | Home page, live link | "Detections are not fires. The fire record comes from NASA FIRMS. kiln-watch-seven.vercel.app" | R footer |
 
 ## Recording notes
 

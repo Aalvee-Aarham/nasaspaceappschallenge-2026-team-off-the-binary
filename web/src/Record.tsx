@@ -287,7 +287,7 @@ export function SeasonView({ r }: { r: Region }) {
     <div className="stack">
       <section>
         <h3>Critical period for vegetation fires</h3>
-        {typicalTotal < 100 && <p className="warn small">A typical year here has only {fmt(typicalTotal)} vegetation hotspots on the Aqua scale, so season dates and their trends are uncertain. Most heat in this area may come from persistent sources; see the Calendar with "Kilns & static heat".</p>}
+        {typicalTotal < 100 && <p className="warn small">A typical year here has only {fmt(typicalTotal)} vegetation hotspots on the Aqua scale, so season dates and their trends are uncertain. Much of the heat here may come from persistent sources (FIRMS types some as static), which the fire product cannot tell from kilns; the Bangladesh page counts kilns from a published map instead.</p>}
         <p>In a typical year the fire season runs from <b>{lbl(s.median.start)}</b> to <b>{lbl(s.median.end)}</b>, the weeks holding the central 80% of the year's hotspots, and peaks around <b>{lbl(s.median.peak)}</b>.</p>
         <ul className="plain small">
           <li>{tr("start", "Season start")}</li><li>{tr("end", "Season end")}</li><li>{tr("length", "Season length")}</li>

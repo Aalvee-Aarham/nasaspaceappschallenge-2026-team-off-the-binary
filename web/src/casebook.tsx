@@ -17,12 +17,12 @@ export const LABEL: Record<CaseVerdict, string> = {
   reported: "News only", abstained: "Could not see", insufficient: "No evidence",
 };
 export const MEANING: Record<CaseVerdict, string> = {
-  corroborated: "Satellites saw fire and an agency recorded it.",
-  agency_only: "An agency recorded a fire. The satellite record shows none there.",
-  satellite_only: "Satellites saw fire. No searched source mentions it.",
-  reported: "News mentions a fire. No agency record.",
+  corroborated: "Satellites saw fire at or next to the place, and an agency record or a burn scar confirms it.",
+  agency_only: "An agency or burn-scar record shows a fire. The satellite record shows none in that cell, its 8 neighbours or the next month.",
+  satellite_only: "Satellites saw fire. No source that could look mentions it.",
+  reported: "News mentions a fire. No agency or burn-scar record.",
   abstained: "No satellite was watching that month.",
-  insufficient: "No fire seen and nothing reported.",
+  insufficient: "No fire seen and nothing reported by a source that could look.",
 };
 export const compact = (v: number | null | undefined) => (v == null ? "–" : v >= 1e6 ? `${fmt(v / 1e6, 1)} M` : v >= 1e4 ? `${fmt(v / 1e3, 0)} k` : fmt(v));
 
@@ -84,14 +84,19 @@ export function useExposure(id: string | null, period: string | null, online: bo
 
 /** What each witness said about one case, in plain words. */
 export function CaseCard({ c, onClose }: { c: FireCase; onClose?: () => void }) {
-  const { satellite: s, cross_family: x, agency, disaster_system: d, press } = c.witnesses;
-  const said = (state: "fire" | "quiet" | "abstain" | "none") => ({ fire: "saw fire", quiet: "saw no fire", abstain: "could not see", none: "nothing found" })[state];
-  const rows: [string, "fire" | "quiet" | "abstain" | "none", React.ReactNode][] = [
-    ["Satellites", s.state, s.state === "fire" ? `${fmt(s.cell_hotspots, 1)} hotspots in this 11 km cell` : s.state === "quiet" ? "no hotspots in this cell that month" : "no satellite was watching"],
-    ["NASA EONET", agency ? "fire" : "none", agency ? <>event on {agency.date}{agency.url && <> · <a href={agency.url} target="_blank" rel="noreferrer">record ↗</a></>}</> : "no event record"],
-    ["GDACS", d ? "fire" : "none", d ? <>{d.alert ? `${d.alert} alert` : "alert"}{d.burned_area_ha != null && `, ${fmt(d.burned_area_ha)} ha burned`}{d.url && <> · <a href={d.url} target="_blank" rel="noreferrer">report ↗</a></>}</> : "no alert"],
-    ["News", press ? "fire" : "none", press ? <>{fmt(press.count)} articles{press.sample_urls?.[0] && <> · <a href={press.sample_urls[0]} target="_blank" rel="noreferrer">example ↗</a></>}</> : "no articles found"],
-    ["MODIS vs VIIRS", x.state, x.state === "abstain" ? "not checked yet" : x.agrees === false ? "the two satellite families disagree" : "the two satellite families agree"],
+  const { satellite: s, cross_family: x, agency, disaster_system: d, press, burned_area: b } = c.witnesses;
+  const gap = c.witnesses.unavailable ?? {};
+  type St = "fire" | "quiet" | "abstain" | "none" | "blind";
+  // "blind" = the witness could not look (its search failed or does not reach back that far): never shown as "nothing found"
+  const said = (state: St) => ({ fire: "saw fire", quiet: "saw no fire", abstain: "could not see", none: "nothing found", blind: "could not look" })[state];
+  const where = ({ cell: "in this 11 km cell", neighbour: "in a neighbouring cell", cell_next_month: "in this cell the next month", neighbour_next_month: "in a neighbouring cell the next month" } as const)[s.match ?? "cell"];
+  const rows: [string, St, React.ReactNode][] = [
+    ["Satellites", s.state, s.state === "fire" ? `${fmt(s.match_hotspots ?? s.cell_hotspots, 1)} hotspots ${where}` : s.state === "quiet" ? "no hotspots in this cell, its 8 neighbours or the next month" : "no satellite was watching"],
+    ["NASA EONET", agency ? "fire" : gap.agency ? "blind" : "none", agency ? <>event on {agency.date}{agency.url && <> · <a href={agency.url} target="_blank" rel="noreferrer">record ↗</a></>}</> : gap.agency ?? "no event record"],
+    ["GDACS", d ? "fire" : gap.disaster_system ? "blind" : "none", d ? <>{d.alert ? `${d.alert} alert` : "alert"}{d.burned_area_ha != null && `, ${fmt(d.burned_area_ha)} ha burned`}{d.url && <> · <a href={d.url} target="_blank" rel="noreferrer">report ↗</a></>}</> : gap.disaster_system ?? "no alert"],
+    ["Burned area", b ? "fire" : gap.burned_area ? "blind" : "none", b ? `${fmt(b.km2, 1)} km² burn scar mapped by MODIS in this cell and its 8 neighbours` : gap.burned_area ?? "no burn scar mapped there that month"],
+    ["News", press ? "fire" : gap.press ? "blind" : "none", press ? <>{fmt(press.count)} articles{press.sample_urls?.[0] && <> · <a href={press.sample_urls[0]} target="_blank" rel="noreferrer">example ↗</a></>}</> : gap.press ?? "no articles found"],
+    ["MODIS vs VIIRS", x.state, x.state === "abstain" ? (x.reason ?? "not checked") : x.agrees === false ? "the two satellite families disagree" : "the two satellite families agree"],
   ];
   return (
     <article className="cb-card" aria-live="polite">

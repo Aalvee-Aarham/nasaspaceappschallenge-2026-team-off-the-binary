@@ -1,8 +1,11 @@
 """Worldwide 30-day fire-season outlook on a 0.5-degree grid, from the global aggregate (python -m kw.globe).
 
-Aqua MODIS only: one sensor observed every year since 2003, so the comparison needs no cross-sensor calibration.
-For each cell: hotspots the next 30 calendar days usually bring (earlier years), and how the last 30 days rank
-against the same days in earlier years. A climatological outlook, never a forecast. Cached per data date.
+On the Aqua MODIS scale, without needing Aqua today. Years 2003 up to the record's measured Aqua drift onset are Aqua
+MODIS counts. From the onset, and for the last 30 days, NOAA-20 VIIRS counts are put on the Aqua scale with a per-cell
+ratio of totals fitted on the years both satellites observed before the drift (shrunk toward the worldwide ratio).
+Before trusting that, the ratio is fitted without the last pre-drift year and used to predict that year's Aqua counts;
+the error is published in the file. For each cell: hotspots the next 30 calendar days usually bring (earlier years),
+and how the last 30 days rank against the same days in earlier years. A climatological outlook, never a forecast.
 
 Run: python -m kw.outlook   (also built lazily by the API)
 """
@@ -15,11 +18,13 @@ import duckdb
 
 from . import science as sc
 from .globe import OUT as GLOBAL
-from .firms import current_year
+from .firms import DATA, current_year
 
 FILE = GLOBAL / "outlook.json"
 DEG = 0.5
 FIRST = 2003  # first full Aqua year
+CAL_FIRST = 2019  # first full year NOAA-20 VIIRS covers every window of the year
+VIIRS = "VIIRS_NOAA20"  # the one VIIRS satellite flying every year from 2019 to today (Suomi-NPP ended 2026-11-02)
 _lock = threading.Lock()
 CLASSES = {"watch": "a usually ACTIVE fire season is starting or under way in the next 30 days AND the last 30 days were already above normal",
            "above": "the last 30 days were above normal (top tenth of earlier years), but the next 30 days usually bring fewer than 5 hotspots",
@@ -31,15 +36,24 @@ def _anchor(as_of, y):
     return as_of.replace(year=y, day=28) if (as_of.month, as_of.day) == (2, 29) else as_of.replace(year=y)
 
 
+def _onset_year():
+    """First year Aqua is left out (measured overpass drift + archive version, the record's own rule)."""
+    f = DATA / "aqua_overpass.json"
+    onset = json.loads(f.read_text(encoding="utf-8")).get("onset") if f.exists() else None
+    return int(onset[:4]) if onset else 2023
+
+
 def build():
     t0 = time.time()
     cy = current_year()
     files = [f.as_posix() for y in range(FIRST, cy + 1) if (f := GLOBAL / f"agg-{y}.parquet").exists()]
     if not files or not files[-1].endswith(f"agg-{cy}.parquet"):
         raise FileNotFoundError("global aggregate missing; run python -m kw.globe")
+    onset = _onset_year()
+    cal_years = [y for y in range(CAL_FIRST, onset) if y < cy]
     con = duckdb.connect()
     con.execute("SET enable_progress_bar = false")
-    as_of = con.execute(f"SELECT max(acq_date) FROM read_parquet('{files[-1]}') WHERE sensor = 'MODIS' AND sat = 'A'").fetchone()[0]
+    as_of = con.execute(f"SELECT max(acq_date) FROM read_parquet('{files[-1]}') WHERE sensor = '{VIIRS}'").fetchone()[0]
     wins = []
     for y in range(FIRST, cy + 1):
         a = _anchor(as_of, y)
@@ -50,25 +64,71 @@ def build():
     con.executemany("INSERT INTO win VALUES (?, ?, ?, ?)", wins)
     k = int(DEG * 10)
     rows = con.execute(f"""
-        SELECT w.y, w.k, (d.gy // {k})::INT AS cy, (d.gx // {k})::INT AS cx,
+        SELECT w.y, w.k, d.sensor, (d.gy // {k})::INT AS cy, (d.gx // {k})::INT AS cx,
                sum(d.n) FILTER (WHERE d.tcls <> 's')::INT AS n, sum(d.n) FILTER (WHERE d.tcls = 's')::INT AS s
         FROM read_parquet({files}) d JOIN win w ON d.acq_date BETWEEN w.a AND w.b
-        WHERE d.sensor = 'MODIS' AND d.sat = 'A' AND d.ok
+        WHERE d.ok AND ((d.sensor = 'MODIS' AND d.sat = 'A' AND w.y < {onset}) OR (d.sensor = '{VIIRS}' AND w.y >= {CAL_FIRST}))
         GROUP BY ALL""").fetchall()
     con.close()
     years = list(range(FIRST, cy))
     yi = {y: i for i, y in enumerate(years)}
-    cells = {}
-    for y, kind, gy, gx, n, s in rows:
-        c = cells.setdefault((gy, gx), {"f": [0] * len(years), "b": [0] * len(years), "now": 0, "n": 0, "s": 0})
+    aqua, viirs, cells = {}, {}, {}   # cell -> {(year, "b"|"f"): hotspots}; cells: static-history tally
+    for y, kind, sensor, gy, gx, n, s in rows:
         n, s = n or 0, s or 0
-        if y < cy:
-            c["n"] += n
-            c["s"] += s
-        if kind == "b" and y == cy:
-            c["now"] = n
-        elif y in yi:
-            c[kind][yi[y]] = n
+        (aqua if sensor == "MODIS" else viirs).setdefault((gy, gx), {})[(y, kind)] = n
+        if sensor == "MODIS":
+            t = cells.setdefault((gy, gx), {"n": 0, "s": 0})
+            t["n"] += n
+            t["s"] += s
+    cells = {c: t for c, t in cells.items()}
+    # --- put VIIRS on the Aqua scale: per-cell ratio of totals fitted on the pre-drift years both satellites saw
+    keys = lambda ys: [(y, kd) for y in ys for kd in ("b", "f")]  # noqa: E731
+    tot = lambda m, c, ks: sum(m.get(c, {}).get(q, 0) for q in ks)  # noqa: E731
+    allc = set(aqua) | set(viirs)
+
+    def fit(ys):
+        ks = keys(ys)
+        pooled = sum(tot(aqua, c, ks) for c in allc) / max(1, sum(tot(viirs, c, ks) for c in allc))
+        return {c: sc.shrunk_ratio(tot(aqua, c, ks), tot(viirs, c, ks), pooled) for c in allc}, pooled
+
+    ratio, pooled = fit(cal_years)
+    # held-out check: fit without the last pre-drift year, predict that year's Aqua counts from VIIRS alone
+    held, validation = cal_years[-1], None
+    if len(cal_years) >= 2:
+        r_cv, p_cv = fit(cal_years[:-1])
+        ks = keys([held])
+        pred = [r_cv[c] * tot(viirs, c, ks) for c in allc]
+        truth = [tot(aqua, c, ks) for c in allc]
+        big = [i for i, (p, t) in enumerate(zip(pred, truth)) if max(p, t) >= 5]
+        # the flag that matters: "above normal" (last 30 days in the top tenth of earlier years, at least 5 hotspots), computed
+        # from Aqua's true counts and again from NOAA-20 alone, against the same earlier Aqua years
+        above = lambda now, back: now >= 5 and (sc.percentile_rank(now, back) or 0) >= 90  # noqa: E731
+        hits = miss = false = 0
+        for c in allc:
+            back = [aqua.get(c, {}).get((y, "b"), 0) for y in range(FIRST, held)]
+            t = above(aqua.get(c, {}).get((held, "b"), 0), back)
+            p = above(r_cv[c] * viirs.get(c, {}).get((held, "b"), 0), back)
+            hits += t and p
+            miss += t and not p
+            false += p and not t
+        validation = {"fit_years": [cal_years[0], cal_years[-2]], "held_out_year": held, "pooled_ratio": round(p_cv, 3),
+                      "all_cells": sc.metrics(pred, truth), "cells_with_5_or_more": sc.metrics([pred[i] for i in big], [truth[i] for i in big]),
+                      "above_normal_flag": {"flagged_by_aqua": hits + miss, "also_flagged_from_noaa20": hits, "missed": miss, "extra": false,
+                                            "agreement_pct": round(100 * hits / max(1, hits + miss + false), 1)},
+                      "note": "Aqua counts in the held-out year's two 30-day windows, predicted from NOAA-20 alone. The flag test asks "
+                              "whether 'above normal' is called for the same cells from NOAA-20 as from Aqua's own counts."}
+    series = {}
+    for c in allc:
+        f, b = [0.0] * len(years), [0.0] * len(years)
+        for y in years:
+            kf, kb = (y, "f"), (y, "b")
+            if y < onset:
+                f[yi[y]], b[yi[y]] = aqua.get(c, {}).get(kf, 0), aqua.get(c, {}).get(kb, 0)
+            else:
+                f[yi[y]], b[yi[y]] = ratio[c] * viirs.get(c, {}).get(kf, 0), ratio[c] * viirs.get(c, {}).get(kb, 0)
+        series[c] = {"f": f, "b": b, "now": round(ratio[c] * viirs.get(c, {}).get((cy, "b"), 0), 1),
+                     **cells.get(c, {"n": 0, "s": 0})}
+    cells = series
     out, counts = [], {"watch": 0, "above": 0, "season": 0, "rising": 0}
     for (gy, gx), c in cells.items():
         # ponytail: recent years are mostly untyped NRT rows, so a gas flare would look "above normal"; drop cells
@@ -85,7 +145,12 @@ def build():
     out.sort(key=lambda r: ({"watch": 0, "above": 1, "season": 2}[r[2]], -(r[6] or 0), -r[3]))
     res = {
         "regions": _clusters(out),
-        "as_of": str(as_of), "deg": DEG, "sensor": "Aqua MODIS (MCD14 C6.1 / NRT), confidence >= 30%, static sources removed",
+        "as_of": str(as_of), "deg": DEG,
+        "sensor": f"Aqua MODIS {FIRST}-{onset - 1}, NOAA-20 VIIRS 375 m on the Aqua scale from {onset} and for the last 30 days; "
+                  "confidence filter as the record, static sources removed",
+        "calibration": {"onset_year": onset, "fit_years": [cal_years[0], cal_years[-1]], "pooled_ratio_aqua_per_viirs": round(pooled, 3),
+                        "cells_fitted": len(allc), "shrinkage": "20 pseudo-detections at the worldwide ratio"},
+        "validation": validation,
         "next_30_days": [str(as_of + dt.timedelta(days=1)), str(as_of + dt.timedelta(days=30))],
         "last_30_days": [str(as_of - dt.timedelta(days=29)), str(as_of)], "baseline_years": [years[0], years[-1]],
         "counts": counts, "fields": ["lat", "lon", "class", "usual_next_30", "p90_next_30", "last_30", "pct_last_30",
@@ -93,9 +158,10 @@ def build():
         "cells": out, "rule": sc.OUTLOOK_RULE, "seconds": round(time.time() - t0, 1),
         "caveat": "Climatological outlook: what the next 30 days usually bring, and how unusual the last 30 days were "
                   "against the same days since 2003. Not a forecast of weather or fire, and not an official alert. "
-                  "Hotspots are satellite detections, not confirmed fires; recent days are near-real-time. Aqua's orbit "
-                  "has drifted since 2022, which can shift recent counts; for one area, its harmonized record (all "
-                  "five satellites) is the reference.",
+                  "Hotspots are satellite detections, not confirmed fires; recent days are near-real-time. Years from "
+                  "Aqua's drift onset and the last 30 days come from NOAA-20 VIIRS put on the Aqua scale with a per-cell "
+                  "ratio, so the outlook carries on when Aqua is switched off; the ratio's held-out error is in "
+                  "`validation`. For one area, its harmonized record (all five satellites) is the reference.",
     }
     tmp = FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(res, separators=(",", ":")), encoding="utf-8")
