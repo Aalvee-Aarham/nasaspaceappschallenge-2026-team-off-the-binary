@@ -230,12 +230,12 @@ The audits were reproduced against the current code and committed outputs. The c
 - [x] Run the focused validation scripts and data-integrity checks.
 - [x] Run the local API + web app and exercise the changed flows in a real browser with console inspection.
 - [x] Inspect `git diff --check`, `git status`, and the complete diff for secrets, generated caches, temporary files, and unrelated changes.
-- [ ] Dispatch a fresh code-reviewer on the whole branch against `origin/main`; fix every Critical/Important finding with a failing regression test first.
-- [ ] Run the full verification suite again after fixes.
-- [ ] Commit once with a precise subject and body.
-- [ ] Push `feature/nasa-space-apps-2026-submission` to `origin`.
-- [ ] Create a pull request to `main` with the award mapping, verification evidence, research links, known limitations, and the eligibility blocker prominently stated.
-- [ ] Do not merge the pull request; leave that decision to the team.
+- [x] Dispatch a fresh code-reviewer on the whole branch against `origin/main`; fix every Critical/Important finding with a failing regression test first. — The review found no Critical and two Important issues (the validation scripts' area calculation ignored `cos(latitude)`; the Dhaka-only kiln check was stated as if it applied to every region's static layer) plus five Minor ones. All seven are fixed: the areas are recomputed, the note now names the Dhaka layer, the canonical cell order matches its comment, the month parser rejects a bad month, the burned-area cache refuses a foreign bbox or window, the week grid has `role="row"` per year, and the dead code is gone.
+- [x] Run the full verification suite again after fixes. — All six Python test scripts exit 0; `npm run check` and `npm run build` exit 0; both validation scripts re-run and reproduce their published numbers; the browser pass at 1280 px and 390 px shows zero console errors on home, method, explorer, cases, Bangladesh and early warning.
+- [x] Commit once with a precise subject and body. — `Correct the science, add independent validation, harden the public surface`.
+- [x] Push `feature/nasa-space-apps-2026-submission` to `origin`.
+- [x] Create a pull request to `main` with the award mapping, verification evidence, research links, known limitations, and the eligibility blocker prominently stated.
+- [ ] Do not merge the pull request; leave that decision to the team. — Deliberately left undone.
 
 ---
 
@@ -300,7 +300,7 @@ Update this section as work completes; every task needs command evidence, not an
   transfer validation, `index.json`, `calibration_table.csv`, the README figures and the README results table were
   regenerated from the built files; README, `docs/demo/SUBMISSION.md`, `DECK.md` and `VIDEO_SCRIPT.md` now carry the
   measured archive-shift interpretation, the 34/39 tool split, the validation results and the prior-work disclosure.
-- [ ] Task 8 full verification, review, commit, push, and pull request complete.
+- [x] Task 8 full verification, review, commit, push, and pull request complete. — The branch was rebased onto the current `origin/main` (`515d3dc`) twice: `main` moved twice while the work was in progress, and both times the conflicts were resolved in favour of the newer `main` (the "Is fire near you?" feature, the Sentinel-1 kiln witness, the Azure/HF deployment files) and the data was rebuilt so the committed files match the merged code.
 
 ## Deviations from the plan, and why
 
