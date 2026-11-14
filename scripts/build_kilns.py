@@ -9,6 +9,8 @@ from independent sources and FIRMS is measured against them, never used to find 
                places far from any kiln, and how many FIRMS persistent heat sources sit on a mapped kiln.
   night lights NASA Black Marble VNP46A2 (Earth Engine): kiln-season (Dec-Feb) against monsoon (Jul-Aug) brightness.
                Kilns fire in the dry months, so lamps and night shifts should raise brightness there.
+  radar        ESA Sentinel-1 VV (Earth Engine): a kiln's contrast with its own surroundings, dry season against monsoon.
+               Brick stacks fill the yards in the dry months; the yards stand empty or flooded in the monsoon.
 
 Build-time only (needs earthengine-api and EE_PROJECT in .env, like build_burned.py). Needs the raw FIRMS cache of the
 area (python -m kw.firms). Writes data/regions/dhaka-kilns/kilns.json.   python scripts/build_kilns.py
@@ -33,6 +35,7 @@ DRY, WET = ("2024-12-01", "2025-03-01"), ("2025-07-01", "2025-09-01")  # kilns f
 URBAN = 15.0                                # nW/cm2/sr in the monsoon: city lights drown a kiln's, so the cell says nothing
 NULLS, SEED = 600, 7
 RADIUS_V, RADIUS_M = 500, 1000              # metres: VIIRS 375 m pixels, MODIS 1 km pixels
+RADAR_ORBIT = ("ASCENDING", 114)            # one viewing geometry in both seasons (measured: 14 dry, 10 monsoon scenes over the box)
 
 
 def load_env():
@@ -141,6 +144,51 @@ def main():
                      "brighten in the dry season, and random places include empty land, so this is consistent with kilns, "
                      "not proof of them."}
 
+    # Sentinel-1 radar: brick stacks fill the kiln yards in the dry season and the yards stand empty or flooded in the
+    # monsoon. Raw backscatter changes with the season everywhere (wet soil, flooded paddies), so each place is compared
+    # with its own surroundings: contrast = VV (dB) within 100 m minus VV in a 300-800 m ring, and the test is whether that
+    # contrast rises from the monsoon to the dry season more at kilns than at random places.
+    s1 = (ee.ImageCollection("COPERNICUS/S1_GRD").filterBounds(ee.Geometry.Rectangle([w, s, e, n]))
+          .filter(ee.Filter.eq("instrumentMode", "IW")).filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
+          .filter(ee.Filter.eq("orbitProperties_pass", RADAR_ORBIT[0])).filter(ee.Filter.eq("relativeOrbitNumber_start", RADAR_ORBIT[1]))
+          .select("VV"))
+    n_dry, n_wet = s1.filterDate(*DRY).size().getInfo(), s1.filterDate(*WET).size().getInfo()
+    rimg = s1.filterDate(*DRY).median().rename("dry").addBands(s1.filterDate(*WET).median().rename("wet"))
+    rpts = [(r[0], r[1]) for r in inv] + rnd
+    core, ring = {}, {}
+    for geom, store in ((lambda p: ee.Geometry.Point(p).buffer(100), core),
+                        (lambda p: ee.Geometry.Point(p).buffer(800).difference(ee.Geometry.Point(p).buffer(300), 10), ring)):
+        feats = [ee.Feature(geom([x, y]), {"i": i}) for i, (x, y) in enumerate(rpts)]
+        for k in range(0, len(feats), 400):
+            for f in rimg.reduceRegions(ee.FeatureCollection(feats[k:k + 400]), ee.Reducer.mean(), 20).getInfo()["features"]:
+                store[f["properties"]["i"]] = (f["properties"].get("dry"), f["properties"].get("wet"))
+        print("radar", "core" if store is core else "ring", "done", flush=True)
+
+    def contrast(i):
+        c, g = core.get(i), ring.get(i)
+        if not c or not g or None in c or None in g:
+            return None, None
+        return c[0] - g[0], (c[0] - g[0]) - (c[1] - g[1])   # dry-season contrast, and its rise since the monsoon (dB)
+    lab_c = [contrast(i) for i in lab_ids]
+    nul_c = [contrast(i) for i in nul_ids]
+    lab_c, nul_c = [c for c in lab_c if c[0] is not None], [c for c in nul_c if c[0] is not None]
+    q75_dry, q75_rise = pct([c[0] for c in nul_c], 0.75), pct([c[1] for c in nul_c], 0.75)
+    radar = {"collection": "COPERNICUS/S1_GRD, IW, VV (dB)", "orbit": f"{RADAR_ORBIT[0].lower()}, relative orbit {RADAR_ORBIT[1]}",
+             "scenes": {"kiln_season": n_dry, "monsoon": n_wet}, "kiln_season": list(DRY), "monsoon": list(WET),
+             "contrast": "VV within 100 m minus VV in a 300-800 m ring, seasonal medians",
+             "mapped_kilns": {"n": len(lab_c),
+                              "median_dry_contrast_db": round(pct([c[0] for c in lab_c], 0.5), 2) if lab_c else None,
+                              "median_rise_db": round(pct([c[1] for c in lab_c], 0.5), 2) if lab_c else None,
+                              "dry_contrast_above_random_75th_pct": round(100 * sum(c[0] > q75_dry for c in lab_c) / max(1, len(lab_c)), 1) if lab_c else None,
+                              "rise_above_random_75th_pct": round(100 * sum(c[1] > q75_rise for c in lab_c) / max(1, len(lab_c)), 1) if lab_c else None},
+             "random_places": {"n": len(nul_c), "median_dry_contrast_db": round(pct([c[0] for c in nul_c], 0.5), 2) if nul_c else None,
+                               "median_rise_db": round(pct([c[1] for c in nul_c], 0.5), 2) if nul_c else None},
+             "note": "If kilns did not differ from random places, 25% would be above the random 75th percentile. A bright dry-season "
+                     "contrast shows a built structure stands out from its surroundings; the rise since the monsoon is the part that "
+                     "brick stacks would add. Radar also responds to buildings, embankments and moisture, so this is consistent with "
+                     "kilns, not proof of them, and it says nothing about whether a kiln is firing."}
+    print(json.dumps(radar, indent=1), flush=True)
+
     static_out = []
     base = len(inv) + len(rnd)
     for j, pt in enumerate(static["points"]):
@@ -152,7 +200,7 @@ def main():
                          "precision": "Its audit finds about 8 in 10 detections inside SentinelKilnDB's labelled footprints are kilns and about 2 in 10 outside; "
                                       "'labelled' here means the detection sits on a human-labelled kiln.",
                          "not_seen": "A cold kiln and a working kiln look alike from above, so these are kiln structures, not kilns in operation."},
-           "firms": firms, "night_lights": night,
+           "firms": firms, "night_lights": night, "radar": radar,
            "fields": ["lon", "lat", "type", "score", "labelled", "viirs_hits", "ntl_dry", "ntl_wet"],
            "kilns": [[round(r[0], 5), round(r[1], 5), r[2], round(r[3], 2), int(r[4]), h(i)[0],
                       None if not got.get(i) or got[i][0] is None else round(got[i][0], 2),

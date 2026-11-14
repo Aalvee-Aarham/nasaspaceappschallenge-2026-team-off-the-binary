@@ -1,7 +1,19 @@
 // Data access + shared types. Region files are static JSON (served by the API or any static host);
 // evidence, reports, custom areas, hotspot CSVs and the analyst need the Python API.
 
-const API = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+// VITE_API_BASE can point the site at another Kiln Watch server, e.g. a Hugging Face Space that can build new areas
+// (Vercel's own function cannot: builds take minutes). If that server does not answer, the site falls back to its own
+// read-only API, so the prebuilt areas always work.
+// ponytail: one probe at load; a sleeping free Space that wakes later is not retried until the page reloads.
+const REMOTE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").replace(/\/$/, "");
+let API = REMOTE;
+const ready: Promise<void> = REMOTE
+  ? fetch(`${REMOTE}/api/health`, { signal: AbortSignal.timeout(15000) })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
+      .catch(() => { API = ""; })
+  : Promise.resolve();
+/** Where the API (and so builds, alerts, MCP and n8n) actually lives: the remote server, or this site. */
+export const apiOrigin = () => API || location.origin;
 
 export type Num = number | null;
 export type Band = { v: Num[]; lo: Num[]; hi: Num[] };
@@ -138,6 +150,11 @@ export type KilnEvidence = {
     mapped_kilns_rural: { n: number; median_ratio: Num; above_random_75th_pct: Num };
     random_rural: { n: number; median_ratio: Num; p75_ratio: Num };
   };
+  radar?: {
+    collection: string; orbit: string; scenes: { kiln_season: number; monsoon: number }; kiln_season: string[]; monsoon: string[]; contrast: string; note: string;
+    mapped_kilns: { n: number; median_dry_contrast_db: Num; median_rise_db: Num; dry_contrast_above_random_75th_pct: Num; rise_above_random_75th_pct: Num };
+    random_places: { n: number; median_dry_contrast_db: Num; median_rise_db: Num };
+  };
   fields: string[]; kilns: [number, number, string, number, number, number, Num, Num][];   // lon, lat, type, score, labelled, viirs hits, ntl dry, ntl wet
   static_fields: string[]; static_sources: [number, number, number, number, Num][];
 };
@@ -258,6 +275,7 @@ export type Health = { ok: boolean; agent: boolean; email?: boolean; serverless?
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
+  await ready;
   const r = await fetch(API + url, init);
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;

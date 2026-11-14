@@ -90,11 +90,17 @@ function Kilns({ k }: { k: KilnEvidence }) {
       <p>Kilns fire in the dry months with lamps and night shifts, and stand idle in the monsoon. NASA Black Marble should therefore read brighter at a kiln from December to February than in July and August. {nl.mapped_kilns_rural.n ? <>Away from city lights, across {fmt(nl.mapped_kilns_rural.n)} mapped kilns the median dry-to-monsoon brightness ratio is <b>{nl.mapped_kilns_rural.median_ratio}</b>, against <b>{nl.random_rural.median_ratio}</b> for random places; <b>{pc(nl.mapped_kilns_rural.above_random_75th_pct)}</b> of kilns are above the random 75th percentile (25% would be chance). That is a consistent sign of kiln season, not proof: kilns sit on town edges that also brighten in the dry season.</> : "Too few kilns away from city lights to say."}</p>
       <p className="muted small">{nl.note} Source: {nl.band}.</p>
 
+      {k.radar && <>
+        <h3>Radar: a third witness</h3>
+        <p>Brick stacks fill a kiln's yard in the dry months; in the monsoon the yard stands empty or flooded. Sentinel-1 radar sees that as a change in how much a kiln stands out from the ground around it. From the monsoon to the dry season, a mapped kiln's contrast with its surroundings rose by a median <b>{fmt(k.radar.mapped_kilns.median_rise_db, 2)} dB</b>, against <b>{fmt(k.radar.random_places.median_rise_db, 2)} dB</b> at random places; <b>{pc(k.radar.mapped_kilns.rise_above_random_75th_pct)}</b> of kilns are above the random 75th percentile (25% would be chance).</p>
+        <p className="muted small">{k.radar.contrast}; {k.radar.collection}, {k.radar.orbit}, {k.radar.scenes.kiln_season} dry-season and {k.radar.scenes.monsoon} monsoon scenes. {k.radar.note}</p>
+      </>}
+
       <h3>What this does not tell you</h3>
       <ul className="plain small">
         <li><b>Structures, not firing.</b> {inv.not_seen}</li>
         <li><b>Not all are kilns.</b> {inv.precision}</li>
-        <li><b>Inventory:</b> <a href={inv.url} target="_blank" rel="noreferrer">{inv.source}</a>, licence {inv.license} (non-commercial). Night lights: NASA Black Marble VNP46A2. FIRMS: NASA, via the same archive as the rest of Kiln Watch.</li>
+        <li><b>Inventory:</b> <a href={inv.url} target="_blank" rel="noreferrer">{inv.source}</a>, licence {inv.license} (non-commercial). Night lights: NASA Black Marble VNP46A2. Radar: ESA Copernicus Sentinel-1. FIRMS: NASA, via the same archive as the rest of Kiln Watch.</li>
       </ul>
     </>
   );
