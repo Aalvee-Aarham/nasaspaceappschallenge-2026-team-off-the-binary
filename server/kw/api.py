@@ -69,7 +69,7 @@ def _guard(fn, *a, **kw):
 @app.get("/api/health")
 def health():
     regions = tools.list_regions()
-    return {"ok": True, "agent": agent.available(), "model": agent.MODEL if agent.available() else None,
+    return {"ok": True, "agent": agent.available(), "model": (f"groq/{agent.GROQ_MODEL}" if os.environ.get("GROQ_API_KEY") else agent.MODEL) if agent.available() else None,
             "email": alerts.smtp_ready(), "serverless": tools.SERVERLESS,
             "regions": len(regions), "data_through": max((r["data_through"] for r in regions), default=None)}
 

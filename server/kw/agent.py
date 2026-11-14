@@ -174,7 +174,55 @@ def _trim_evidence(e):
 
 
 def available():
-    return bool(_keys())
+    return bool(os.environ.get("GROQ_API_KEY") or _keys())
+
+
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+
+
+def _lower_types(s):
+    """Gemini schemas use 'STRING'/'OBJECT'; JSON Schema (Groq/OpenAI) wants lowercase."""
+    if isinstance(s, dict):
+        return {k: (v.lower() if k == "type" and isinstance(v, str) else _lower_types(v)) for k, v in s.items()}
+    return [_lower_types(v) for v in s] if isinstance(s, list) else s
+
+
+def _groq(payload):
+    """Primary model: Groq's OpenAI-compatible API. Takes and returns the Gemini shapes the rest of this file uses."""
+    msgs = [{"role": "system", "content": payload["systemInstruction"]["parts"][0]["text"]}] if "systemInstruction" in payload else []
+    ids = []  # tool-call ids of the last assistant turn, matched in order to the functionResponse parts that follow
+    for c in payload["contents"]:
+        parts = c.get("parts", [])
+        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        calls = [p["functionCall"] for p in parts if "functionCall" in p]
+        resps = [p["functionResponse"] for p in parts if "functionResponse" in p]
+        if c.get("role") == "model":
+            ids = [f"call_{len(msgs)}_{i}" for i in range(len(calls))]
+            m = {"role": "assistant", "content": text or None}
+            if calls:
+                m["tool_calls"] = [{"id": i, "type": "function", "function": {"name": f["name"], "arguments": json.dumps(f.get("args") or {})}}
+                                   for i, f in zip(ids, calls)]
+            msgs.append(m)
+        elif resps:
+            msgs += [{"role": "tool", "tool_call_id": i, "content": json.dumps(r["response"], default=str)} for i, r in zip(ids, resps)]
+        else:
+            msgs.append({"role": "user", "content": text})
+    body = {"model": GROQ_MODEL, "messages": msgs, "temperature": payload.get("generationConfig", {}).get("temperature", 0.2)}
+    if payload.get("tools"):
+        body["tools"] = [{"type": "function", "function": _lower_types(d)} for d in payload["tools"][0]["functionDeclarations"]]
+    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json", "User-Agent": "kiln-watch",
+                                          "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        msg = json.load(r)["choices"][0]["message"]
+    text = msg.get("content") or ""
+    if payload.get("generationConfig", {}).get("responseMimeType") == "application/json":  # no JSON mode for arrays: cut the fences/prose
+        lo, hi = min((text.find(b) for b in "[{" if b in text), default=0), max(text.rfind("]"), text.rfind("}"))
+        text = text[lo:hi + 1] if hi >= lo else text
+    parts = ([{"text": text}] if text else []) + [
+        {"functionCall": {"name": t["function"]["name"], "args": json.loads(t["function"].get("arguments") or "{}") or {}}}
+        for t in msg.get("tool_calls") or []]
+    return {"candidates": [{"content": {"role": "model", "parts": parts}}], "_model": f"groq/{GROQ_MODEL}"}
 
 
 FALLBACK = "gemini-flash-lite-latest"  # tried when the main model is overloaded or silent
@@ -193,8 +241,16 @@ def _keys():
 
 
 def _post(payload):
+    groq_err = None
+    if os.environ.get("GROQ_API_KEY"):
+        try:
+            return _groq(payload)
+        except (urllib.error.HTTPError, OSError, KeyError, IndexError, ValueError) as ex:  # any Groq failure: fall back to Gemini
+            groq_err = ex
     body = json.dumps(payload).encode()
     keys, why = _keys(), []
+    if not keys and groq_err:
+        raise RuntimeError(f"Groq failed ({groq_err}) and no Gemini fallback key is set.")
     for key in keys:  # the next key when this one is out of quota (429), overloaded (503) or refused (401/403)
         try:
             return _post_key(body, key)
@@ -258,7 +314,7 @@ def classify_headlines(titles, area):
 
 def ask(message, history=None, context=None):
     if not available():
-        raise RuntimeError("Set GEMINI_API_KEY (free at https://aistudio.google.com/apikey) to enable the analyst.")
+        raise RuntimeError("Set GROQ_API_KEY (free at https://console.groq.com/keys) or GEMINI_API_KEY to enable the analyst.")
     # the model does not know today's date: without it "the last 14 days" lands in its training year
     ctx = json.dumps({"today": str(dt.date.today()), **(context or {})})
     contents = [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in (history if isinstance(history, list) else [])[-8:]
