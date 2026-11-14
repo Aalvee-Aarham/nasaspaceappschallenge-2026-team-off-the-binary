@@ -440,3 +440,10 @@ div.scr { background: radial-gradient(120% 90% at 70% 0%, #07152a 0%, #03070d 60
 .patch .ground { fill: rgba(0, 0, 0, .18); stroke: rgba(255, 255, 255, .22); stroke-width: 2; }
 .patch .grid line { stroke: rgba(255, 255, 255, .2); }
 .pixcard, .chartcard { text-shadow: 0 1px 12px rgba(0, 0, 0, .9); }
+
+/* judge tour: six stops and four tiles, reusing the who-grid look */
+.tour .who-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 40px; }
+.tour .who-grid button { min-height: 200px; }
+.tour .who-grid.tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tour .who-grid.tiles button { min-height: 150px; }
+@media (max-width: 900px) { .tour .who-grid, .tour .who-grid.tiles { grid-template-columns: 1fr 1fr; } }

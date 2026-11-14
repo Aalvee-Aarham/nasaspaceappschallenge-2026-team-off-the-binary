@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState } from "react";
 import { Method as Evidence } from "../Record";
+import { Scorecard } from "./Proof";
 import { AreaSelect, PageHead, PageProps, useRegion } from "./shared";
 
 const Satellite = lazy(() => import("./SatelliteFigure")); // the figure and its kit load only on this page
@@ -31,7 +32,12 @@ export default function MethodPage({ regions }: PageProps) {
   const { region, err } = useRegion(id);
   return (
     <>
-      <PageHead kicker="How it works" title="Methodology" lead="How MODIS and every VIIRS satellite are put on one scale, how that is tested on years the calibration never saw, and what the result does not mean." />
+      <PageHead kicker="How it works" title="Proof" lead="How MODIS and every VIIRS satellite are put on one scale, how that is tested on years the calibration never saw, and what the result does not mean." />
+
+      <section>
+        <h2>Nine areas, one scorecard</h2>
+        <Scorecard regions={regions} />
+      </section>
 
       <section>
         <h2>The reference instrument</h2>

@@ -89,6 +89,19 @@ const GROUPS: [string, number[]][][] = [
 const CHAPTERS = GROUPS.flatMap((g, gi) => g.map(([l, ks]) => ({ l, ks, gi })));
 const GROUP_FROM = GROUPS.map((g) => g[0][1][0]);
 
+const TOUR: [string, string, Page | "punjab"][] = [
+  ["The problem", "Raw counts jump in 2012 when a sharper satellite arrives. Nothing changed on the ground.", "punjab"],
+  ["The proof", "Nine areas, one scorecard.", "method"],
+  ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
+  ["Early warning", "And how often it was right in past years.", "warning"],
+  ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
+  ["Ask Claude", "A 31-tool MCP server over the same record.", "mcp"],
+];
+const TILES: [string, Page][] = [
+  ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],
+  ["Built on NASA data, queried in place", "mcp"], ["Made for Bangladesh's kiln belt", "bangladesh"],
+];
+
 const WHO: [string, string, Page][] = [
   ["Fire and land managers", "Is this month burning more than usual here? Checked against every year since 2000.", "warning"],
   ["Researchers", "A 2000-to-today record without the jump at each satellite launch, with uncertainty beside every number.", "method"],
@@ -460,6 +473,19 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <button className="h3d-go" data-in="0.8" onClick={() => go("explore")}>Open the explorer</button>
           </div>
           </div>
+        </section>
+
+        <section className="h3d-flat built tour">
+          <div className="head" data-reveal>
+            <p className="label">See it in three minutes</p>
+            <h2 className="h3d-h">Six stops,<br />one story</h2>
+          </div>
+          <ol className="who-grid" data-reveal>
+            {TOUR.map(([t, d, pg], i) => <li key={t}><button onClick={() => (pg === "punjab" ? openRegion("punjab") : go(pg))}><b>{i + 1}. {t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
+          </ol>
+          <ul className="who-grid tiles" data-reveal>
+            {TILES.map(([t, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><i><Arrow /></i></button></li>)}
+          </ul>
         </section>
 
         {/* below the 3D story: opaque sections */}

@@ -54,7 +54,7 @@ const STDIO = `{
   }
 }`;
 
-export function Mcp(_: PageProps) {
+export function Mcp({ go }: PageProps) {
   const url = `${location.origin}/mcp`;
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
@@ -64,6 +64,13 @@ export function Mcp(_: PageProps) {
   return (
     <>
       <PageHead kicker="Kiln Watch for Claude" title="MCP and characters" lead={`Connect Claude to ${nTools} deterministic fire tools and four ready-made characters: a fire operations officer, a remote-sensing scientist, a fact-checker and a community liaison. Claude asks Kiln Watch for every number; it never makes one up.`} />
+
+      <p className="row">
+        <button className="btn ghost" onClick={() => go("download")}>Download the data</button>
+        <button className="btn ghost" onClick={() => go("create")}>Build your own area</button>
+        <button className="btn ghost" onClick={() => go("n8n")}>Automate with n8n</button>
+        <button className="btn ghost" onClick={() => go("news")}>News beside the data</button>
+      </p>
 
       <section className="mcp-hero">
         <div className="mcp-stats">
