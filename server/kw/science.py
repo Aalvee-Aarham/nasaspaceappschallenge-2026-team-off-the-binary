@@ -93,12 +93,12 @@ def ratio_calibration(pairs):
     return {"beta": beta, "pooled": pooled, "sigma2": sigma2, "tau2": tau2, "n": len(pairs), "calibrated": True}
 
 
-def combine(estimates):
-    """Inverse-variance mean of per-sensor estimates already in reference units.
+def combine_details(estimates):
+    """Inverse-variance mean plus normalized weights for per-sensor estimates in reference units.
 
     estimates: (value, sigma2_rel, counting_var) per sensor. Variances are evaluated at the pooled mean, so a
     sensor that happens to read low does not earn extra weight (a known bias of naive Poisson weighting).
-    Returns (value, variance) or None when no sensor observed the period.
+    Returns (value, variance, normalized_weights), or None when no sensor observed the period.
     """
     if not estimates:
         return None
@@ -109,7 +109,14 @@ def combine(estimates):
         counting = cv * (mu / v) if v > 0 else (math.sqrt(cv) * mu if mu > 0 else cv)
         weights.append(1.0 / max(mu * mu * s2 + counting, 1e-9))
     W = sum(weights)
-    return sum(w * e[0] for w, e in zip(weights, estimates)) / W, 1.0 / W
+    normalized = [w / W for w in weights]
+    return sum(w * e[0] for w, e in zip(normalized, estimates)), 1.0 / W, normalized
+
+
+def combine(estimates):
+    """Inverse-variance mean of per-sensor estimates already in reference units; see combine_details."""
+    details = combine_details(estimates)
+    return None if details is None else details[:2]
 
 
 # ---------- interval calibration ----------
@@ -163,7 +170,7 @@ DRIFT_TOL_H = 0.25  # 15 minutes: well above year-to-year noise of a yearly medi
 
 
 def drift_onset(medians, baseline=(2003, 2020), first=2021, tol_h=DRIFT_TOL_H):
-    """First year >= `first` whose median overpass hour differs from the baseline years' median by more than tol_h.
+    """First year >= `first` whose reported median acquisition hour differs from baseline by more than tol_h.
     medians: {year: median local solar hour}. Returns (onset_year or None, baseline_hour or None)."""
     base = [h for y, h in medians.items() if baseline[0] <= y <= baseline[1]]
     if len(base) < 5:
@@ -247,7 +254,7 @@ def seasonal_mann_kendall(seasons):
     sen slope (units per year) and number of values used.
     """
     S = var = pairs = 0
-    slopes = []
+    pooled_slopes, season_slopes = [], []
     n_used = 0
     for series in seasons:
         xs = [(y, v) for y, v in series if v is not None]
@@ -255,24 +262,29 @@ def seasonal_mann_kendall(seasons):
         n_used += n
         if n < 2:
             continue
+        slopes = []
         for i in range(n):
             for j in range(i + 1, n):
                 d = xs[j][1] - xs[i][1]
                 S += (d > 0) - (d < 0)
-                slopes.append(d / (xs[j][0] - xs[i][0]))
+                slope = d / (xs[j][0] - xs[i][0])
+                slopes.append(slope)
+                pooled_slopes.append(slope)
+        season_slopes.append(statistics.median(slopes))
         pairs += n * (n - 1) // 2
         ties = {}
         for _, v in xs:
             ties[v] = ties.get(v, 0) + 1
         var += (n * (n - 1) * (2 * n + 5) - sum(t * (t - 1) * (2 * t + 5) for t in ties.values())) / 18
     if pairs == 0 or var <= 0:
-        return {"tau": None, "p": None, "z": None, "sen_per_year": None, "n": n_used}
+        return {"tau": None, "p": None, "z": None, "sen_per_year": None, "sen_per_year_pooled": None, "n": n_used}
     z = (S - 1) / math.sqrt(var) if S > 0 else (S + 1) / math.sqrt(var) if S < 0 else 0.0
     return {
         "tau": round(S / pairs, 3),
         "p": round(2 * _norm_sf(abs(z)), 4),
         "z": round(z, 2),
-        "sen_per_year": round(statistics.median(slopes), 3),
+        "sen_per_year": round(statistics.median(season_slopes), 3),
+        "sen_per_year_pooled": round(statistics.median(pooled_slopes), 3),
         "n": n_used,
     }
 

@@ -200,8 +200,11 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
     email = (email or "").strip() or None
     if email and not EMAIL_RE.match(email):
         raise ValueError("that does not look like an email address")
+    name = (str(name).strip()[:120] or None) if name is not None else None
     with _lock:
         _check_limits(_load(), email)  # before start_aoi: a rejected alert must not start a build
+    if not region_id and not bbox:
+        raise ValueError("give a region_id or a bbox")
     if region_id:
         area = next((r for r in tools.list_regions() if r["id"] == region_id), None)
         if not area:

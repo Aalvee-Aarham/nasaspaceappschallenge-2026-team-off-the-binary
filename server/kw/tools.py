@@ -30,6 +30,23 @@ class NotFound(Exception):
     pass
 
 
+class TooManyRequests(Exception):
+    pass
+
+
+class Unavailable(Exception):
+    pass
+
+
+MAX_PENDING_BUILDS = 4
+MAX_CUSTOM_AREAS = 20
+MAX_CUSTOM_CACHE_BYTES = 2 * 1024 ** 3
+
+
+def _custom_cache_bytes():
+    return sum(f.stat().st_size for d in CACHE.glob("aoi-*") for f in d.rglob("*") if f.is_file())
+
+
 def _read(region_id, name):
     f = OUT / region_id / f"{name}.json"
     if "/" in region_id or "\\" in region_id or ".." in region_id or not f.exists():
@@ -94,6 +111,7 @@ def _period_row(b, i, cls="veg"):
         "raw_detections_all_satellites": b["raw"]["all_det"][i],
         "static_source_hotspots_aqua_scale": b["classes"]["static"]["hotspots"]["v"][i],
         "nrt_share": b["nrt_share"][i],
+        "nrt_unclassified_share": (b.get("nrt_unclassified_share") or [None] * len(b["periods"]))[i],
     }
 
 
@@ -131,7 +149,9 @@ def _cache_files(region_id, bbox, a, b):
     files = []
     for y in range(a.year, b.year + 1):
         f = CACHE / region_id / f"{y}.parquet"
-        if not f.exists():  # fresh deploy without the raw cache: pull just this year
+        if not f.exists():
+            if SERVERLESS:  # a serverless read must not download a year of FIRMS rows inside the request
+                raise Unavailable("the raw detection cache is not on this server; run the API where data/cache is present")
             f.parent.mkdir(parents=True, exist_ok=True)
             fetch_year(connect(), bbox, y, f)
         files.append(f.as_posix())
@@ -187,7 +207,7 @@ def evidence(region_id, period):
 
 
 def hotspots_csv(region_id, start, end):
-    """The detections behind the calendar: FIRMS columns plus satellite, static-source flag and version."""
+    """The detections behind the calendar, streamed in chunks: FIRMS columns plus satellite, static-source flag and version."""
     m = _read(region_id, "meta")
     a, b = dt.date.fromisoformat(start), dt.date.fromisoformat(end)
     if b < a or (b - a).days > 366:
@@ -200,10 +220,17 @@ def hotspots_csv(region_id, start, end):
                                 conf_ok AS used_in_calendar
                          FROM e ORDER BY acq_datetime""")
     cols = [d[0] for d in cur.description]
-    lines = [",".join(cols)]
-    for row in cur.fetchall():
-        lines.append(",".join("" if v is None else str(v) for v in row))
-    return "\n".join(lines) + "\n"
+
+    def rows():
+        try:
+            yield ",".join(cols) + "\n"
+            while chunk := cur.fetchmany(10_000):
+                for row in chunk:
+                    yield ",".join("" if v is None else str(v) for v in row) + "\n"
+        finally:
+            con.close()
+
+    return rows()
 
 
 def reports(region_id, period):
@@ -361,6 +388,14 @@ def start_aoi(bbox, name=None):
         if SERVERLESS:  # a build runs for minutes in a background thread; serverless functions freeze after replying
             raise ValueError("Building a new area takes a few minutes, longer than this hosted demo allows. The prebuilt "
                              "areas all work here; run Kiln Watch with Docker (see the README) to build any place.")
+        running = sum(j.get("status") == "running" for j in _jobs.values())
+        if running >= MAX_PENDING_BUILDS:
+            raise TooManyRequests(f"the build queue is full ({running}/{MAX_PENDING_BUILDS}); try again later")
+        custom = [d for d in CACHE.glob("aoi-*") if d.is_dir()]
+        if len(custom) >= MAX_CUSTOM_AREAS:
+            raise TooManyRequests(f"this server keeps at most {MAX_CUSTOM_AREAS} custom areas; delete one first")
+        if _custom_cache_bytes() >= MAX_CUSTOM_CACHE_BYTES:
+            raise TooManyRequests("custom-area storage is full; delete an old custom area first")
         _jobs[rid] = {"status": "running", "done": 0, "total": 0, "stage": "queued", "error": None}
 
     def run():

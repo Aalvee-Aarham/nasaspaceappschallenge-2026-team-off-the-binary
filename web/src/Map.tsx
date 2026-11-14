@@ -4,17 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { FireCase, Outlook, Region, RegionItem, fmt, heat, ordinal } from "./api";
 
-export const FIRE_LAYERS = [
-  { id: "VIIRS_NOAA20_Thermal_Anomalies_375m_All", label: "VIIRS NOAA-20", color: "#8BD17C", from: "2020-01-01" },
-  { id: "VIIRS_NOAA21_Thermal_Anomalies_375m_All", label: "VIIRS NOAA-21", color: "#D98BE8", from: "2024-01-17" },
-  { id: "VIIRS_SNPP_Thermal_Anomalies_375m_All", label: "VIIRS Suomi-NPP", color: "#5CC8E6", from: "2012-01-20" },
-  { id: "MODIS_Combined_Thermal_Anomalies_All", label: "MODIS Terra+Aqua", color: "#F2A541", from: "2002-07-04" },
-] as const;
+import { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
+import type { Basemap, Focus, Layers, Projection } from "./mapConfig";
 
-export type Basemap = "dark" | "night" | "satellite" | "relief";
-export type Projection = "globe" | "mercator";
-export type Layers = { fires: Record<string, boolean>; grid: boolean; statics: boolean; outlook: boolean };
-export type Focus = { bbox?: number[]; center?: [number, number]; zoom?: number; n: number };
+export { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
+export type { Basemap, Focus, Layers, Projection } from "./mapConfig";
 
 const STYLE = "https://tiles.openfreemap.org/styles/dark";
 const GIBS = "https://gibs.earthdata.nasa.gov";
@@ -36,12 +30,6 @@ export const SKY = {
 
 // ---------- 30-day outlook (shared with the Early warning page) ----------
 
-export const OUTLOOK_COLOR = { watch: "#FF3B2F", above: "#FF9A3C", season: "#F6C64F" } as const;
-export const OUTLOOK_LABEL = {
-  watch: "Watch: fire season ahead and running above normal",
-  above: "Above normal for the time of year",
-  season: "Fire season: the next 30 days are usually active",
-} as const;
 const OUTLOOK_LAYERS = ["outlook-heat", "outlook-pulse", "outlook-pulse2", "outlook-dots"];
 
 export function addOutlookLayers(m: maplibregl.Map, before?: string) {
@@ -75,14 +63,22 @@ export function addOutlookLayers(m: maplibregl.Map, before?: string) {
   }, before);
 }
 
-export function setOutlook(m: maplibregl.Map, o: Outlook | null, visible: boolean) {
+export function setOutlookData(m: maplibregl.Map, o: Outlook | null) {
   (m.getSource("outlook") as GeoJSONSource | undefined)?.setData({
     type: "FeatureCollection",
     features: (o?.cells ?? []).map(([lat, lon, c, u, p90, now, pct, rising, ul]) => ({
       type: "Feature", properties: { c, u, p90, now, pct, rising, ul }, geometry: { type: "Point", coordinates: [lon, lat] },
     })),
   });
-  for (const id of OUTLOOK_LAYERS) if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", visible && o ? "visible" : "none");
+}
+
+export function setOutlookVisibility(m: maplibregl.Map, visible: boolean) {
+  for (const id of OUTLOOK_LAYERS) if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+}
+
+export function setOutlook(m: maplibregl.Map, o: Outlook | null, visible: boolean) {
+  setOutlookData(m, o);
+  setOutlookVisibility(m, visible && !!o);
 }
 
 /** Slow idle spin of a globe until the first touch; `allowed` can pause it (e.g. while an area is open). */
@@ -106,7 +102,7 @@ export function pulseOutlook(m: maplibregl.Map) {
   const t0 = performance.now();
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
-    if (now - last < 40 || !m.getLayer("outlook-pulse") || m.getLayoutProperty("outlook-pulse", "visibility") === "none") return;
+    if (document.hidden || now - last < 65 || !m.getLayer("outlook-pulse") || m.getLayoutProperty("outlook-pulse", "visibility") === "none") return;
     last = now;
     const base = Math.min(8, 2.4 + m.getZoom() * 0.95);
     [["outlook-pulse", 0], ["outlook-pulse2", 0.5]].forEach(([id, off]) => {
@@ -246,17 +242,25 @@ export default function MapView(p: Props) {
       m.on("mouseleave", "regions-fill", () => (m.getCanvas().style.cursor = ""));
 
       const pop = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "kw-pop", offset: 8 });
+      let attached = false;
+      let popupKey = "";
       m.on("mousemove", "grid", (e) => {
         const f = e.features?.[0];
         if (!f) return;
-        pop.setLngLat(e.lngLat).setHTML(`<b>${fmt(f.properties.v, 1)}</b> hotspots<br><span>0.1° cell, Aqua MODIS scale</span>`).addTo(m);
+        const key = `${f.properties.v}`;
+        if (key !== popupKey) {
+          popupKey = key;
+          pop.setHTML(`<b>${fmt(f.properties.v, 1)}</b> hotspots<br><span>0.1° cell, Aqua MODIS scale</span>`);
+        }
+        pop.setLngLat(e.lngLat);
+        if (!attached) { pop.addTo(m); attached = true; }
       });
-      m.on("mouseleave", "grid", () => pop.remove());
+      m.on("mouseleave", "grid", () => { pop.remove(); attached = false; popupKey = ""; });
       m.on("click", "statics", (e) => {
         const q = e.features?.[0]?.properties;
         if (!q) return;
         new maplibregl.Popup({ className: "kw-pop", offset: 8 }).setLngLat(e.lngLat)
-          .setHTML(`<b>Persistent heat source</b><br>${fmt(q.n)} detections, ${q.y0}–${q.y1} (${q.ny} years)<br><span>Mean FRP ${fmt(q.frp, 1)} MW. Likely kiln, flare or industry (not verified)</span>`)
+          .setHTML(`<b>Persistent heat source</b><br>${fmt(q.n)} detections, ${q.y0}–${q.y1} (${q.ny} years)<br><span>Mean FRP ${fmt(q.frp, 1)} MW. FIRMS static-source proxy; not independently verified as a kiln</span>`)
           .addTo(m);
       });
       m.on("click", "outlook-dots", (e) => {
@@ -313,15 +317,18 @@ export default function MapView(p: Props) {
     } else if (p.focus.center) m.flyTo({ center: p.focus.center, zoom: p.focus.zoom ?? 9, duration: 900 });
   }, [ready, p.focus]);
 
-  // date-driven NASA layers
+  // date-driven NASA layers: source URLs change with the date, visibility changes only with the checkbox
   useEffect(() => {
     if (!ready) return;
     const m = map.current!;
-    for (const f of FIRE_LAYERS) {
-      (m.getSource(f.id) as RasterTileSource).setTiles([wms(f.id, p.date)]);
-      m.setLayoutProperty(f.id, "visibility", p.layers.fires[f.id] && p.date >= f.from ? "visible" : "none");
-    }
+    for (const f of FIRE_LAYERS) (m.getSource(f.id) as RasterTileSource).setTiles([wms(f.id, p.date)]);
     (m.getSource("sat") as RasterTileSource).setTiles([trueColor(p.date)]);
+  }, [ready, p.date]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const m = map.current!;
+    for (const f of FIRE_LAYERS) m.setLayoutProperty(f.id, "visibility", p.layers.fires[f.id] && p.date >= f.from ? "visible" : "none");
   }, [ready, p.date, p.layers.fires]);
 
   useEffect(() => {
@@ -333,13 +340,15 @@ export default function MapView(p: Props) {
   }, [ready, p.basemap]);
 
   useEffect(() => { if (ready) map.current!.setProjection({ type: p.projection }); }, [ready, p.projection]);
-  useEffect(() => { if (ready) setOutlook(map.current!, p.outlook, p.layers.outlook); }, [ready, p.outlook, p.layers.outlook]);
+  useEffect(() => { if (ready) setOutlookData(map.current!, p.outlook); }, [ready, p.outlook]);
+  useEffect(() => { if (ready) setOutlookVisibility(map.current!, p.layers.outlook && !!p.outlook); }, [ready, p.layers.outlook, p.outlook]);
 
   // harmonized grid for the selected month
   const vmax = useMemo(() => {
     if (!p.region) return 1;
-    const all = Object.values(p.region.grid.months).flatMap((rows) => rows.map((r) => r[1])).sort((a, b) => a - b);
-    return all.length ? all[Math.floor(all.length * 0.98)] || 1 : 1;
+    const values = new Float64Array(Object.values(p.region.grid.months).flatMap((rows) => rows.map((r) => r[1])));
+    values.sort();
+    return values.length ? values[Math.floor(values.length * 0.98)] || 1 : 1;
   }, [p.region]);
 
   useEffect(() => {
@@ -358,8 +367,8 @@ export default function MapView(p: Props) {
         };
       }),
     });
-    m.setLayoutProperty("grid", "visibility", p.layers.grid ? "visible" : "none");
-  }, [ready, p.region, p.month, p.layers.grid, vmax]);
+  }, [ready, p.region, p.month, vmax]);
+  useEffect(() => { if (ready) map.current!.setLayoutProperty("grid", "visibility", p.layers.grid ? "visible" : "none"); }, [ready, p.layers.grid]);
 
   useEffect(() => {
     if (!ready) return;
@@ -372,8 +381,8 @@ export default function MapView(p: Props) {
         geometry: { type: "Point", coordinates: [lon, lat] },
       })),
     });
-    m.setLayoutProperty("statics", "visibility", p.layers.statics ? "visible" : "none");
-  }, [ready, p.region, p.layers.statics]);
+  }, [ready, p.region]);
+  useEffect(() => { if (ready) map.current!.setLayoutProperty("statics", "visibility", p.layers.statics ? "visible" : "none"); }, [ready, p.layers.statics]);
 
   // rectangle drawing
   const drawnRef = useRef(p.onDrawn);
