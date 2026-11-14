@@ -14,7 +14,8 @@ except ImportError:
 
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -48,6 +49,7 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Kiln Watch API", version="2.0", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "DELETE"], allow_headers=["*"])
 
 
@@ -56,6 +58,10 @@ def _guard(fn, *a, **kw):
         return fn(*a, **kw)
     except tools.NotFound as ex:
         raise HTTPException(404, str(ex))
+    except tools.TooManyRequests as ex:
+        raise HTTPException(429, str(ex))
+    except tools.Unavailable as ex:
+        raise HTTPException(503, str(ex))
     except ValueError as ex:
         raise HTTPException(400, str(ex))
 
@@ -260,8 +266,8 @@ def export(rid: str, granularity: str = "month"):
 
 @app.get("/api/regions/{rid}/hotspots.csv")
 def hotspots(rid: str, start: str, end: str):
-    text = _guard(tools.hotspots_csv, rid, start, end)
-    return PlainTextResponse(text, media_type="text/csv",
+    rows = _guard(tools.hotspots_csv, rid, start, end)
+    return StreamingResponse(rows, media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="kilnwatch-{rid}-hotspots-{start}-{end}.csv"'})
 
 
@@ -455,6 +461,9 @@ app.router.routes.insert(0, Route("/mcp", endpoint=_McpEndpoint(), methods=["GET
 
 OUT.mkdir(parents=True, exist_ok=True)
 app.mount("/data/regions", StaticFiles(directory=OUT), name="regions")
+VALIDATION = OUT.parent / "validation"          # the independent validation results, with attribution
+if VALIDATION.exists():
+    app.mount("/data/validation", StaticFiles(directory=VALIDATION), name="validation")
 
 # Single-process deploy: serve the built web app too (web/dist), with SPA fallback.
 DIST = Path(__file__).resolve().parents[2] / "web" / "dist"

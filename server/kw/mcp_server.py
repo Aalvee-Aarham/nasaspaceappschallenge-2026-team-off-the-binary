@@ -397,6 +397,13 @@ def delete_alert(token: str) -> dict:
     return alerts.delete(token)
 
 
+# A public HTTP connector gets the read-only record; state-changing tools stay available to trusted local/stdio servers.
+PUBLIC_WRITE_TOOLS = ("create_custom_area", "subscribe_email_alert", "create_alert", "subscribe_place_alert", "delete_alert")
+if os.environ.get("KW_PUBLIC_MCP") == "1":
+    for _name in PUBLIC_WRITE_TOOLS:
+        mcp._tool_manager.remove_tool(_name)
+
+
 # ---------- characters (prompts) ----------
 
 def _persona(pid, task):

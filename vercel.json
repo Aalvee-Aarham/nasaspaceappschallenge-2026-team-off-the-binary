@@ -2,12 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "cd web && npm ci --no-audit --no-fund",
-  "buildCommand": "cd web && npm run build && mkdir -p dist/data && cp -r ../data/regions dist/data/regions",
+  "buildCommand": "cd web && npm run build && mkdir -p dist/data && cp -r ../data/regions dist/data/regions && cp -r ../data/validation dist/data/validation",
   "outputDirectory": "web/dist",
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{server/kw/**,data/regions/**,data/global/outlook.json,data/global/fire_season.parquet,data/sensor_days.parquet}"
+      "includeFiles": "{server/kw/**,data/regions/**,data/validation/**,data/global/outlook.json,data/global/fire_season.parquet,data/sensor_days.parquet}"
     }
   },
   "rewrites": [

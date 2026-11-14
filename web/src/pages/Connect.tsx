@@ -44,6 +44,9 @@ const TOOLS: [string, [string, string][]][] = [
   ]],
 ];
 
+/** The state-changing tools a public HTTP connector does not get; a local or stdio server keeps them. */
+const WRITE_TOOLS = new Set(["create_custom_area", "subscribe_email_alert", "create_alert", "subscribe_place_alert", "delete_alert"]);
+
 const PROMPTS: [string, string][] = [
   ["fire_manager", "Ember, fire operations officer: operational 30-day brief for a place."],
   ["fire_scientist", "Dr. Vega, remote-sensing scientist: audit of the harmonization."],
@@ -66,11 +69,16 @@ export function Mcp({ go }: PageProps) {
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
   useEffect(() => { api.personas().then(setPs).catch(() => undefined); }, []);
-  const copy = (k: string, t: string) => navigator.clipboard?.writeText(t).then(() => { setCopied(k); setTimeout(() => setCopied(""), 1500); }).catch(() => undefined);
-  const nTools = TOOLS.reduce((a, [, l]) => a + l.reduce((b, [n]) => b + n.split(" / ").length, 0), 0);
+  const copy = (k: string, t: string) => {
+    const request = navigator.clipboard?.writeText(t);
+    request?.then(() => { setCopied(k); setTimeout(() => setCopied(""), 1500); }).catch(() => undefined);
+  };
+  const names = TOOLS.flatMap(([, l]) => l.flatMap(([n]) => n.split(" / ")));
+  const nTools = names.length;                                      // all of them, for a local or stdio server
+  const nPublic = names.filter((n) => !WRITE_TOOLS.has(n)).length;  // what the public HTTP endpoint serves
   return (
     <>
-      <PageHead kicker="Kiln Watch for Claude" title="MCP and characters" lead={`Connect Claude to ${nTools} deterministic fire tools and four ready-made characters: a fire operations officer, a remote-sensing scientist, a fact-checker and a community liaison. Claude asks Kiln Watch for every number; it never makes one up.`} />
+      <PageHead kicker="Kiln Watch for Claude" title="MCP and characters" lead={`Connect Claude to ${nPublic} deterministic read-only fire tools and four ready-made characters: a fire operations officer, a remote-sensing scientist, a fact-checker and a community liaison. A local server also keeps the ${nTools - nPublic} tools that change state. Claude asks Kiln Watch for every number; it never makes one up.`} />
 
       <p className="row">
         <button className="btn ghost" onClick={() => go("download")}>Download the data</button>
@@ -81,7 +89,7 @@ export function Mcp({ go }: PageProps) {
 
       <section className="mcp-hero">
         <div className="mcp-stats">
-          {[[String(nTools), "tools"], ["4", "characters"], ["5", "resources"], ["0", "model calls on the server"]].map(([n, l], i) => (
+          {[[String(nPublic), "read-only tools over HTTP"], [String(nTools), "tools in a local server"], ["4", "characters"], ["5", "resources"], ["0", "model calls on the server"]].map(([n, l], i) => (
             <div key={l} style={{ animationDelay: `${i * 90}ms` }}><b className="num">{n}</b><span>{l}</span></div>
           ))}
         </div>
@@ -182,6 +190,9 @@ curl "${apiOrigin()}/api/regions"`} />
           </div>
         ))}
         <p className="muted small">Resources: <code>kilnwatch://about</code>, <code>kilnwatch://personas</code>, <code>kilnwatch://regions</code>, <code>kilnwatch://outlook</code>, <code>kilnwatch://region/&lt;id&gt;/brief</code>. Read-only tools are marked so clients can run them without asking. Every result is read from the pipeline's outputs or computed from NASA FIRMS rows; the server never calls a language model.</p>
+        <p className="muted small">The public HTTP endpoint serves the {nPublic} read-only tools only: building an
+          area, creating or deleting an alert, and alerts and email for one place are state-changing, so they stay in a
+          trusted local or stdio server, where {nTools} tools are available.</p>
       </section>
     </>
   );

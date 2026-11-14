@@ -60,5 +60,6 @@
   "from": "2023-01"
  },
  "onset": "2023-01",
- "rule": "Onset = the earlier of (a) the first year from 2021 whose median local solar time of Aqua MODIS daytime detections (preset areas pooled) is more than 15 minutes from the 2003\u20132020 median, and (b) the first month of a MODIS archive version that appears only after 2020 (the calibration was fitted on the earlier version). From the onset the harmonized record uses the VIIRS satellites only (still on the Aqua 2002\u20132020 scale)."
+ "interpretation": "The reported MODIS daytime acquisition time changes by more than 15 minutes while Terra moves in the opposite direction and VIIRS remains fixed. Treat this as an archive/reporting metadata change, not a physical sun-synchronous orbital drift.",
+ "rule": "Onset = the earlier of (a) the first year from 2021 whose median local solar time of Aqua MODIS daytime detections (preset areas pooled) is more than 15 minutes from the 2003\u20132020 median, and (b) the first month of a MODIS archive version that appears only after 2020 (the calibration was fitted on the earlier version). From the onset the harmonized record uses the VIIRS satellites only (still on the Aqua 2002-2020 scale)."
 }

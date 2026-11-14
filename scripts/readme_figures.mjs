@@ -263,9 +263,10 @@ kilns("dhaka-kilns");
 
 // results table for the README (same fields as `python -m kw.report`)
 const pct = (v) => (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+const cov = (v) => (v == null ? "–" : `${Math.round(v * 100)}%`);
 numbers.table = Object.values(metas).map((m) => {
   const st = m.steps.VIIRS_SNPP, d = m.denial.modis_ends_2016, t = m.trend["2003-2020"];
-  return `| ${m.name} | ${st.raw_all_sensors_excess.toFixed(2)} | ${st.harmonized_excess.toFixed(2)} | ${pct(d.uncalibrated.bias_pct)} | ${pct(d.ours_seasonal_eb.bias_pct)} | ${d.ours_seasonal_eb.spearman.toFixed(2)} | ${Math.round(d.ours_seasonal_eb.interval_coverage * 100)}% | ${t.raw_all_sensors.sen_per_year.toFixed(1)} | ${t.harmonized.sen_per_year.toFixed(1)} | ${t.aqua_only.sen_per_year.toFixed(1)} |`;
+  return `| ${m.name} | ${st.raw_all_sensors_excess.toFixed(2)} | ${st.harmonized_excess.toFixed(2)} | ${pct(d.uncalibrated.bias_pct)} | ${pct(d.ours_seasonal_eb.bias_pct)} | ${d.ours_seasonal_eb.spearman.toFixed(2)} | ${cov(d.ours_seasonal_eb.interval_coverage_raw)} | ${cov(d.ours_seasonal_eb.interval_coverage_out_of_sample)} | ${t.raw_all_sensors.sen_per_year.toFixed(1)} | ${t.harmonized.sen_per_year.toFixed(1)} | ${t.aqua_only.sen_per_year.toFixed(1)} |`;
 });
 writeFileSync(`${OUT}/numbers.json`, JSON.stringify(numbers, null, 1));
 console.log(JSON.stringify(numbers, null, 1));
