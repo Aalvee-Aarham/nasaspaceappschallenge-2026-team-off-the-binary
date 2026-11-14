@@ -30,7 +30,7 @@
 
 <p align="center"><sub>Demo video: link added after upload (see <code>docs/demo/SUBMISSION.md</code>).</sub></p>
 
-<p align="center"><sub>The live demo serves the nine prebuilt regions. Run it with Docker (or on a Hugging Face Space, see the Dockerfile) to build any place on Earth.</sub></p>
+<p align="center"><sub>The live demo serves the nine prebuilt regions. Run it with Docker (the same image runs on Azure, see "Two hosts, one site") to build any place on Earth.</sub></p>
 
 <p align="center">
   <a href="#the-problem-in-one-picture">Problem</a> ·
@@ -201,9 +201,13 @@ Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py
 Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
 
 **Two hosts, one site.** Vercel serves the site and a read-only API (its functions stop after a minute, too short for a
-build). The `Dockerfile` runs the full app on a Hugging Face Space (Docker SDK, port 7860), where new areas can be built.
-Set `VITE_API_BASE=https://<your-space>.hf.space` in the Vercel project and redeploy: the site then uses the Space for
-everything, and falls back to its own read-only API when the Space does not answer (a free Space sleeps when idle).
+build). The `Dockerfile` runs the full app (port 7860), where new areas can be built. It runs on Azure Container Apps
+at <https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io> (one replica, scales to zero when idle;
+an area built there lives until the replica stops). The image is built by GitHub Actions
+(`.github/workflows/azure-image.yml`, on every push that touches the app) and pushed to the Azure registry; the app then
+needs `az containerapp update -n kiln-watch -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<sha>`.
+Set `VITE_API_BASE` to that address in the Vercel project and redeploy: the site then uses Azure for everything, and
+falls back to its own read-only API when Azure does not answer within 15 s.
 
 </details>
 

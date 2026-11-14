@@ -1,7 +1,7 @@
 // Data access + shared types. Region files are static JSON (served by the API or any static host);
 // evidence, reports, custom areas, hotspot CSVs and the analyst need the Python API.
 
-// VITE_API_BASE can point the site at another Kiln Watch server, e.g. a Hugging Face Space that can build new areas
+// VITE_API_BASE can point the site at another Kiln Watch server, e.g. the Azure Container App that can build new areas
 // (Vercel's own function cannot: builds take minutes). If that server does not answer, the site falls back to its own
 // read-only API, so the prebuilt areas always work.
 // ponytail: one probe at load; a sleeping free Space that wakes later is not retried until the page reloads.
