@@ -357,7 +357,7 @@ export default function App() {
               <p className="num">{draft[1].toFixed(2)}°, {draft[0].toFixed(2)}° to {draft[3].toFixed(2)}°, {draft[2].toFixed(2)}°</p>
               {area > 16 ? <p className="error">This box is {area.toFixed(1)} square degrees. Draw one up to 16 (about 4° × 4°).</p>
                 : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes a few minutes.</p>}
-              {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker, or on the Hugging Face Space, to build any place.</p>}
+              {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker to build any place.</p>}
               <div className="row">
                 <button className="btn" onClick={() => startBuild()} disabled={area > 16 || !!health?.serverless}>Build record</button>
                 <button className="btn ghost" onClick={() => { setDraft(null); setDrawing(true); }}>Redraw</button>

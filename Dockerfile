@@ -1,4 +1,4 @@
-# One container: builds the web app, serves it + the API on :7860 (Hugging Face Spaces free CPU tier).
+# One container: builds the web app, serves it + the API on :7860 (Azure Container Apps; image built by GitHub Actions).
 FROM node:22-slim AS web
 WORKDIR /web
 COPY web/package*.json ./
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 FROM python:3.12-slim
-# HF Spaces runs the container as uid 1000: own everything the app writes (data/, ~/.duckdb extensions)
+# Run as uid 1000 (also what Hugging Face Spaces expects): own everything the app writes (data/, ~/.duckdb extensions)
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
