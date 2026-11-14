@@ -8,6 +8,10 @@ Per year this writes two small files to data/global/ (raw detections are streame
                       (n_typed, n_static) and the static-source statistics (s_* = type 1-3, u_* = untyped, ok only)
 
 Run: python -m kw.globe [year ...]   (resumable: finished past years are skipped)
+     python -m kw.globe season       (fire_season.parquet only, from the years already aggregated)
+
+fire_season.parquet (about 10 MB, shipped with the app) is what lets a place anywhere on Earth be checked in a second:
+per 0.1-degree cell with any MODIS vegetation fire, one bit mask per calendar month of the years with fire.
 """
 import os
 import sys
@@ -56,6 +60,31 @@ def build_year(y: int):
     return n, time.time() - t
 
 
+SEASON = OUT / "fire_season.parquet"
+SEASON_FIRST = 2003   # first full Aqua year, as the outlook
+
+
+def build_season(last=None):
+    """Per 0.1-degree cell and calendar month, the years with a MODIS (Terra or Aqua) vegetation-fire detection, as
+    a bit mask (bit 0 = 2003). One instrument family for every year, confidence filter as the record, static types
+    removed. Complete years only. Sorted by cell, so a lookup reads one row group."""
+    import duckdb
+    last = last or current_year() - 1
+    files = [(OUT / f"agg-{y}.parquet").as_posix() for y in range(SEASON_FIRST, last + 1)]
+    cols = ", ".join(f"bit_or(1::UINTEGER << (y - {SEASON_FIRST})) FILTER (WHERE m = {m}) AS m{m}" for m in range(1, 13))
+    tmp = SEASON.with_suffix(".tmp")
+    con = duckdb.connect()
+    con.execute(f"""COPY (SELECT gy, gx, {cols} FROM (
+        SELECT DISTINCT gy, gx, year(acq_date) AS y, month(acq_date) AS m FROM read_parquet({files})
+        WHERE ok AND sensor = 'MODIS' AND tcls <> 's') GROUP BY gy, gx ORDER BY gy, gx)
+        TO '{tmp.as_posix()}' (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 19, ROW_GROUP_SIZE 20000,
+                               KV_METADATA {{first_year: '{SEASON_FIRST}', last_year: '{last}'}})""")
+    n = con.execute(f"SELECT count(*) FROM read_parquet('{tmp.as_posix()}')").fetchone()[0]
+    con.close()
+    os.replace(tmp, SEASON)
+    return n
+
+
 def ready() -> bool:
     """True when every year from 2000 to now has been aggregated (the current year may be a few hours old)."""
     return all((OUT / f"{k}-{y}.parquet").exists() for y in range(2000, current_year() + 1) for k in ("agg", "cells"))
@@ -78,8 +107,12 @@ def main(years):
                 if attempt == 11:
                     raise
                 time.sleep(min(60, 10 * (attempt + 1)))  # wait out a dropped connection
+    print("fire season", build_season(), "cells", flush=True)
     print("done", round(time.time() - t0), "s", flush=True)
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["season"]:
+        print(build_season(), "cells ->", SEASON)
+        sys.exit()
     main([int(a) for a in sys.argv[1:]] or range(2000, current_year() + 1))

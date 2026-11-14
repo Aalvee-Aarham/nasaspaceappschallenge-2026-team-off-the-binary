@@ -8,6 +8,7 @@ __pycache__/
 data/cache/
 data/global/*
 !data/global/outlook.json
+!data/global/fire_season.parquet
 data/sensor_days/
 data/news_cache/
 # alert tokens are secrets

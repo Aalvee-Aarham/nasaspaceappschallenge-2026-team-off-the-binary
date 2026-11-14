@@ -209,7 +209,7 @@ export function PlaceCheck({ regionId, bbox, target }: { regionId: string; bbox:
 const RADII = [5, 10, 25];
 
 /** Alert for this one place: fire detected nearby (checked every few hours) and its usual fire season starting. */
-function PlaceAlert({ lat, lon, label }: { lat: number; lon: number; label: string }) {
+export function PlaceAlert({ lat, lon, label }: { lat: number; lon: number; label: string }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(label);
   const [email, setEmail] = useState("");

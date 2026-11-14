@@ -9,6 +9,7 @@ const TOOLS: [string, [string, string][]][] = [
     ["create_custom_area / get_custom_area_status", "Build the 26-year record for any box and follow its progress."],
   ]],
   ["Now and the next 30 days", [
+    ["check_place_fire_risk", "Any town, address or school on Earth: fire seen within 1-25 km this week, the usual fire months, the outlook, and the schools, hospitals, clinics, care homes and fire stations near that fire. No built area needed."],
     ["get_fire_outlook", "Worldwide or in-box 30-day outlook: watch, above normal, season ahead, named regions."],
     ["get_outlook_at", "The outlook for the half-degree cell at a point."],
     ["query_hotspots", "Raw detections per day and satellite for any box and dates, instantly."],
@@ -147,6 +148,7 @@ export function Mcp({ go }: PageProps) {
         <h2>3. Ask</h2>
         <ul className="prompts">
           {[
+            "Is fire near Paradise, California this week? Which schools and hospitals are closest to it?",
             "Where on Earth is fire activity running above normal right now, and which of those places are entering their usual fire season?",
             "Brief me on fire around Pará, Brazil: the last 14 days by satellite and what the next 30 days usually bring.",
             "Show raw versus harmonized yearly totals for Punjab and explain the jumps in 2012, 2018 and 2024.",
@@ -154,6 +156,21 @@ export function Mcp({ go }: PageProps) {
             "Email me at me@example.org when the fire-season outlook around Kalimantan turns to watch.",
           ].map((p) => <li key={p}><q>{p}</q></li>)}
         </ul>
+      </section>
+
+      <section>
+        <h2>Or call the REST API</h2>
+        <p className="muted">The same answers as plain JSON over HTTPS: no key, no sign-up, open CORS. Interactive docs for every endpoint: <a href={`${apiOrigin()}/docs`} target="_blank" rel="noreferrer">{apiOrigin()}/docs</a>.</p>
+        <Code text={`# Is fire near a place? Name or "lat, lon"; radius 1-25 km
+curl "${apiOrigin()}/api/place-risk?q=Ludhiana,%20India&radius_km=10"
+curl "${apiOrigin()}/api/place-risk?lat=39.76&lon=-121.62&radius_km=5"
+# Faster first answer without the schools and hospitals (OpenStreetMap is the slow part)
+curl "${apiOrigin()}/api/place-risk?q=Sylhet&facilities=false"
+# 30-day outlook at a point, raw detections for any box, the study areas
+curl "${apiOrigin()}/api/outlook/at?lat=30.9&lon=75.85"
+curl "${apiOrigin()}/api/hotspots?west=75&south=30&east=77&north=32&start=2026-11-01&end=2026-11-13"
+curl "${apiOrigin()}/api/regions"`} />
+        <p className="muted small"><code>/api/place-risk</code> returns <code>level</code> (near, watch, season, low, unknown), a plain-language <code>headline</code> and <code>reasons</code>, <code>recent</code> detections, <code>season</code> (years with fire per calendar month), <code>outlook</code>, <code>facilities</code> (each with its distance to the nearest fire) and <code>errors</code> for any source that could not be read. Detections are not confirmed fires; history is not a forecast.</p>
       </section>
 
       <section>

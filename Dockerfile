@@ -19,6 +19,8 @@ COPY --chown=user server/ server/
 COPY --chown=user data/regions/ data/regions/
 # 30-day outlook snapshot (rebuilt daily where the global aggregate exists; served as-is otherwise)
 COPY --chown=user data/global/outlook.json data/global/outlook.json
+# Worldwide fire months per 0.1-degree cell (10 MB): "Is fire near you?" for any place without the 1.7 GB aggregate
+COPY --chown=user data/global/fire_season.parquet data/global/fire_season.parquet
 COPY --chown=user data/sensor_days.parquet data/sensor_days.parquet
 # Aqua drift onset: live builds must leave out drifting Aqua exactly like the prebuilt areas
 COPY --chown=user data/aqua_overpass.json data/aqua_overpass.json

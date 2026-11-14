@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CaseVerdict, CasebookOverview, api, fmt } from "../api";
 import { CaseCard, CellMap, Icon, LABEL, VerdictChips, compact, peopleShade, useCases, useExposure } from "../casebook";
 import { FarmSection, PeopleSection, PlaceCheck } from "../exposure";
+import PlaceRiskCheck from "../PlaceRisk";
 import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
 
 export default function CasesPage({ regions, online, area }: PageProps) {
@@ -30,8 +31,15 @@ export default function CasesPage({ regions, online, area }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Exposure" title="Cases & exposure"
-        lead="Who lives, learns and farms where fire is detected: people, schools, hospitals and farmland in every 11 km cell that has had fire since 2000." />
+      <PageHead kicker="Cases & exposure" title="Is fire near you?"
+        lead="Type any town, village, school or address in the world. See if NASA satellites saw fire near it this week, which schools, hospitals and care homes are close to that fire, and when fire usually comes." />
+
+      <PlaceRiskCheck online={online} onArea={(a) => { setRid(a); requestAnimationFrame(() => document.getElementById("cx-study")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+
+      <header className="pr-split" id="cx-study">
+        <h2>For fire managers and students: nine study areas in depth</h2>
+        <p className="muted">Known fires checked against NASA EONET, GDACS, burned-area maps and the news, and the people, schools, hospitals and farmland in every 11 km cell that has had fire since 2000.</p>
+      </header>
 
       {!online ? <Offline what="This page" /> : <>
         <div className="cx-pick">
@@ -90,24 +98,24 @@ export default function CasesPage({ regions, online, area }: PageProps) {
         )}
 
         {e && (
-          <section aria-labelledby="cx-p-h">
-            <h2 id="cx-p-h">For families: people, schools and hospitals near fire</h2>
+          <details className="cx-more">
+            <summary>Schools and hospitals in this area where fire is seen most often since 2000</summary>
             <PeopleSection key={id ?? ""} e={e} onCheck={check} />
-          </section>
+          </details>
         )}
 
         {e && (
-          <section aria-labelledby="cx-c-h">
-            <h2 id="cx-c-h">For farm owners: fire on farmland</h2>
+          <details className="cx-more">
+            <summary>Fire on farmland in this area</summary>
             <FarmSection f={e.farmland} fireCells={e.fire_cells} onCheck={check} />
-          </section>
+          </details>
         )}
 
         {e && info && id && (
-          <section aria-labelledby="cx-x-h">
-            <h2 id="cx-x-h">Check your place</h2>
+          <details className="cx-more" open={!!place}>
+            <summary>Fire history of one 11 km cell in this area</summary>
             <PlaceCheck regionId={id} bbox={info.bbox} target={place} />
-          </section>
+          </details>
         )}
 
         <section aria-labelledby="cx-a-h">
