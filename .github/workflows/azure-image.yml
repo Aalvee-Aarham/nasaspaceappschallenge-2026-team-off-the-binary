@@ -1,0 +1,26 @@
+# Builds the one-container app (site + API, :7860) and pushes it to Azure Container Registry.
+# Azure for Students cannot build images itself (ACR Tasks are blocked), so GitHub builds them.
+# Secrets: ACR_USERNAME, ACR_PASSWORD (registry admin user). The Container App runs kilnwatch1114.azurecr.io/kiln-watch.
+name: azure-image
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [Dockerfile, "server/**", "web/**", "data/regions/**", "data/global/outlook.json", "data/*.parquet", "data/*.json"]
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: kilnwatch1114.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            kilnwatch1114.azurecr.io/kiln-watch:latest
+            kilnwatch1114.azurecr.io/kiln-watch:${{ github.sha }}
