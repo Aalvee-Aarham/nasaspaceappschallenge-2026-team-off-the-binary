@@ -30,10 +30,10 @@ One idea per slide. Build the slides in any tool; speaker notes are the narratio
 
 ## 6. Early warning and Bangladesh
 **Title:** "Used where it matters."
-- Visual: Early warning page; Bangladesh page kiln-season chart.
-- Notes: Early warning is a climatological outlook with its backtest shown; never a forecast. Dhaka's brick-kiln belt: raw counts rise 10.6 times when VIIRS arrives (R). Kilns are kept as their own "likely kilns" class, not yet checked against an inventory.
+- Visual: Early warning page; Bangladesh page kiln map (717 mapped kilns, FIRMS finds them about as often as random ground).
+- Notes: Early warning is a climatological outlook with its backtest shown; never a forecast. Dhaka's brick-kiln belt: raw counts rise 10.6 times when VIIRS arrives (R). Kilns are counted from a published Sentinel-2 kiln map and checked against Black Marble night lights; FIRMS is measured against them, not used to find them.
 
 ## 7. Try it
 **Title:** "kiln-watch-seven.vercel.app"
 - Visual: QR of the live link; repo link; MCP badge.
-- Notes: 35-tool MCP server for Claude, open API, n8n workflows. Detections are not fires and not burned area. Built on NASA FIRMS; AI use is disclosed in `AI_USE.md`.
+- Notes: 38-tool MCP server for Claude, open API, n8n workflows. Detections are not fires and not burned area. Built on NASA FIRMS; AI use is disclosed in `AI_USE.md`.

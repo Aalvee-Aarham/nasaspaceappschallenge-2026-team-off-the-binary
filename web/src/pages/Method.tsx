@@ -7,7 +7,7 @@ const Satellite = lazy(() => import("./SatelliteFigure")); // the figure and its
 
 const STEPS: [string, string][] = [
   ["Data", "Every FIRMS detection (MODIS C6.1, VIIRS 375 m C2, standard and near-real-time), read from the public Portolan GeoParquet mirror with DuckDB. No key needed; CC0."],
-  ["Filtering", "Drop VIIRS low-confidence and MODIS confidence below 30, with the effect on totals reported. Persistent heat sources (kilns, flares, industry) are separated into their own class."],
+  ["Filtering", "Drop VIIRS low-confidence and MODIS confidence below 30, with the effect on totals reported. Persistent heat sources that FIRMS types as static (flares, industry, a few kilns) are separated into their own class; brick kilns are counted from a published kiln map and night lights instead, because FIRMS sees few of them."],
   ["Observing opportunity", "The share of days each satellite delivered data anywhere on Earth, measured per period from the data itself. Launches, gaps and the Suomi-NPP end are never hard-coded. Counts are divided by it."],
   ["Calibration", "A ratio of totals per calendar month, day and night separately, shrunk toward the pooled ratio by empirical Bayes. Chain: Terra to Aqua, Suomi-NPP to Aqua (before Aqua's orbit drift), NOAA-20 to Suomi-NPP, NOAA-21 to NOAA-20. Chain-closure mismatch is added to the error."],
   ["Stitching", "An inverse-variance mean of the satellites observing each period, with intervals widened to the coverage measured in the denial test."],
@@ -16,15 +16,16 @@ const STEPS: [string, string][] = [
 
 const LIMITS = [
   "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals, schools and roads are an OpenStreetMap snapshot from the query date; farmland is ESA WorldCover 2021 cropland, one year of land cover. No fire perimeter, no smoke, no fire spread, no crop loss and no impact estimate.",
-  "A fire case is matched to a 0.1° cell and a calendar month. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen.",
+  "An outside event (EONET, GDACS) is one point on a fire that can span several cells and start before its first hotspots, so it is matched to the record in its 0.1° cell and the 8 around it, in the event month and the next. Those windows are judgement calls, not fitted. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen, and a witness whose search failed or does not reach back that far is shown as \"could not look\".",
+  "The burned-area witness (MODIS MCD64A1) sums the burn scar mapped in the case cell and its 8 neighbours that month. It confirms fire on the ground, but its mapping is guided by MODIS active fires, so it is not fully independent of the hotspot record.",
   "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
   "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",
   "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua's data changed after 2020 (orbit drift, and a new MODIS archive version); from the onset measured from the data the record uses VIIRS only, still on the Aqua 2002–2020 scale.",
   "MODIS changes collection (6.03 to 61.03) at the start of 2023; this is listed but not yet step-tested.",
   "Near-real-time rows cannot be compared with standard processing from the mirror, so those months are labelled provisional, not adjusted.",
-  "Persistent heat sources are not validated against an independent kiln inventory, so they are labelled likely.",
-  "GDELT search starts in 2017. Reports are matched by place and date only; Google News RSS returns at most about 100 items per query, so busy windows are split by year and language.",
-  "The 30-day outlook uses Aqua MODIS alone, whose orbit has drifted since 2022; it is a climatology plus the present anomaly, never a forecast, and it has not yet been backtested against later seasons.",
+  "Brick-kiln evidence is a published Sentinel-2 kiln map (kiln structures in the 2024-25 dry season, about 8 in 10 right inside labelled footprints, about 2 in 10 outside) and Black Marble night lights, a weak witness because city lights drown a kiln's. It shows structures, not kilns in operation, and the map is licensed for non-commercial use.",
+  "GDELT search starts in 2017 and GDACS wildfire events in 2021. Reports are matched by place and date only; Google News RSS returns at most about 100 items per query, so busy windows are split by year and language.",
+  "The 30-day outlook is on the Aqua MODIS scale but counted by NOAA-20 VIIRS from Aqua's measured drift onset and for the last 30 days, with a per-cell ratio fitted on earlier years (the held-out error is on the Early warning page). It is a climatology plus the present anomaly, never a forecast, and it has not been backtested as a predictor of later seasons.",
   "The outlook drops cells whose typed history is 30% or more static sources; a new gas-flare field can look above normal until FIRMS types it.",
 ];
 

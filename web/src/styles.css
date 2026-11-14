@@ -707,6 +707,7 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .cb-wit li.fire em { color: var(--hot); }
 .cb-wit li.quiet em { color: var(--cold); }
 .cb-wit li.abstain em, .cb-wit li.none em { color: var(--dim); }
+.cb-wit li.blind em { color: var(--warn, #F6C64F); }
 .cb-wit li small { color: var(--muted); font-size: 12.5px; }
 .cb-foot { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 .cb-map { width: 100%; height: auto; max-height: 72vh; max-width: calc(72vh * var(--ar, 1)); display: block; margin-inline: auto; border: 1px solid var(--line); border-radius: var(--radius-m); background: #0A0E15; }

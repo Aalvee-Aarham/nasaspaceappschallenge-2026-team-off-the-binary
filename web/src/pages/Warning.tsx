@@ -115,6 +115,11 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
         <h2>How the levels are decided</h2>
         <p>{all?.rule ?? "Elevated: the month so far is at or above the 90th percentile of the same days in earlier years. Watch: at or above the 75th percentile, or the latest complete week at or above the 90th. Quiet: at or below the 10th. Not scored where there are too few hotspots to rank."}</p>
         {o && <p>{o.rule}</p>}
+        {o?.validation && (
+          <p className="small">Does the post-Aqua counting work? Fitted on {o.validation.fit_years[0]}–{o.validation.fit_years[1]} and asked to predict what Aqua counted in {o.validation.held_out_year} from NOAA-20 alone:
+            over {fmt(o.validation.cells_with_5_or_more.n)} half-degree cells with at least 5 hotspots the total was off by {fmt(o.validation.cells_with_5_or_more.bias_pct ?? null, 1)}% and the cell ranking agreed at ρ = {o.validation.cells_with_5_or_more.spearman ?? "–"}.
+            {o.validation.above_normal_flag && <> The weaker part: Aqua's own counts flagged {fmt(o.validation.above_normal_flag.flagged_by_aqua)} cells "above normal" that year, NOAA-20 alone found {fmt(o.validation.above_normal_flag.also_flagged_from_noaa20)} of them and added {fmt(o.validation.above_normal_flag.extra)} more (agreement {fmt(o.validation.above_normal_flag.agreement_pct, 0)}%), because the two satellites sample different small fires. Read a single dot as a hint; the named regions group neighbouring cells.</>}</p>
+        )}
         <p className="muted small">Alerts fire when the month so far is above a multiple of the median of the same days in earlier years (and at least 5 hotspots), when the 30-day outlook in your box has watch cells, or when NASA EONET opens a wildfire event inside it. Percentiles use harmonized counts, because raw counts would rank every recent month as unusual: new satellites count smaller fires. See <button className="link" onClick={() => go("method")}>Methodology</button>.</p>
       </section>
     </>

@@ -79,9 +79,13 @@ export type FireCase = {
   period: string; cell: [number, number]; cell_index: number | null;
   witnesses: {
     satellite: { state: WitnessState; reason: string | null; cell_hotspots: Num; cell_present: boolean; area_hotspots: Num;
-      ci95: [Num, Num] | null; percentile: Num; rank: Num; of_years: Num; coverage: Num; sensors: string[] };
+      ci95: [Num, Num] | null; percentile: Num; rank: Num; of_years: Num; coverage: Num; sensors: string[];
+      match?: "cell" | "neighbour" | "cell_next_month" | "neighbour_next_month" | null; match_hotspots?: Num };
     cross_family: { state: WitnessState; reason: string | null; modis_only: Num; viirs_only: Num; ratio: Num; agrees: boolean | null };
     agency: CaseWitness | null; disaster_system: CaseWitness | null; press: CaseWitness | null;
+    burned_area?: (CaseWitness & { km2: number; where: string }) | null;
+    /** witnesses that could not look at this case, with the reason; a missing key means the witness looked */
+    unavailable?: Partial<Record<"agency" | "disaster_system" | "press" | "burned_area", string>>;
   };
   verdict: CaseVerdict; verdict_label: string; flags: string[]; note: string;
 };
@@ -119,6 +123,23 @@ export type PlaceExposure = {
   recent?: { period: string; hotspots: number }[];
   population?: number; hospitals?: number | null; clinics?: number | null; schools?: number | null; cropland_km2?: number | null;
   hospital_list?: { name: string; lat: number; lon: number }[]; school_list?: { name: string; lat: number; lon: number; kind: string }[];
+};
+export type KilnEvidence = {
+  region_id: string; built_at: string; bbox: number[]; caveat: string;
+  inventory: { source: string; url: string; license: string; n_in_area: number; n_on_labelled_kiln: number; precision: string; not_seen: string };
+  firms: {
+    season: string[]; viirs_radius_m: number; modis_radius_m: number; note: string;
+    mapped_kilns: { n: number; viirs_any_pct: number; viirs_not_low_pct: number; modis_any_pct: number };
+    random_places: { n: number; viirs_any_pct: number; viirs_not_low_pct: number; modis_any_pct: number };
+    static_sources: { n: number; within_500m_of_mapped_kiln: number; within_1km_of_mapped_kiln: number; note: string };
+  };
+  night_lights: {
+    band: string; kiln_season: string[]; monsoon: string[]; note: string; urban_cutoff: number;
+    mapped_kilns_rural: { n: number; median_ratio: Num; above_random_75th_pct: Num };
+    random_rural: { n: number; median_ratio: Num; p75_ratio: Num };
+  };
+  fields: string[]; kilns: [number, number, string, number, number, number, Num, Num][];   // lon, lat, type, score, labelled, viirs hits, ntl dry, ntl wet
+  static_fields: string[]; static_sources: [number, number, number, number, Num][];
 };
 export type CasebookOverview = {
   caveat: string;
@@ -224,6 +245,12 @@ export type OutlookRegion = { name: string; country: string | null; lat: number;
 export type Outlook = {
   as_of: string; deg: number; sensor: string; next_30_days: [string, string]; last_30_days: [string, string]; baseline_years: [number, number];
   counts: Record<OutlookClass | "rising", number>; cells: OutlookCell[]; regions: OutlookRegion[]; rule: string; caveat: string;
+  calibration?: { onset_year: number; fit_years: [number, number]; pooled_ratio_aqua_per_viirs: number; cells_fitted: number; shrinkage: string };
+  /** NOAA-20 put on the Aqua scale, fitted without the last pre-drift year, predicting that year's Aqua counts */
+  validation?: { fit_years: [number, number]; held_out_year: number; pooled_ratio: number; note: string;
+    all_cells: { n: number; bias_pct: Num; mae: Num; rmse: Num; spearman: Num };
+    cells_with_5_or_more: { n: number; bias_pct?: Num; mae?: Num; rmse?: Num; spearman?: Num };
+    above_normal_flag?: { flagged_by_aqua: number; also_flagged_from_noaa20: number; missed: number; extra: number; agreement_pct: number } } | null;
 };
 export const LEVEL_LABEL: Record<Level, string> = { elevated: "Elevated", watch: "Watch", normal: "Normal", quiet: "Quiet", insufficient: "Not scored" };
 export type Health = { ok: boolean; agent: boolean; email?: boolean; serverless?: boolean; model: string | null; regions: number; data_through: string | null };
@@ -254,6 +281,7 @@ export const api = {
     json<CasesResponse>(`/api/regions/${id}/cases?limit=${limit}${verdict ? `&verdict=${verdict}` : ""}`),
   casebook: () => json<CasebookOverview>("/api/casebook"),
   case: (id: string, caseId: string) => json<FireCase>(`/api/regions/${id}/cases/${encodeURIComponent(caseId)}`),
+  kilns: (id: string) => json<KilnEvidence>(`/api/regions/${id}/kilns`),
   exposure: (id: string, period?: string) => json<ExposureResponse>(`/api/regions/${id}/exposure${period ? `?period=${period}` : ""}`),
   exposurePlace: (id: string, lat: number, lon: number) => json<PlaceExposure>(`/api/regions/${id}/exposure/place?lat=${lat}&lon=${lon}`),
   monthly: (id: string) => json<Block>(`/data/regions/${id}/monthly.json`),

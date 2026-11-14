@@ -34,9 +34,11 @@ const TOOLS: [string, [string, string][]][] = [
     ["get_casebook_overview", "Every area at a glance: cases, fires the record missed, people and hospitals near fire, failed sources."],
     ["get_exposure", "Population, hospitals, schools, farmland and major roads in the cells where the record shows fire. Context, not impact."],
     ["get_place_exposure", "One school, hospital or farm: how often and in which months fire is seen in its 11 km cell since 2000."],
+    ["get_kiln_evidence", "Brick kilns from a published map, how few NASA FIRMS sees, and night lights in kiln season (Dhaka belt)."],
   ]],
   ["Alerts", [
     ["subscribe_email_alert", "Email for any box: anomaly, 30-day watch, new events. Double opt-in."],
+    ["subscribe_place_alert", "Alert for one school, hospital or farm: a detection nearby, or a usually active month ahead."],
     ["create_alert / check_alert / delete_alert", "Token alerts for n8n or polling."],
   ]],
 ];

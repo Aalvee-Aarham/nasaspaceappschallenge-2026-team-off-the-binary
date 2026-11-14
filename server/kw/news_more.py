@@ -6,6 +6,7 @@ Google News RSS terms allow personal, non-commercial use; set NEWS_GOOGLE=0 to t
 """
 import datetime as dt
 import email.utils
+import http.client
 import json
 import os
 import time
@@ -55,12 +56,47 @@ def _inside(bbox, lat, lon, pad=0.5):
     return s - pad <= lat <= n + pad and ((w - pad <= lon <= e + pad) if w <= e else (lon >= w or lon <= e))
 
 
-def gdacs(start, end, bbox=None):
-    """GDACS wildfire events (EU JRC / UN; burned-area severity from GWIS), optionally inside a box."""
-    q = urllib.parse.urlencode({"eventlist": "WF", "fromdate": str(start), "todate": str(end)})
-    url = f"https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?{q}"
-    body = _get(url, 40)
-    feats = json.loads(body).get("features", []) if body.strip() else []  # HTTP 204 = no events
+GDACS_PAGE = 100       # the SEARCH endpoint returns at most 100 events per page, whatever pagesize asks for
+GDACS_MAX_PAGES = 80   # per window; ~4 s a page. A worldwide year is ~70 pages; more than this raises, never truncates
+GDACS_FIRST = dt.date(2021, 1, 1)  # measured: wildfire events start in mid-2021; earlier windows return HTTP 204
+
+
+def _gdacs_window(base):
+    url = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?" + urllib.parse.urlencode(base)
+    feats, seen = [], set()
+    for page in range(1, GDACS_MAX_PAGES + 1):
+        for attempt in range(3):  # GDACS drops connections now and then; a dropped page must not blank the witness
+            try:
+                body = _get(f"{url}&pagesize={GDACS_PAGE}&pagenumber={page}", 60)
+                break
+            except (OSError, http.client.HTTPException):
+                if attempt == 2:
+                    raise
+                time.sleep(3 * (attempt + 1))
+        got = json.loads(body).get("features", []) if body.strip() else []  # HTTP 204 = no (more) events
+        key = lambda f: (f.get("properties", {}).get("eventid"), f.get("properties", {}).get("episodeid"))  # noqa: E731
+        feats += [f for f in got if key(f) not in seen]
+        seen |= {key(f) for f in got}
+        if len(got) < GDACS_PAGE:
+            return feats, url
+    raise RuntimeError(f"GDACS returned more than {GDACS_MAX_PAGES * GDACS_PAGE} events in {base['fromdate']}–{base['todate']}")
+
+
+def gdacs(start, end, bbox=None, country=None):
+    """GDACS wildfire events (EU JRC / UN; burned-area severity from GWIS), optionally inside a box.
+
+    Without alertlevel the API returns only Orange and Red events, and it pages at 100: both silently hid almost
+    every wildfire (they are green). Queried one calendar year at a time so a busy country never hits the page cap."""
+    feats, url, a = [], None, max(start, GDACS_FIRST)
+    while a <= end:
+        b = min(end, dt.date(a.year, 12, 31))
+        base = {"eventlist": "WF", "fromdate": str(a), "todate": str(b), "alertlevel": "Green;Orange;Red"}
+        if country:
+            base["country"] = country
+        f, u = _gdacs_window(base)
+        feats += f
+        url = url or u
+        a = b + dt.timedelta(days=1)
     items = []
     for f in feats:
         p = f.get("properties", {})
@@ -103,7 +139,8 @@ def extra_sources(meta, start, end, sources, items):
         items += it
     if end >= dt.date(2017, 1, 1):
         src, it = _run("GDACS", "Global Disaster Alert and Coordination System wildfire events (EU JRC/UN, burned area from GWIS)",
-                       lambda: gdacs(max(start, dt.date(2017, 1, 1)), end, meta["bbox"]), f"gdacs:{meta['bbox']}:{start}:{end}", end)
+                       lambda: gdacs(max(start, dt.date(2017, 1, 1)), end, meta["bbox"], meta.get("country")),
+                       f"gdacs2:{meta['bbox']}:{meta.get('country')}:{start}:{end}", end)
         sources.append(src)
         items += it
 

@@ -100,6 +100,11 @@ def exposure_place(rid: str, lat: float, lon: float):
     return _guard(tools.exposure_place, rid, lat, lon)
 
 
+@app.get("/api/regions/{rid}/kilns")
+def kilns(rid: str):
+    return _guard(tools.kilns, rid)
+
+
 @app.get("/api/regions/{rid}/summary")
 def summary(rid: str):
     return _guard(tools.region_summary, rid)

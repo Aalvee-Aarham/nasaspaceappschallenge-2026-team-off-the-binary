@@ -7,16 +7,20 @@ COPY web/ ./
 RUN npm run build
 
 FROM python:3.12-slim
+# HF Spaces runs the container as uid 1000: own everything the app writes (data/, ~/.duckdb extensions)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
 WORKDIR /app
-COPY server/requirements.txt server/
-RUN pip install --no-cache-dir -r server/requirements.txt \
+COPY --chown=user server/requirements.txt server/
+RUN pip install --no-cache-dir --user -r server/requirements.txt \
  && python -c "import duckdb; c=duckdb.connect(); c.execute('INSTALL spatial; INSTALL httpfs')"
-COPY server/ server/
-COPY data/regions/ data/regions/
+COPY --chown=user server/ server/
+COPY --chown=user data/regions/ data/regions/
 # 30-day outlook snapshot (rebuilt daily where the global aggregate exists; served as-is otherwise)
-COPY data/global/outlook.json data/global/outlook.json
-COPY data/sensor_days.parquet data/sensor_days.parquet
-COPY --from=web /web/dist web/dist
+COPY --chown=user data/global/outlook.json data/global/outlook.json
+COPY --chown=user data/sensor_days.parquet data/sensor_days.parquet
+COPY --chown=user --from=web /web/dist web/dist
 ENV KW_DATA=/app/data PYTHONUNBUFFERED=1
 WORKDIR /app/server
 EXPOSE 7860

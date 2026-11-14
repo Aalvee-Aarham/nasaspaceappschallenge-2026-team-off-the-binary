@@ -859,6 +859,15 @@ def place_season(region_id, lat, lon, month=None):
                     "History, not a forecast."}
 
 
+def kilns(region_id):
+    """Kiln evidence for an area that has it (the Dhaka brick-kiln belt): a published kiln inventory, how many mapped
+    kilns FIRMS sees, and Black Marble night lights in kiln season against the monsoon. FIRMS is not used to find kilns."""
+    try:
+        return {"region_id": region_id, **_read(region_id, "kilns")}
+    except NotFound:
+        raise NotFound(f"no kiln evidence built for '{region_id}' (only the Dhaka brick-kiln belt has an inventory)")
+
+
 def casebook_overview():
     """One honest row per built area: what the casebook and the exposure layer hold, and what failed."""
     out = []

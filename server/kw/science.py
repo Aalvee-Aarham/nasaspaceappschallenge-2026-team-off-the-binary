@@ -436,10 +436,19 @@ def warning_level(pct_month, pct_week, typical_year_total, n_prior, month_scale=
     return "quiet" if pct_month <= 10 else "normal"
 
 
-OUTLOOK_RULE = ("30-day outlook per 0.5° cell, Aqua MODIS only (one sensor since 2003, so no cross-sensor step). "
+OUTLOOK_RULE = ("30-day outlook per 0.5° cell on the Aqua MODIS scale: Aqua MODIS for 2003 to the year before its measured "
+                "drift onset, NOAA-20 VIIRS on the Aqua scale after it and for the last 30 days (a per-cell ratio of totals "
+                "fitted while both observed before the drift, shrunk toward the worldwide ratio), so it does not need Aqua. "
                 "season: the next 30 days usually bring at least 5 hotspots (median of earlier years). "
                 "above: the last 30 days are at or above the 90th percentile of the same days in earlier years and at "
                 "least 5 hotspots. watch: both at once. rising: the usual next 30 days are at least twice the usual last 30.")
+
+
+def shrunk_ratio(ref_total, src_total, prior_ratio, prior_n=20):
+    """Ratio of totals ref/src for one cell, shrunk toward a pooled ratio: prior_n pseudo-detections of the source
+    sensor at the pooled ratio. Many co-observed detections: the cell's own ratio; few: the pooled one.
+    ponytail: prior_n=20 is a judgement weight, not estimated; raise it if sparse cells look noisy."""
+    return (ref_total + prior_n * prior_ratio) / (src_total + prior_n)
 
 
 def outlook_cell(fwd, back, now, floor=5):

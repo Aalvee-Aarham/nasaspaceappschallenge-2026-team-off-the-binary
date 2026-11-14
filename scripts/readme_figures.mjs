@@ -217,31 +217,34 @@ function sensors() {
   save("sensors", svg(W, H, g));
 }
 
-// ---------- 7. local: the kiln season ----------
+// ---------- 7. local: the kiln belt, counted without FIRMS ----------
 function kilns(id) {
-  const m = metas[id], b = read(id, "monthly"), st = b.classes.static.viirs_scale, pts = read(id, "static");
-  const idx = b.periods.map((p, i) => i).filter((i) => !st.modelled[i]);
-  const at = Object.fromEntries(idx.map((i) => [b.periods[i], i]));
-  const years = [...new Set(idx.map((i) => +b.periods[i].slice(0, 4)))];
-  const cell = (y, mo) => { const i = at[`${y}-${String(mo + 1).padStart(2, "0")}`]; return i === undefined ? undefined : st.v[i]; };
-  const max = Math.max(...idx.map((i) => st.v[i] ?? 0));
-  const med = MON.map((_, mo) => { // complete months only
-    const xs = years.map((y) => at[`${y}-${String(mo + 1).padStart(2, "0")}`]).filter((i) => i !== undefined && !b.partial[i] && st.v[i] != null).map((i) => st.v[i]).sort((p, q) => p - q);
-    return xs.length ? xs[Math.floor(xs.length / 2)] : 0;
-  });
-  const W = 1000, H = 436, x0 = 78, gw = 560, cw = gw / years.length, ch = 18, top = 124;
-  const c = pts.columns, col = (n) => c.indexOf(n);
-  const viirsDet = pts.points.reduce((a, p) => a + p[col("detections")], 0), modisDet = pts.points.reduce((a, p) => a + p[col("modis_detections")], 0);
+  const m = metas[id], k = read(id, "kilns"), f = k.firms, nl = k.night_lights;
+  const [w, s, e, n] = k.bbox, MW = 520, c = Math.cos(((s + n) / 2) * Math.PI / 180), MH = Math.round(MW * (n - s) / ((e - w) * c));
+  const x0 = 40, y0 = 100, X = (lon) => x0 + ((lon - w) / (e - w)) * MW, Y = (lat) => y0 + ((n - lat) / (n - s)) * MH;
+  const W = 1000, H = Math.max(440, y0 + MH + 64);
   let g = T(40, 44, "Home ground: the Dhaka brick-kiln belt", { size: 24, w: 700 });
-  g += T(40, 68, "Persistent heat sources (likely kilns) per month on the VIIRS scale. The firing season runs through the dry months.", { size: 14, fill: C.mute });
-  g += grid(x0, top, cw, ch, years, cell, max);
-  // median per calendar month, drawn as bars beside the grid
-  const bx = x0 + gw + 40, bw = W - bx - 110, mmax = Math.max(...med, 1);
-  g += T(bx, top - 8, "typical month (median)", { size: 11, fill: C.mute });
-  med.forEach((v, i) => { g += `<rect x="${bx}" y="${top + i * ch}" width="${Math.max(1, (v / mmax) * bw)}" height="${ch - 3}" rx="2" fill="${C.harm}"/>` + T(bx + (v / mmax) * bw + 8, top + i * ch + ch - 5, Math.round(v), { size: 11, fill: C.mute }); });
-  g += T(40, H - 46, `${pts.points.length} persistent heat-source cells`, { size: 18, w: 700, fill: C.harm });
-  g += T(40, H - 22, `Their detections: ${viirsDet.toLocaleString("en")} in total, only ${modisDet.toLocaleString("en")} of them by MODIS. Small, hot and steady: VIIRS sees kilns, MODIS mostly cannot.`, { size: 13, fill: C.mute });
-  numbers.kilns = { area: m.name, cells: pts.points.length, detections: viirsDet, modis_detections: modisDet, median_by_month: med.map((v) => Math.round(v)), years: [years[0], years.at(-1)], note: pts.note };
+  g += T(40, 68, "Kilns counted from a published Sentinel-2 map. NASA's fire product finds them no more often than empty ground.", { size: 14, fill: C.mute });
+  g += `<rect x="${x0}" y="${y0}" width="${MW}" height="${MH}" rx="8" fill="${C.zero}" stroke="${C.edge}"/>`;
+  for (const r of k.kilns.filter((r) => !r[4])) g += `<circle cx="${X(r[0]).toFixed(1)}" cy="${Y(r[1]).toFixed(1)}" r="1.8" fill="none" stroke="${C.mute}" stroke-width="0.8"/>`;
+  for (const r of k.kilns.filter((r) => r[4] && r[5] === 0)) g += `<circle cx="${X(r[0]).toFixed(1)}" cy="${Y(r[1]).toFixed(1)}" r="2.2" fill="${C.raw}"/>`;
+  for (const r of k.kilns.filter((r) => r[4] && r[5] > 0)) g += `<circle cx="${X(r[0]).toFixed(1)}" cy="${Y(r[1]).toFixed(1)}" r="2.8" fill="${C.harm}" stroke="${C.bg}" stroke-width="0.6"/>`;
+  for (const r of k.static_sources) { const cx = X(r[0]), cy = Y(r[1]); g += `<path d="M${cx} ${cy - 5}L${cx + 5} ${cy}L${cx} ${cy + 5}L${cx - 5} ${cy}Z" fill="none" stroke="#C9A2F2" stroke-width="1.4"/>`; }
+  g += T(x0, y0 + MH + 24, `${f.mapped_kilns.n} mapped kilns. Orange: FIRMS also saw a VIIRS hotspot. Blue: it did not. Diamonds: FIRMS persistent heat sources.`, { size: 12, fill: C.mute });
+  // right: FIRMS against random places, then night lights
+  const bx = 640, bw = 300, row = (y, label, kv, rv) => {
+    let o = T(bx, y, label, { size: 14, w: 600 });
+    o += `<rect x="${bx}" y="${y + 10}" width="${Math.max(2, (kv / 100) * bw * 4)}" height="14" rx="3" fill="${C.harm}"/>` + T(bx + Math.max(2, (kv / 100) * bw * 4) + 8, y + 22, `mapped kilns ${kv}%`, { size: 12, fill: C.mute });
+    o += `<rect x="${bx}" y="${y + 30}" width="${Math.max(2, (rv / 100) * bw * 4)}" height="14" rx="3" fill="#33415C"/>` + T(bx + Math.max(2, (rv / 100) * bw * 4) + 8, y + 42, `random places ${rv}%`, { size: 12, fill: C.mute });
+    return o;
+  };
+  g += row(y0 + 14, "VIIRS hotspot within 500 m, dry season " + k.firms.season[0].slice(0, 4) + "–" + k.firms.season[1].slice(2, 4), f.mapped_kilns.viirs_any_pct, f.random_places.viirs_any_pct);
+  g += row(y0 + 94, "MODIS hotspot within 1 km", f.mapped_kilns.modis_any_pct, f.random_places.modis_any_pct);
+  g += T(bx, y0 + 190, "Night lights, kiln season vs monsoon", { size: 14, w: 600 });
+  g += T(bx, y0 + 218, `${nl.mapped_kilns_rural.above_random_75th_pct}% of rural kilns brighten more than the`, { size: 13, fill: C.text });
+  g += T(bx, y0 + 238, `random 75th percentile (25% would be chance).`, { size: 13, fill: C.text });
+  g += T(bx, y0 + 264, `Only ${f.static_sources.within_500m_of_mapped_kiln} of ${f.static_sources.n} FIRMS heat sources sit on a mapped kiln.`, { size: 13, fill: C.harm, w: 600 });
+  numbers.kilns = { area: m.name, mapped_kilns: f.mapped_kilns, random_places: f.random_places, static_sources: f.static_sources, night_lights: nl.mapped_kilns_rural, night_lights_random: nl.random_rural, inventory: { n_in_area: k.inventory.n_in_area, n_on_labelled_kiln: k.inventory.n_on_labelled_kiln } };
   save("kilns", svg(W, H, g));
 }
 

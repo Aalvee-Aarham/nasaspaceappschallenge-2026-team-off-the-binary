@@ -1,50 +1,46 @@
-import { LineChart } from "../Record";
-import { MONTH_SHORT, Num, fmt } from "../api";
+import { useEffect, useState } from "react";
+import { KilnEvidence, Num, api, fmt } from "../api";
 import { PageHead, PageProps, useRegion } from "./shared";
 
-const median = (xs: number[]) => {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b), h = s.length >> 1;
-  return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
-};
-
 // ponytail: English only. A Bangla toggle needs strings written or reviewed by a native speaker; add { en, bn } here then.
-export default function Bangladesh({ go, openRegion }: PageProps) {
+export default function Bangladesh({ go, openRegion, online }: PageProps) {
   const { region, err } = useRegion("dhaka-kilns");
-  const m = region?.meta, b = region?.monthly;
-
-  // median per calendar month over complete months, harmonized (Aqua scale)
-  const byMonth = (v: Num[]) => MONTH_SHORT.map((_, mo) => median(b!.periods.flatMap((p, i) => (+p.slice(5) === mo + 1 && !b!.partial[i] && v[i] != null ? [v[i] as number] : []))));
+  const [k, setK] = useState<KilnEvidence | null>(null);
+  const [kerr, setKerr] = useState("");
+  useEffect(() => {
+    if (!online) return;
+    let live = true;
+    api.kilns("dhaka-kilns").then((x) => live && setK(x)).catch((e) => live && setKerr(e.message));
+    return () => { live = false; };
+  }, [online]);
+  const m = region?.meta;
   const st = m?.steps.VIIRS_SNPP;
 
   return (
     <>
-      <PageHead kicker="Local impact" title="Bangladesh" lead="The brick-kiln belt around Dhaka: thousands of small, steady fires that VIIRS sees and MODIS mostly cannot, kept apart from crop and vegetation fire." />
+      <PageHead kicker="Local impact" title="Bangladesh" lead="The brick-kiln belt around Dhaka: thousands of small, steady fires. NASA's fire product sees only a few of them, so Kiln Watch counts kilns from a published kiln map and checks it against night lights." />
       {err && <p className="error">{err}</p>}
       {!region && !err && <div className="skeleton tall" />}
-      {region && m && b && (
+      {region && m && (
         <>
           <section>
             <h2>Why Dhaka</h2>
-            <p>When VIIRS arrived in {st?.period.slice(0, 4)}, raw detection counts here rose to <b>{times(st?.raw_all_sensors_excess)}</b> what Aqua MODIS alone would imply, while the harmonized record changed by <b>{times(st?.harmonized_excess)}</b>. Kilns are small and burn all season, so the sharper sensor counts many more of them. Kiln Watch puts this heat in its own class so it neither inflates the vegetation-fire record nor gets lost in it.</p>
+            <p>When VIIRS arrived in {st?.period.slice(0, 4)}, raw detection counts here rose to <b>{times(st?.raw_all_sensors_excess)}</b> what Aqua MODIS alone would imply, while the harmonized record changed by <b>{times(st?.harmonized_excess)}</b>. Without harmonizing, a change of satellite looks like a change of fire. That matters most here, where the sharper sensor picks up many small, steady heat sources.</p>
             <p className="muted small">{m.story}</p>
           </section>
 
           <section>
-            <h2>Kiln season and crop-fire season</h2>
-            <LineChart x={[...MONTH_SHORT]} name="dhaka-kilns-seasons" label="Median monthly hotspots by calendar month: kilns and other static heat, and vegetation fire"
-              lines={[
-                { name: "Kilns, flares and industry (static heat)", color: "#E69F00", vals: byMonth(b.classes.static.hotspots.v), wide: true },
-                { name: "Vegetation fire", color: "#56B4E9", vals: byMonth(b.classes.veg.hotspots.v) },
-              ]} />
-            <p className="muted small">Median of complete months, 2000 to {m.data_through.slice(0, 4)}, hotspots on the Aqua scale. Static heat sources are labelled <i>likely kilns</i>: they are not yet checked against a mapped kiln inventory. Detections are not fires.</p>
+            <h2>Counting kilns without FIRMS</h2>
+            {kerr && <p className="muted">The kiln evidence is not available here: {kerr}</p>}
+            {online && !k && !kerr && <div className="skeleton tall" />}
+            {k && <Kilns k={k} />}
           </section>
 
           <section>
             <h2>What you can do with it</h2>
             <p className="row">
               <button className="btn" onClick={() => openRegion("dhaka-kilns")}>Open the Dhaka calendar</button>
-              <button className="btn ghost" onClick={() => go("warning")}>Set an alert</button>
+              <button className="btn ghost" onClick={() => go("cases")}>Cases &amp; exposure</button>
               <button className="btn ghost" onClick={() => go("download")}>Download the CSV</button>
             </p>
           </section>
@@ -55,3 +51,55 @@ export default function Bangladesh({ go, openRegion }: PageProps) {
 }
 
 const times = (v: Num | undefined) => (v == null ? "–" : `×${fmt(v, 1)}`);
+const pc = (v: Num | undefined) => (v == null ? "–" : `${fmt(v, 0)}%`);
+
+function Kilns({ k }: { k: KilnEvidence }) {
+  const f = k.firms, nl = k.night_lights, inv = k.inventory;
+  const seen = k.kilns.filter((r) => r[4] && r[5] > 0).length, labelled = k.kilns.filter((r) => r[4]).length;
+  return (
+    <>
+      <p>A kiln is a small, steady heat source. In the {f.season[0].slice(0, 4)}–{f.season[1].slice(2, 4)} dry season NASA FIRMS flagged a VIIRS hotspot within {f.viirs_radius_m} m of only <b>{pc(f.mapped_kilns.viirs_any_pct)}</b> of the {fmt(f.mapped_kilns.n)} mapped kilns, and a MODIS hotspot within {fmt(f.modis_radius_m / 1000)} km of <b>{pc(f.mapped_kilns.modis_any_pct)}</b>. Random places away from kilns scored {pc(f.random_places.viirs_any_pct)} and {pc(f.random_places.modis_any_pct)}. So the fire product cannot count kilns, and Kiln Watch does not use it to.</p>
+
+      <div className="cx-stats">
+        <div className="cx-stat"><span>Mapped kilns here</span><b>{fmt(inv.n_on_labelled_kiln)}</b></div>
+        <div className="cx-stat"><span>With a VIIRS hotspot</span><b>{pc(f.mapped_kilns.viirs_any_pct)}</b></div>
+        <div className="cx-stat"><span>With a MODIS hotspot</span><b>{pc(f.mapped_kilns.modis_any_pct)}</b></div>
+        <div className="cx-stat"><span>Heat sources on a kiln</span><b>{fmt(f.static_sources.within_500m_of_mapped_kiln)} of {fmt(f.static_sources.n)}</b></div>
+      </div>
+
+      <KilnMap k={k} />
+      <p className="muted small">Each dot is a kiln structure seen in Sentinel-2 imagery. Orange: FIRMS also saw a VIIRS hotspot within {f.viirs_radius_m} m that season ({fmt(seen)} of {fmt(labelled)} on a labelled kiln). Blue: it did not. Hollow grey: detected but not on a human-labelled kiln, so less certain. Diamonds: the FIRMS persistent heat sources.</p>
+      <p>Only <b>{fmt(f.static_sources.within_500m_of_mapped_kiln)} of the {fmt(f.static_sources.n)}</b> FIRMS persistent heat sources lie within 500 m of a mapped kiln ({fmt(f.static_sources.within_1km_of_mapped_kiln)} within 1 km). An earlier version of Kiln Watch labelled them "likely kilns"; the inventory does not support that, so they are now called persistent heat sources.</p>
+
+      <h3>Night lights: a second, independent witness</h3>
+      <p>Kilns fire in the dry months with lamps and night shifts, and stand idle in the monsoon. NASA Black Marble should therefore read brighter at a kiln from December to February than in July and August. {nl.mapped_kilns_rural.n ? <>Away from city lights, across {fmt(nl.mapped_kilns_rural.n)} mapped kilns the median dry-to-monsoon brightness ratio is <b>{nl.mapped_kilns_rural.median_ratio}</b>, against <b>{nl.random_rural.median_ratio}</b> for random places; <b>{pc(nl.mapped_kilns_rural.above_random_75th_pct)}</b> of kilns are above the random 75th percentile (25% would be chance). That is a consistent sign of kiln season, not proof: kilns sit on town edges that also brighten in the dry season.</> : "Too few kilns away from city lights to say."}</p>
+      <p className="muted small">{nl.note} Source: {nl.band}.</p>
+
+      <h3>What this does not tell you</h3>
+      <ul className="plain small">
+        <li><b>Structures, not firing.</b> {inv.not_seen}</li>
+        <li><b>Not all are kilns.</b> {inv.precision}</li>
+        <li><b>Inventory:</b> <a href={inv.url} target="_blank" rel="noreferrer">{inv.source}</a>, licence {inv.license} (non-commercial). Night lights: NASA Black Marble VNP46A2. FIRMS: NASA, via the same archive as the rest of Kiln Watch.</li>
+      </ul>
+    </>
+  );
+}
+
+function KilnMap({ k }: { k: KilnEvidence }) {
+  const [w, s, e, n] = k.bbox;
+  const W = 560, c = Math.cos(((s + n) / 2) * Math.PI / 180), H = Math.round(W * (n - s) / ((e - w) * c));
+  const x = (lon: number) => ((lon - w) / (e - w)) * W, y = (lat: number) => ((n - lat) / (n - s)) * H;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="cb-map" role="img"
+      aria-label={`Map of ${k.kilns.length} kiln structures around Dhaka, coloured by whether NASA FIRMS also saw a VIIRS hotspot, and ${k.static_sources.length} FIRMS persistent heat sources.`}>
+      <rect width={W} height={H} fill="#0A0E15" />
+      {k.kilns.filter((r) => !r[4]).map((r, i) => <circle key={`u${i}`} cx={x(r[0])} cy={y(r[1])} r={1.8} fill="none" stroke="#898781" strokeWidth={0.8} />)}
+      {k.kilns.filter((r) => r[4] && r[5] === 0).map((r, i) => <circle key={`n${i}`} cx={x(r[0])} cy={y(r[1])} r={2.2} fill="#3987e5" />)}
+      {k.kilns.filter((r) => r[4] && r[5] > 0).map((r, i) => <circle key={`s${i}`} cx={x(r[0])} cy={y(r[1])} r={2.6} fill="#d95926" stroke="#030508" strokeWidth={0.6} />)}
+      {k.static_sources.map((r, i) => {
+        const cx = x(r[0]), cy = y(r[1]);
+        return <path key={`h${i}`} d={`M${cx} ${cy - 5}L${cx + 5} ${cy}L${cx} ${cy + 5}L${cx - 5} ${cy}Z`} fill="none" stroke="#C9A2F2" strokeWidth={1.4}><title>{`FIRMS persistent heat source, ${fmt(r[2])} detections, ${fmt(r[3])} m from the nearest mapped kiln`}</title></path>;
+      })}
+    </svg>
+  );
+}

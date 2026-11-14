@@ -2,7 +2,7 @@
  "hero": {
   "area": "Punjab–Haryana crop residue burning",
   "raw_step": 4.479,
-  "harmonized_step": 0.927,
+  "harmonized_step": 0.931,
   "years": [
    2001,
    2025
@@ -11,79 +11,79 @@
  "stats": {
   "span_years": 26,
   "first": "2000-11-01",
-  "last": "2026-11-12",
+  "last": "2026-11-13",
   "raw_step": [
    3.466,
    10.578
   ],
   "harmonized_step": [
-   0.927,
-   1.186
+   0.931,
+   1.175
   ],
   "coverage_pct": [
    95.8,
    95.8
   ],
-  "detections": 7343669,
+  "detections": 7346549,
   "regions": 9
  },
  "steps": [
   {
    "area": "Dhaka brick-kiln belt",
    "raw": 10.578,
-   "harmonized": 1.148,
+   "harmonized": 1.124,
    "placebo": [
-    0.771,
-    1.517
+    0.764,
+    1.539
    ],
    "inside": true
   },
   {
    "area": "Fort McMurray boreal forest",
    "raw": 7.429,
-   "harmonized": 1.186,
+   "harmonized": 1.175,
    "placebo": [
-    0.844,
-    1.216
+    0.878,
+    1.424
    ],
    "inside": true
   },
   {
    "area": "Niger Delta gas flares",
    "raw": 6.437,
-   "harmonized": 0.95,
+   "harmonized": 0.947,
    "placebo": [
-    0.914,
-    1.032
+    0.911,
+    1.037
    ],
    "inside": true
   },
   {
    "area": "South-east Australia",
    "raw": 5.954,
-   "harmonized": 0.988,
+   "harmonized": 0.987,
    "placebo": [
-    0.996,
-    1.038
+    0.989,
+    1.049
    ],
    "inside": false
   },
   {
    "area": "Rondônia deforestation arc",
    "raw": 5.608,
-   "harmonized": 1.066,
+   "harmonized": 1.067,
    "placebo": [
-    0.947,
-    1.065
+    0.946,
+    1.064
    ],
    "inside": false
   },
   {
    "area": "Paraná Delta wetlands",
    "raw": 5.271,
-   "harmonized": 1.008,
+   "harmonized": 1.01,
    "placebo": [
-    0.956,
+    0.934,
     1.016
    ],
    "inside": true
@@ -91,32 +91,32 @@
   {
    "area": "Punjab–Haryana crop residue burning",
    "raw": 4.479,
-   "harmonized": 0.927,
+   "harmonized": 0.931,
    "placebo": [
-    0.987,
-    1.018
+    0.985,
+    1.036
    ],
    "inside": false
   },
   {
    "area": "Chilecito, La Rioja",
    "raw": 4.063,
-   "harmonized": 1.041,
+   "harmonized": 1.027,
    "placebo": [
-    0.894,
-    1.133
+    0.896,
+    1.128
    ],
    "inside": true
   },
   {
    "area": "Northern California",
    "raw": 3.466,
-   "harmonized": 0.992,
+   "harmonized": 0.994,
    "placebo": [
-    0.993,
-    1.063
+    0.986,
+    1.071
    ],
-   "inside": false
+   "inside": true
   }
  ],
  "denial": {
@@ -137,12 +137,12 @@
  "sensors": {
   "MODIS_T": {
    "first": "2000-11-01",
-   "last": "2026-11-12",
+   "last": "2026-11-13",
    "ended": false
   },
   "MODIS_A": {
    "first": "2002-07-04",
-   "last": "2026-11-12",
+   "last": "2026-11-13",
    "ended": false
   },
   "VIIRS_SNPP": {
@@ -152,46 +152,56 @@
   },
   "VIIRS_NOAA20": {
    "first": "2018-04-01",
-   "last": "2026-11-12",
+   "last": "2026-11-13",
    "ended": false
   },
   "VIIRS_NOAA21": {
    "first": "2024-01-17",
-   "last": "2026-11-12",
+   "last": "2026-11-13",
    "ended": false
   }
  },
  "kilns": {
   "area": "Dhaka brick-kiln belt",
-  "cells": 109,
-  "detections": 3306,
-  "modis_detections": 34,
-  "median_by_month": [
-   16,
-   17,
-   18,
-   7,
-   4,
-   1,
-   0,
-   1,
-   2,
-   6,
-   14,
-   11
-  ],
-  "years": [
-   2012,
-   2026
-  ],
-  "note": "0.01° cells that FIRMS science-quality data attributes mainly to static sources (type 1–3). Not validated against an independent kiln or industry inventory, so labelled persistent heat sources."
+  "mapped_kilns": {
+   "n": 717,
+   "viirs_any_pct": 4.6,
+   "viirs_not_low_pct": 4.5,
+   "modis_any_pct": 0
+  },
+  "random_places": {
+   "n": 600,
+   "viirs_any_pct": 4.2,
+   "viirs_not_low_pct": 3.8,
+   "modis_any_pct": 0.2
+  },
+  "static_sources": {
+   "n": 109,
+   "within_500m_of_mapped_kiln": 6,
+   "within_1km_of_mapped_kiln": 20,
+   "note": "FIRMS persistent heat sources (type 1-3, 0.01 degree cells) against every inventory detection."
+  },
+  "night_lights": {
+   "n": 697,
+   "median_ratio": 1.056,
+   "above_random_75th_pct": 40.5
+  },
+  "night_lights_random": {
+   "n": 570,
+   "median_ratio": 1.014,
+   "p75_ratio": 1.113
+  },
+  "inventory": {
+   "n_in_area": 1615,
+   "n_on_labelled_kiln": 717
+  }
  },
  "table": [
-  "| Dhaka brick-kiln belt | 10.58 | 1.15 | +1864.3% | +13.1% | 0.67 | 96% | 0.7 | 0.0 | 0.0 |",
+  "| Dhaka brick-kiln belt | 10.58 | 1.12 | +1865.3% | +13.1% | 0.68 | 96% | 0.7 | 0.0 | 0.0 |",
   "| Punjab–Haryana crop residue burning | 4.48 | 0.93 | +469.7% | -5.8% | 0.98 | 96% | 72.5 | 0.0 | -0.1 |",
-  "| Chilecito, La Rioja | 4.06 | 1.04 | +812.3% | -9.7% | 0.89 | 96% | 2.5 | 0.0 | 0.0 |",
+  "| Chilecito, La Rioja | 4.06 | 1.03 | +812.3% | -9.7% | 0.89 | 96% | 2.5 | 0.0 | 0.0 |",
   "| Rondônia deforestation arc | 5.61 | 1.07 | +516.5% | -0.6% | 0.98 | 96% | 18.1 | -0.1 | -0.2 |",
-  "| Fort McMurray boreal forest | 7.43 | 1.19 | +1030.2% | -8.9% | 0.83 | 96% | 1.7 | 0.0 | 0.0 |",
+  "| Fort McMurray boreal forest | 7.43 | 1.18 | +1030.3% | -8.9% | 0.83 | 96% | 1.7 | 0.0 | 0.0 |",
   "| South-east Australia | 5.95 | 0.99 | +815.3% | +4.1% | 0.98 | 96% | 34.4 | -0.9 | -1.0 |",
   "| Northern California | 3.47 | 0.99 | +782.9% | +8.1% | 0.98 | 96% | 33.5 | 1.0 | 0.7 |",
   "| Paraná Delta wetlands | 5.27 | 1.01 | +597.0% | +27.5% | 0.94 | 96% | 6.0 | -1.6 | -1.7 |",
