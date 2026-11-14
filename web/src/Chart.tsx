@@ -16,13 +16,18 @@ export default function Chart({ spec, delay = 0 }: { spec: ChartSpec; delay?: nu
   const right = spec.series.some((s) => s.axis === "right");
   const L = 40, R = right ? 42 : 10;
   const n = spec.x.length;
-  const max = (axis?: "right") => Math.max(1, ...spec.series.filter((s) => (s.axis === "right") === (axis === "right"))
+  const peak = (axis: "right" | undefined, bands: boolean) => Math.max(1, ...spec.series
+    .filter((s) => (s.axis === "right") === (axis === "right") && (bands || s.type !== "band"))
     .flatMap((s) => [...s.values, ...(s.hi ?? [])]).filter((v): v is number => v !== null && Number.isFinite(v)));
-  const [ml, mr] = [max() * 1.08, max("right") * 1.08];
+  // A percentile band set by record years (e.g. 17k when this year and the median are near 1k) flattened the lines it
+  // frames into the floor, so the chart looked empty: scale to the lines, clip the band at the top and say so below.
+  const full = peak(undefined, true), lines = peak(undefined, false);
+  const clip = full > 2.5 * lines;
+  const [ml, mr] = [(clip ? lines * 1.6 : full) * 1.08, peak("right", true) * 1.08];
   const bars = spec.series.filter((s) => s.type === "bar");
   const step = (W - L - R) / Math.max(1, n);
   const X = (i: number) => L + step * (i + 0.5);
-  const Y = (v: number, axis?: "right") => T + (H - T - B) * (1 - v / (axis === "right" ? mr : ml));
+  const Y = (v: number, axis?: "right") => { const m = axis === "right" ? mr : ml; return T + (H - T - B) * (1 - Math.min(v, m) / m); };
   const path = (vals: Num[], axis?: "right") => {
     let d = "", pen = false;
     vals.forEach((v, i) => {
@@ -85,7 +90,7 @@ export default function Chart({ spec, delay = 0 }: { spec: ChartSpec; delay?: nu
           {spec.series.map((s, k) => s.type === "line" && !s.dash && spec.highlight != null && s.values[spec.highlight] != null && (
             <circle key={`h${k}`} cx={X(spec.highlight)} cy={Y(s.values[spec.highlight]!, s.axis)} r="3.5" fill={s.color} className="adot" />
           ))}
-          {spec.x.map((x, i) => (i % every === 0 || i === n - 1) && (n - 1 - i >= every / 2 || i === n - 1) && (
+          {spec.x.map((x, i) => (i % every === 0 || i === n - 1) && (n - 1 - i >= every || i === n - 1) && (
             <text key={i} x={X(i)} y={H - 8} textAnchor="middle" className={`axis ${spec.highlight === i ? "hl" : ""}`}>{x}</text>
           ))}
           {hover !== null && <line x1={X(hover)} x2={X(hover)} y1={T} y2={H - B} className="aguide" />}
@@ -103,7 +108,7 @@ export default function Chart({ spec, delay = 0 }: { spec: ChartSpec; delay?: nu
         {spec.series.map((s) => <li key={s.name}><i className={s.type} style={{ background: s.color, borderColor: s.color }} />{s.name}</li>)}
       </ul>
       <div className="afoot">
-        <span>{spec.unit}{spec.note ? ` · ${spec.note}` : ""}</span>
+        <span>{spec.unit}{spec.note ? ` · ${spec.note}` : ""}{clip ? ` · band cut at ${compact(ml)}; earlier years reach ${compact(full)}` : ""}</span>
         <span>
           {spec.source && <code>{spec.source}</code>}
           <button className="link" onClick={() => downloadSvg(svg.current, spec.id.replace(/[^a-z0-9]+/gi, "-"))}>SVG</button>
