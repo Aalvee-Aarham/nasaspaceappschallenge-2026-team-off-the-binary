@@ -1,0 +1,127 @@
+{
+  "generated_at": "2026-11-14T05:28:33+00:00",
+  "script": "scripts/validation/kilns.py",
+  "question": "Do the area's published persistent-heat cells correspond to mapped brick kilns?",
+  "area": {
+    "id": "dhaka-kilns",
+    "name": "Dhaka brick-kiln belt",
+    "bbox": [
+      89.9,
+      23.4,
+      90.9,
+      24.2
+    ],
+    "area_km2": 9070.6
+  },
+  "firms_layer": {
+    "file": "data/regions/dhaka-kilns/static.json",
+    "cells": 109,
+    "note": "0.01° cells that FIRMS science-quality data attributes mainly to static sources (type 1–3: volcano, other static land source, offshore). The Dhaka layer of this class was checked against two independent kiln inventories (data/validation/kilns_dhaka-kilns.json); it does not land on mapped kilns more often than randomly placed cells of the same number would, so the class is a persistent-heat proxy, not a kiln inventory."
+  },
+  "inventory": {
+    "name": "APAD / IGP asset-data-igp: Bangladesh brick kilns (Brick_kilns_BAN_coal.csv)",
+    "url": "https://assetdata-igp.s3.amazonaws.com/asset_igp_csvs/Brick_kilns_BAN_coal.csv",
+    "registry": "https://registry.opendata.aws/asset-data-igp-brick-kilns-ban/",
+    "licence": "CC BY 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "retrieved_at": "2026-11-14T05:26:45+00:00",
+    "sha256": "2a9a83743ed5c17a2531005d54fc30c0042e93aec99398791bcd8df149edecab",
+    "bytes": 764024,
+    "rows": 4760
+  },
+  "method": {
+    "test": "placement test: observed cells versus random cells of the same number in the same bbox",
+    "radii_km": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "trials": 400,
+    "seed": 20261114,
+    "distance": "great-circle (haversine)"
+  },
+  "results": [
+    {
+      "radius_km": 0.5,
+      "published_cells": 109,
+      "cells_matching_a_kiln": 0,
+      "precision": 0.0,
+      "inventory_kilns_in_area": 624,
+      "kilns_matching_a_cell": 0,
+      "recall": 0.0,
+      "random_baseline_precision": 0.0275,
+      "random_baseline_precision_p95": 0.055,
+      "random_baseline_recall": 0.008,
+      "random_baseline_recall_p95": 0.0208,
+      "better_than_chance": false
+    },
+    {
+      "radius_km": 1.0,
+      "published_cells": 109,
+      "cells_matching_a_kiln": 2,
+      "precision": 0.0183,
+      "inventory_kilns_in_area": 624,
+      "kilns_matching_a_cell": 2,
+      "recall": 0.0032,
+      "random_baseline_precision": 0.0826,
+      "random_baseline_precision_p95": 0.1193,
+      "random_baseline_recall": 0.0353,
+      "random_baseline_recall_p95": 0.0705,
+      "better_than_chance": false
+    },
+    {
+      "radius_km": 2.0,
+      "published_cells": 109,
+      "cells_matching_a_kiln": 8,
+      "precision": 0.0734,
+      "inventory_kilns_in_area": 624,
+      "kilns_matching_a_cell": 5,
+      "recall": 0.008,
+      "random_baseline_precision": 0.1927,
+      "random_baseline_precision_p95": 0.2569,
+      "random_baseline_recall": 0.1362,
+      "random_baseline_recall_p95": 0.2115,
+      "better_than_chance": false
+    }
+  ],
+  "per_detection_view": {
+    "status": "computed",
+    "radius_km": 1.0,
+    "by_firms_type": {
+      "None": {
+        "detections": 1258,
+        "within_1km_of_a_kiln": 91,
+        "share_within_1km": 0.0723
+      },
+      "0": {
+        "detections": 7198,
+        "within_1km_of_a_kiln": 396,
+        "share_within_1km": 0.055
+      },
+      "2": {
+        "detections": 2445,
+        "within_1km_of_a_kiln": 12,
+        "share_within_1km": 0.0049
+      },
+      "3": {
+        "detections": 894,
+        "within_1km_of_a_kiln": 5,
+        "share_within_1km": 0.0056
+      }
+    },
+    "type_meaning": {
+      "0": "presumed vegetation fire",
+      "1": "active volcano",
+      "2": "other static land source",
+      "3": "offshore",
+      "None": "near-real-time rows carry no type"
+    }
+  },
+  "verdict": "The published persistent-heat cells do not coincide with the mapped kilns better than randomly placed cells of the same number would. The static layer is a persistent-heat proxy, not a kiln inventory, and must not be read as confirmed kilns.",
+  "limitations": [
+    "The APAD inventory is an asset list with modelled attributes and positions; it is not field-verified ground truth and it is not FIRMS truth either.",
+    "A match inside one radius does not identify what the heat source is; the two sources can coincide without one causing the other.",
+    "FIRMS detections in this area are sparse and concentrated, so the static layer is a small sample of the area's heat sources.",
+    "A negative result here does not prove that no kilns are detected; it shows that this published layer cannot be called a kiln inventory."
+  ]
+}

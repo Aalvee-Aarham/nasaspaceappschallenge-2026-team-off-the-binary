@@ -19,9 +19,12 @@ if not (TMP / "regions" / "index.json").exists():
         shutil.copy2(ROOT / "data" / "global" / "fire_season.parquet", TMP / "global" / "fire_season.parquet")
     if (ROOT / "data" / "sensor_days.parquet").exists():
         shutil.copy2(ROOT / "data" / "sensor_days.parquet", TMP / "sensor_days.parquet")
+    if (ROOT / "data" / "validation").exists():
+        shutil.copytree(ROOT / "data" / "validation", TMP / "validation", dirs_exist_ok=True)
 
 os.environ["KW_DATA"] = str(TMP)
 os.environ["KW_SERVERLESS"] = "1"  # no background builds/refreshes or email loop: functions freeze after replying
+os.environ["KW_PUBLIC_MCP"] = "1"  # the public connector is read-only; trusted local MCP keeps write tools
 os.environ["HOME"] = "/tmp"  # DuckDB installs its httpfs/spatial extensions under ~/.duckdb
 sys.path.insert(0, str(ROOT / "server"))
 

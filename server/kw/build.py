@@ -12,6 +12,7 @@ static heat sources harmonized separately, and raw counts (labelled raw). Not bu
 """
 import csv
 import datetime as dt
+import hashlib
 import io
 import json
 import math
@@ -59,6 +60,7 @@ LINKS = [
 ]
 # Direct links used only to measure chain-closure error.
 CLOSURE = [("VIIRS_NOAA20", "MODIS_A", ("2018-05", "2020-12")), ("VIIRS_NOAA21", "VIIRS_SNPP", ("2024-02", None))]
+CLOSURE_PATHS = {"VIIRS_NOAA20": ("VIIRS_NOAA20", "VIIRS_SNPP"), "VIIRS_NOAA21": ("VIIRS_NOAA21", "VIIRS_NOAA20")}
 TRANSITIONS = {"MODIS_A": "2002-07", "VIIRS_SNPP": "2012-01", "VIIRS_NOAA20": "2018-04", "VIIRS_NOAA21": "2024-01"}
 
 
@@ -85,6 +87,21 @@ def _code_version():
         return "unversioned"
 
 
+def _file_fingerprint(path):
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return {"sha256": h.hexdigest(), "bytes": path.stat().st_size}
+
+
+def _input_fingerprint(region_id):
+    files = sorted((CACHE / region_id).glob("*.parquet"))
+    return {"algorithm": "sha256",
+            "cache": {f.stem: _file_fingerprint(f) for f in files},
+            "sensor_days": _file_fingerprint(sensor_days())}
+
+
 def _collection_updated():
     try:
         with urllib.request.urlopen(f"{BASE}/collection.json", timeout=30) as r:
@@ -109,6 +126,7 @@ def _load(con, region_id):
     con.execute(f"""CREATE OR REPLACE TABLE dall AS
         SELECT r.*, 1 AS n, CASE WHEN r.type IN (1, 2, 3) THEN 'static' WHEN r.type = 0 THEN 'veg'
                          WHEN m.fy IS NOT NULL THEN 'static' ELSE 'veg' END AS cls,
+               CASE WHEN r.type IS NULL AND m.fy IS NULL THEN 1 ELSE 0 END AS unclassified,
                floor(r.fy / {GRID_DEG * 100})::INT AS gy, floor(r.fx / {GRID_DEG * 100})::INT AS gx
         FROM raw r LEFT JOIN mask m USING (fy, fx)""")
     con.execute("CREATE OR REPLACE VIEW d AS SELECT * FROM dall WHERE conf_ok")
@@ -152,13 +170,14 @@ def _load_global(con, region_id, bbox, progress=None):
         SELECT acq_date, sensor, left(satellite, 1), daynight, quality, version,
                CASE WHEN r.type IN (1, 2, 3) THEN 'static' WHEN r.type = 0 THEN 'veg'
                     WHEN m.fy IS NOT NULL THEN 'static' ELSE 'veg' END,
-               {CONF_SQL}, floor(lat * 10)::INT, floor(lon * 10)::INT, count(*)::INT, sum(frp)
+               {CONF_SQL}, floor(lat * 10)::INT, floor(lon * 10)::INT, count(*)::INT, sum(frp),
+               count(*) FILTER (WHERE r.type IS NULL AND m.fy IS NULL)::INT
         FROM (SELECT *, floor(lat * 100)::INT AS fy, floor(lon * 100)::INT AS fx FROM read_parquet({files})) r
         LEFT JOIN mask m USING (fy, fx) GROUP BY ALL""" if live else ""
     con.execute(f"""CREATE OR REPLACE TABLE dall AS
         SELECT acq_date, sensor, sat AS satellite, daynight, quality, version,
                CASE tcls WHEN 's' THEN 'static' ELSE 'veg' END AS cls, ok AS conf_ok,
-               gy::INT AS gy, gx::INT AS gx, n, frp::DOUBLE AS frp
+               gy::INT AS gy, gx::INT AS gx, n, frp::DOUBLE AS frp, 0::INT AS unclassified
         FROM read_parquet('{a_files}') WHERE tcls <> 'u' AND ({c10}) {skip} {live_sql}""")
     con.execute("ALTER TABLE dall ADD COLUMN obs VARCHAR")
     con.execute("UPDATE dall SET obs = CASE WHEN sensor = 'MODIS' THEN 'MODIS_' || satellite ELSE sensor END")
@@ -182,15 +201,17 @@ PKEY = {False: "strftime(acq_date, '%Y-%m')",
 def _aggregate(con, weekly, table="d"):
     k = PKEY[weekly]
     agg = {}
-    for cls, obs, p, dn, n, frp, nrt in con.execute(f"""
-            SELECT cls, obs, {k}, daynight, sum(n), sum(frp), coalesce(sum(n) FILTER (WHERE quality = 'nrt'), 0)
+    for cls, obs, p, dn, n, frp, nrt, unclassified in con.execute(f"""
+            SELECT cls, obs, {k}, daynight, sum(n), sum(frp), coalesce(sum(n) FILTER (WHERE quality = 'nrt'), 0),
+                   coalesce(sum(unclassified), 0)
             FROM {table} GROUP BY ALL""").fetchall():
         for key in ((cls, obs, p), (cls, "MODIS", p)) if obs.startswith("MODIS") else ((cls, obs, p),):
-            rec = agg.setdefault(key, {"det_D": 0, "det_N": 0, "det": 0, "frp": 0.0, "nrt": 0, "celldays": 0})
+            rec = agg.setdefault(key, {"det_D": 0, "det_N": 0, "det": 0, "frp": 0.0, "nrt": 0, "unclassified": 0, "celldays": 0})
             rec[f"det_{dn}"] += n
             rec["det"] += n
             rec["frp"] += frp or 0.0
             rec["nrt"] += nrt
+            rec["unclassified"] += unclassified
     for cls, obs, p, cd in con.execute(f"""
             SELECT cls, obs, {k}, count(DISTINCT (gy, gx, acq_date)) FROM {table} GROUP BY ALL""").fetchall():
         agg[(cls, obs, p)]["celldays"] = cd
@@ -200,16 +221,18 @@ def _aggregate(con, weekly, table="d"):
     return agg
 
 
-def _coverage(con, keys, weekly, through):
-    """Fraction of each period's (elapsed) days on which each observer delivered data anywhere on Earth."""
+def _coverage(con, keys, weekly, through, first=None):
+    """Fraction of each period's (elapsed) days on which each observer delivered data anywhere on Earth.
+    `first` marks leading periods whose calendar bounds predate the archive as partial, not complete."""
     rows = con.execute(f"SELECT sensor, {PKEY[weekly]}, count(*) FROM read_parquet('{sensor_days().as_posix()}') "
                        f"WHERE acq_date <= DATE '{through}' GROUP BY ALL").fetchall()
     days = {(s, p): n for s, p, n in rows}
     cov, partial = {s: [] for s in ["MODIS", *OBSERVERS]}, []
     for k in keys:
         a, b = sc.period_bounds(k)
-        span = (min(b, through) - a).days + 1
-        partial.append(b > through)
+        lo = max(a, first) if first is not None else a
+        span = (min(b, through) - lo).days + 1
+        partial.append(b > through or a < lo)
         for s in cov:
             cov[s].append(round(min(1.0, days.get((s, k), 0) / span), 3) if span > 0 else 0.0)
     return cov, partial
@@ -238,7 +261,8 @@ def _chain(fits, key="beta"):
         f = fits[src]
         b = f[key] if key == "beta" else [f["pooled"]] * 12 if key == "pooled" else [1.0] * 12
         rb, rs2 = to_ref[ref]
-        to_ref[src] = ([x * y for x, y in zip(b, rb)], f["sigma2"] + rs2)
+        sigma2 = 0.0 if key == "none" else f["sigma2"] + rs2
+        to_ref[src] = ([x * y for x, y in zip(b, rb)], sigma2)
     return to_ref
 
 
@@ -265,10 +289,14 @@ def _calibrate(agg, keys, cov, cls, q, last_full):
     for src, ref, (a, b) in CLOSURE:
         direct = sc.ratio_calibration(_pairs(agg, keys, cov, cls, q, src, ref, a, b or last_full))
         composed = statistics.fmean(to_ref[src][0]) / statistics.fmean(to_ref[ref][0])
+        composed_pooled = math.prod(fits[s]["pooled"] for s in CLOSURE_PATHS[src])
         if direct["calibrated"] and composed > 0:
             mis = math.log(direct["pooled"] / composed)
+            composition_bias = composed / composed_pooled - 1 if composed_pooled else 0.0
             closure.append({"sensor": src, "reference": ref, "window": [a, b or last_full], "direct": _r(direct["pooled"], 4),
-                            "composed": _r(composed, 4), "mismatch_pct": _r(100 * (math.exp(mis) - 1), 1), "n": direct["n"]})
+                            "composed": _r(composed, 4), "composed_pooled": _r(composed_pooled, 4),
+                            "composition_bias_pct": _r(100 * composition_bias, 1),
+                            "mismatch_pct": _r(100 * (math.exp(mis) - 1), 1), "n": direct["n"]})
             for s in [x for x in VIIRS if VIIRS.index(x) >= VIIRS.index(src)]:
                 to_ref[s] = (to_ref[s][0], to_ref[s][1] + mis * mis)
     return {"fits": fits, "to_ref": to_ref, "links": links, "validation": validation, "closure": closure}
@@ -298,14 +326,15 @@ def _series(agg, keys, cov, cls, q, to_ref, allowed=None, k_scale=1.0):
 
 
 def _band(v, var):
+    """Interval band. 4 decimals, like the grid cells, so the map cells and the calendar value agree."""
     lo, hi = [], []
     for y, va in zip(v, var):
         if y is None:
             lo.append(None), hi.append(None)
         else:
             sd = math.sqrt(va)
-            lo.append(_r(max(0.0, y - 1.96 * sd))), hi.append(_r(y + 1.96 * sd))
-    return {"v": [_r(y) for y in v], "lo": lo, "hi": hi}
+            lo.append(_r(max(0.0, y - 1.96 * sd), 4)), hi.append(_r(y + 1.96 * sd, 4))
+    return {"v": [_r(y, 4) for y in v], "lo": lo, "hi": hi}
 
 
 def _hotspots(agg, keys, cov, cls, cal, allowed=None, k_scale=1.0):
@@ -364,6 +393,11 @@ def _block(agg, keys, cov, partial, cals, k_scale):
     nrt = [sum((agg.get((c, s, k)) or {}).get("nrt", 0) for c in CLASSES for s in ["MODIS", *VIIRS]) for k in keys]
     tot = [sum((agg.get((c, s, k)) or {}).get("det", 0) for c in CLASSES for s in ["MODIS", *VIIRS]) for k in keys]
     block["nrt_share"] = [_r(n / t, 3) if t else None for n, t in zip(nrt, tot)]
+    block["nrt_unclassified_share"] = [
+        _r(sum((agg.get(("veg", s, k)) or {}).get("unclassified", 0) for s in OBSERVERS)
+            / sum((agg.get(("veg", s, k)) or {}).get("det", 0) for s in OBSERVERS), 4)
+        if sum((agg.get(("veg", s, k)) or {}).get("det", 0) for s in OBSERVERS) else None
+        for k in keys]
     block["provisional"] = [p or bool(s) for p, s in zip(partial, block["nrt_share"])]
     return block
 
@@ -441,18 +475,18 @@ def _cutover(weekly, snpp_last, through):
             "sensors": [h["sensors"][i] for i in idx]}
 
 
-def _steps(block, keys, partial):
+def _steps(block, keys, partial, transitions=None):
     veg = block["classes"]["veg"]
     series = {"raw_all_sensors": block["raw"]["all_det"], "aqua_only": veg["aqua_only"], "harmonized": veg["hotspots"]["v"]}
     out = {}
-    for s, t in TRANSITIONS.items():
+    for s, t in (transitions or TRANSITIONS).items():
         r = {n: sc.step_ratio(keys, v, partial, t, STEP_WINDOW) for n, v in series.items()}
         if r["aqua_only"]:
             for n in ("raw_all_sensors", "harmonized"):
                 r[f"{n}_excess"] = _r(r[n] / r["aqua_only"], 3) if r[n] else None
         out[s] = {"period": t, **r}
     # Placebo: the same test at dates with no satellite change gives its false-alarm range.
-    tmonths = [int(t[:4]) * 12 + int(t[5:]) for t in TRANSITIONS.values()]
+    tmonths = [int(t[:4]) * 12 + int(t[5:]) for t in (transitions or TRANSITIONS).values()]
     plac = []
     for y in range(2004, 2024):
         for mo in (1, 7):
@@ -489,7 +523,7 @@ def _trends(block, keys, partial, last_year):
 def _drift(block, keys, min_months=6):
     """Yearly ratio of what one satellite sees to another. Like for like: every year uses the same calendar months,
     those both satellites observed in every year that has at least min_months co-observed months; years missing any
-    of them are left out. A flat line that bends is the signature of orbit drift or a processing change."""
+    of them are left out. A flat line that bends is the signature of an acquisition-time or processing change."""
     out = {}
     for a, b in (("MODIS_A", "VIIRS_SNPP"), ("MODIS_T", "MODIS_A"), ("VIIRS_NOAA20", "VIIRS_SNPP")):
         both = {}
@@ -548,11 +582,14 @@ def aqua_overpass(region_ids):
            "baseline_hour": None if base is None else round(base, 3),
            "orbit_onset": orbit, "version_change": version,
            "onset": min(starts) if starts else None,
+           "interpretation": "The reported MODIS daytime acquisition time changes by more than 15 minutes while Terra "
+                             "moves in the opposite direction and VIIRS remains fixed. Treat this as an archive/reporting "
+                             "metadata change, not a physical sun-synchronous orbital drift.",
            "rule": f"Onset = the earlier of (a) the first year from 2021 whose median local solar time of Aqua MODIS daytime "
                    f"detections (preset areas pooled) is more than {sc.DRIFT_TOL_H * 60:.0f} minutes from the 2003–2020 "
                    "median, and (b) the first month of a MODIS archive version that appears only after 2020 (the "
                    "calibration was fitted on the earlier version). From the onset the harmonized record uses the "
-                   "VIIRS satellites only (still on the Aqua 2002–2020 scale)."}
+                   "VIIRS satellites only (still on the Aqua 2002-2020 scale)."}
     AQUA_FILE.write_text(json.dumps(out, indent=1), encoding="utf-8")
     return out
 
@@ -740,33 +777,55 @@ def _answers(monthly, current, season):
 def _grid(con, keys, cov, cals):
     idx = {k: i for i, k in enumerate(keys)}
     rows = con.execute("SELECT strftime(acq_date, '%Y-%m'), gy, gx, obs, daynight, sum(n) FROM d WHERE cls = 'veg' GROUP BY ALL").fetchall()
-    acc = {}
+    acc, totals = {}, {}
     for p, gy, gx, s, dn, n in rows:
         acc.setdefault((p, gy, gx), {}).setdefault(s, {})[dn] = n
-    cells, cell_idx, months = [], {}, {}
-    for (p, gy, gx), per in acc.items():
-        i = idx.get(p)
-        if i is None:
-            continue
+        totals[(p, s, dn)] = totals.get((p, s, dn), 0.0) + n
+
+    # Weights belong to the area estimate. Applying those same weights to every cell makes
+    # the map sum to the calendar total instead of inventing a separate cell-level estimate.
+    area_weights = {}
+    for p in keys:
+        i = idx[p]
         m = sc.calendar_month(p)
-        val = 0.0  # same rule as the area total (_series): inverse-variance per day/night, then added
         for dn in DN:
             to_ref = cals["veg"][f"det_{dn}"]["to_ref"]
             ests = []
             for s in _active(cov, i, key=p):
-                b, s2, c, x = to_ref[s][0][m - 1], to_ref[s][1], cov[s][i], per.get(s, {}).get(dn, 0)
+                b, s2, c = to_ref[s][0][m - 1], to_ref[s][1], cov[s][i]
+                x = totals.get((p, s, dn), 0.0)
                 ests.append((b * x / c, s2, b * b * max(x, 1) / (c * c)))
-            res = sc.combine(ests)
-            val += res[0] if res else 0.0
+            details = sc.combine_details(ests)
+            if details:
+                area_weights[(p, dn)] = {s: w for s, w in zip(_active(cov, i, key=p), details[2])}
+
+    cells, cell_idx, months = [], {}, {}
+    for (p, gy, gx), per in acc.items():
+        if p not in idx:
+            continue
+        m = sc.calendar_month(p)
+        val = 0
+        for dn in DN:
+            to_ref = cals["veg"][f"det_{dn}"]["to_ref"]
+            for s, weight in area_weights.get((p, dn), {}).items():
+                b, c = to_ref[s][0][m - 1], cov[s][idx[p]]
+                x = per.get(s, {}).get(dn, 0)
+                val += weight * (b * x / c)
         if val <= 0:
             continue
         ci = cell_idx.setdefault((gy, gx), len(cells))
         if ci == len(cells):
             cells.append([_r(gy * GRID_DEG, 2), _r(gx * GRID_DEG, 2)])
-        months.setdefault(p, []).append([ci, _r(val, 2)])
+        months.setdefault(p, []).append([ci, _r(val, 4)])   # 4 decimals: the cells must add up to the calendar value
+    # Canonical cell order (cells are [lat, lon]): north to south, then west to east. The exposure layer keeps
+    # one array per cell index, so the order must not depend on which period happened to fill a cell first.
+    order = sorted(range(len(cells)), key=lambda i: (-cells[i][0], cells[i][1]))
+    remap = {old: new for new, old in enumerate(order)}
+    cells = [cells[i] for i in order]
+    months = {p: [[remap[ci], v] for ci, v in sorted(rows, key=lambda r: remap[r[0]])] for p, rows in months.items()}
     return {"deg": GRID_DEG, "cells": cells, "months": dict(sorted(months.items())),
             "unit": "vegetation hotspots per 0.1° cell, Aqua MODIS scale",
-            "note": "Per-cell values use the area's calibration; uncertainty is reported for area totals only."}
+            "note": "Per-cell values use the area's calibration and sensor weights, so cells reconcile with the calendar total; uncertainty is reported for area totals only."}
 
 
 def _static_points(con, glob=False):
@@ -777,8 +836,11 @@ def _static_points(con, glob=False):
     return {"points": [[_r((fx + 0.5) / 100, 3), _r((fy + 0.5) / 100, 3), n, y0, y1, ny, frp, nm]
                        for fy, fx, n, y0, y1, ny, frp, nm in rows],
             "columns": ["lon", "lat", "detections", "first_year", "last_year", "active_years", "mean_frp_mw", "modis_detections"],
-            "note": "0.01° cells that FIRMS science-quality data attributes mainly to static sources (type 1–3). Not "
-                    "validated against an independent kiln or industry inventory, so labelled persistent heat sources."}
+            "note": "0.01° cells that FIRMS science-quality data attributes mainly to static sources (type 1–3: "
+                    "volcano, other static land source, offshore). The Dhaka layer of this class was checked against two "
+                    "independent kiln inventories (data/validation/kilns_dhaka-kilns.json); it does not land on mapped "
+                    "kilns more often than randomly placed cells of the same number would, so the class is a "
+                    "persistent-heat proxy, not a kiln inventory."}
 
 
 def _frp_distribution(con, glob=False):
@@ -833,6 +895,9 @@ def build_region(region_id, info, progress=None, source=None):
     """source: 'detections' (per-area download, used for the presets) or 'global' (kw.globe aggregate)."""
     t0 = time.time()
     _load_aqua_onset()  # background rebuilds never run main()
+    transitions = dict(TRANSITIONS)
+    if AQUA_DRIFT_FROM:
+        transitions["MODIS_TIME_SHIFT"] = AQUA_DRIFT_FROM
     source = source or ("detections" if region_id in PRESETS or not globe.ready() else "global")
     glob = source == "global"
     con = duckdb.connect()
@@ -850,17 +915,17 @@ def build_region(region_id, info, progress=None, source=None):
     last_full = sc.month_key(through.replace(day=1) - dt.timedelta(days=1))
 
     mkeys = sc.periods(start, through)
-    mcov, mpartial = _coverage(con, mkeys, False, through)
+    mcov, mpartial = _coverage(con, mkeys, False, through, first=start)
     magg = _aggregate(con, False)
     cals = {cls: {q: _calibrate(magg, mkeys, mcov, cls, q, last_full) for q in QTY} for cls in CLASSES}
     denial, k_scale = _denial_modis(magg, mkeys, mcov, "veg", last_full)
     monthly = _block(magg, mkeys, mcov, mpartial, cals, k_scale)
 
     wkeys = sc.periods(start, through, weekly=True)
-    wcov, wpartial = _coverage(con, wkeys, True, through)
+    wcov, wpartial = _coverage(con, wkeys, True, through, first=start)
     weekly = _block(_aggregate(con, True), wkeys, wcov, wpartial, cals, k_scale)
 
-    steps, placebo = _steps(monthly, mkeys, mpartial)
+    steps, placebo = _steps(monthly, mkeys, mpartial, transitions)
     last_year = through.year if (through.month, through.day) == (12, 31) else through.year - 1
     full_weeks = [k for k, p in zip(wkeys, wpartial) if not p]
     season = _season(weekly, full_weeks[-1] if full_weeks else None)
@@ -873,13 +938,15 @@ def build_region(region_id, info, progress=None, source=None):
         "bbox": list(info["bbox"]), "grid_deg": GRID_DEG, "data_through": str(through),
         "built_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "estimand": {
-            "primary": "Hotspots per period on the Aqua MODIS scale: the number of vegetation-fire detections Aqua "
-                       "MODIS would have recorded (early-afternoon and post-midnight passes). Day and night are "
-                       "calibrated separately and added.",
+            "primary": "Calibrated vegetation-hotspot estimate on the Aqua MODIS scale per period: the Aqua-scale "
+                       "equivalent expected from the observed MODIS and VIIRS sensors. Day and night are calibrated "
+                       "separately and added. This is a model-based estimate, not a direct MODIS measurement after 2002.",
             "why_aqua": "The early-afternoon orbit is the only one observed continuously from 2002 (Aqua) through "
-                        "Suomi-NPP, NOAA-20 and NOAA-21. Converting VIIRS to MODIS scale discards information and is "
-                        "well-posed; the reverse must invent small fires MODIS never saw, so the VIIRS-scale view is "
-                        "marked modelled before 2012.",
+                        "Suomi-NPP, NOAA-20 and NOAA-21. A common Aqua scale makes the long record comparable, but "
+                        "discards VIIRS-only detail; the native VIIRS and raw series are therefore published beside it.",
+            "model_scope": "The 2000-11…2002-06 segment is a Terra-only extrapolation fitted to Aqua and inherits "
+                           "that link's measured hold-out bias. After the measured MODIS acquisition-time/archive "
+                           "change, the published estimate uses the VIIRS chain only, still on the 2002–2020 Aqua scale.",
             "secondary": ["Fire cell-days (0.1° cell × UTC day with ≥1 detection), Aqua scale",
                           "Hotspots on the Suomi-NPP VIIRS scale (modelled before 2012)",
                           "Persistent heat sources (kilns, flares, industry, volcanoes) harmonized separately",
@@ -887,32 +954,42 @@ def build_region(region_id, info, progress=None, source=None):
             "not": "Not burned area and not a count of fires: a detection is one hot pixel in one overpass.",
         },
         "method": {
-            "aqua_drift": "From the Aqua change onset (measured: overpass time and archive version, see aqua_overpass) "
-                          "MODIS is left out when any VIIRS satellite observes.",
+            "acquisition_time_shift": "The MODIS archive's reported daytime acquisition time shifts by more than 15 "
+                                      "minutes after the measured onset while Terra shifts the other way and VIIRS stays "
+                                      "fixed. This is an archive/reporting-time change, not a physical sun-synchronous "
+                                      "orbit shift; from the onset MODIS is omitted when VIIRS observes and the change "
+                                      "is published as its own step/placebo test.",
             "drift": "Yearly satellite-to-satellite ratios use the same calendar months in every year, so a changing "
                      "month mix cannot look like drift.",
-            "confidence_filter": "drop VIIRS 'l' and MODIS confidence < 30 (no crosswalk between the two scales); "
-                                 "sensitivity reported",
-            "static_mask": ("0.01° cells where science-quality FIRMS `type` is 1–3 for ≥50% of ≥3 detections" + (
-                "; approximate in this build: the whole-Earth tallies undercount typed detections in years a cell had no "
-                "static ones, so the mask is too generous. It only affects untyped near-real-time rows and the heat-source "
-                "list; harmonized monthly values matched an exact build of Punjab within 0.9%" if glob else "")),
+            "confidence_filter": "Drop VIIRS 'l' and MODIS confidence <30. This is a class-level crosswalk, not a "
+                                 "numeric one; the two filters remove different shares and the sensitivity is reported.",
+            "static_mask": ("0.01° cells where science-quality FIRMS `type` is 1–3 for ≥50% of ≥3 detections. The mask "
+                            "is computed over the full archive and applied to every period. NRT rows have no `type`, so "
+                            "outside this mask they are assigned to vegetation by construction; their share is published." + (
+                " The whole-Earth aggregate path uses time-varying typed tallies and may be less complete than the exact "
+                "per-area cache." if glob else "")),
             "coverage": "share of days each satellite delivered data anywhere on Earth in each period (measured, so "
                         f"launches, gaps and the Suomi-NPP end come from the data); below {MIN_COVERAGE:.0%} a "
                         "satellite is left out, otherwise counts are divided by coverage",
             "calibration": "ratio of totals per calendar month, day and night separately, shrunk toward the pooled "
                            "ratio by empirical Bayes (shrinkage strength estimated from the data). Chain: Terra→Aqua "
                            "(2002–2020, bridges 2000–2002 only), Suomi-NPP→Aqua (2012–2020, pre-drift), NOAA-20→"
-                           "Suomi-NPP, NOAA-21→NOAA-20; chain-closure mismatch is added to the error",
+                           "Suomi-NPP, NOAA-21→NOAA-20; chain-closure mismatch is added to the error. The validation "
+                           "table shows when a seasonal factor does not beat a single ratio or the identity estimator; "
+                           "estimator choice is not selected on the outer hold-out.",
             "combination": "inverse-variance mean of the satellites observing each period (calibration error + "
-                           "counting noise, evaluated at the pooled mean); intervals widened so 95% of held-out "
-                           "months fall inside (MODIS-denial test)",
+                           "counting noise, evaluated at the pooled mean). The conformal widening factor is fitted "
+                           "on a VIIRS-only MODIS-denial reconstruction; out-of-sample coverage is reported rather "
+                           "than assumed to be exactly 95%.",
             "comparison": "each period vs the same month/week in other complete years: median, ratio, percentile, "
                           "rank — no sigma thresholds (fire counts are skewed)",
-            "weekly": "ISO-8601 weeks; weeks use their Thursday's month calibration",
+            "weekly": "ISO-8601 weeks; weeks use their Thursday's month calibration; a leading partial ISO week is "
+                      "never used as a complete baseline",
             "provisional": "periods containing near-real-time rows are provisional: FIRMS replaces NRT with "
                            "standard processing after ~3 months, and the mirror keeps only one of the two, so the "
-                           "NRT-to-standard difference cannot be measured from it",
+                           "NRT-to-standard difference cannot be measured from it. NRT rows also lack FIRMS `type`; "
+                           "untyped heat anomalies outside the static mask remain in the vegetation series and their "
+                           "share is published.",
         },
         "calibration": {f"{c}_{q}": cals[c][q]["links"] for c in CLASSES for q in QTY},
         "closure": {f"{c}_{q}": cals[c][q]["closure"] for c in CLASSES for q in QTY},
@@ -939,6 +1016,7 @@ def build_region(region_id, info, progress=None, source=None):
                                "Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of "
                                "NASA's Earth Observing System Data and Information System (EOSDIS).",
             "code_version": _code_version(), "reproduce": f"python -m kw.build {region_id}",
+            "input_fingerprint": _input_fingerprint(region_id),
             "build_seconds": round(time.time() - t0, 1), "build_source": source,
         },
     }

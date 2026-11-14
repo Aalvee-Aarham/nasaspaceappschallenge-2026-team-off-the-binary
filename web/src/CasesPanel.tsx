@@ -18,7 +18,7 @@ export default function CasesPanel({ name, regionId, online, data, err, filter, 
 
       {!regionId ? <p className="muted">Open an area on the map to see its fire cases.</p>
         : !online ? <p className="muted">This needs the Kiln Watch API.</p>
-        : err ? <p className="muted">No cases for this area yet.</p>
+        : err ? <p className="error">Couldn't load cases: {err}</p>
         : !data ? <div className="skeleton tall" />
         : <>
           <div className="cp-nums">

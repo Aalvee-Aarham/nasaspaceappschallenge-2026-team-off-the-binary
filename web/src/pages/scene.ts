@@ -325,8 +325,16 @@ void main(){ vec4 c=texture2D(tDiffuse,vUv); uvec4 e=floatBitsToUint(c)&0x7f8000
   composer.addPass(new OutputPass());
   let disposed = false;
   const intro = { v: 0 };
-  const manager = new THREE.LoadingManager(() => { if (!disposed) { gsap.to(intro, { v: 1, duration: 3, ease: "power3.out" }); onReady(); } });
-  manager.onError = () => onReady(); // a missing asset must never leave the page behind the loader
+  let ready = false;
+  const reveal = () => {
+    if (ready || disposed) return;
+    ready = true;
+    gsap.to(intro, { v: 1, duration: 3, ease: "power3.out" });
+    onReady();
+  };
+  const heroManager = new THREE.LoadingManager(reveal);       // Earth + the hero satellite
+  const satelliteManager = new THREE.LoadingManager(() => undefined); // later-chapter models keep loading
+  heroManager.onError = reveal; // a missing asset must never leave the page behind the loader
 
   // stars (decoration, not data)
   const sp = new Float32Array(2600 * 3);
@@ -337,7 +345,7 @@ void main(){ vec4 c=texture2D(tDiffuse,vUv); uvec4 e=floatBitsToUint(c)&0x7f8000
   scene.add(stars);
 
   // Earth: NASA Blue Marble, darkened, under a dot matrix
-  const tex = new THREE.TextureLoader(manager);
+  const tex = new THREE.TextureLoader(heroManager);
   const day = tex.load(`${BASE}models/earth.jpg`), water = tex.load(`${BASE}models/earth-water.jpg`);
   day.colorSpace = THREE.SRGBColorSpace;
   day.anisotropy = 8;
@@ -418,11 +426,12 @@ void main(){ vec4 c=texture2D(tDiffuse,vUv); uvec4 e=floatBitsToUint(c)&0x7f8000
   scene.add(beam);
   const UP = new THREE.Vector3(0, 1, 0), ground = new THREE.Vector3();
   let aqua: Sat | null = null, terra: Sat | null = null, snpp: Sat | null = null;
-  const draco = new DRACOLoader(manager).setDecoderPath(`${BASE}draco/`); // the NASA models are Draco-compressed
-  const loader = new GLTFLoader(manager).setDRACOLoader(draco);
-  loader.load(`${BASE}models/aqua.glb`, (g) => { if (disposed) return; aqua = prepare(g.scene, 1.15, 3); aqua.holder.rotation.set(0.1, 0.5, 0); turn.add(aqua.holder); });
-  loader.load(`${BASE}models/terra.glb`, (g) => { if (disposed) return; terra = prepare(g.scene, 1.1, 3); terra.holder.rotation.set(0.1, 0.5, 0); turn.add(terra.holder); });
-  loader.load(`${BASE}models/snpp.glb`, (g) => { if (disposed) return; snpp = prepare(g.scene, 1.0, 4); snpp.holder.rotation.set(0, -0.6, 0); turn.add(snpp.holder); });
+  const draco = new DRACOLoader(heroManager).setDecoderPath(`${BASE}draco/`); // the NASA models are Draco-compressed
+  const heroLoader = new GLTFLoader(heroManager).setDRACOLoader(draco);
+  const satelliteLoader = new GLTFLoader(satelliteManager).setDRACOLoader(draco);
+  heroLoader.load(`${BASE}models/aqua.glb`, (g) => { if (disposed) return; aqua = prepare(g.scene, 1.15, 3); aqua.holder.rotation.set(0.1, 0.5, 0); turn.add(aqua.holder); });
+  satelliteLoader.load(`${BASE}models/terra.glb`, (g) => { if (disposed) return; terra = prepare(g.scene, 1.1, 3); terra.holder.rotation.set(0.1, 0.5, 0); turn.add(terra.holder); });
+  satelliteLoader.load(`${BASE}models/snpp.glb`, (g) => { if (disposed) return; snpp = prepare(g.scene, 1.0, 4); snpp.holder.rotation.set(0, -0.6, 0); turn.add(snpp.holder); });
 
   const S: K = { ...KF[0] };
   const keys = Object.keys(KF[0]) as (keyof K)[];

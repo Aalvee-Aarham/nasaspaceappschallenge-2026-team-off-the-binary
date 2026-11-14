@@ -1,4 +1,5 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { BurnedArea, KilnCheck, api, fmt } from "../api";
 import { Method as Evidence } from "../Record";
 import { Scorecard } from "./Proof";
 import { AreaSelect, PageHead, PageProps, useRegion } from "./shared";
@@ -18,9 +19,11 @@ const LIMITS = [
   "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals, schools and roads are an OpenStreetMap snapshot from the query date; farmland is ESA WorldCover 2021 cropland, one year of land cover. No fire perimeter, no smoke, no fire spread, no crop loss and no impact estimate.",
   "An outside event (EONET, GDACS) is one point on a fire that can span several cells and start before its first hotspots, so it is matched to the record in its 0.1° cell and the 8 around it, in the event month and the next. Those windows are judgement calls, not fitted. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen, and a witness whose search failed or does not reach back that far is shown as \"could not look\".",
   "The burned-area witness (MODIS MCD64A1) sums the burn scar mapped in the case cell and its 8 neighbours that month. It confirms fire on the ground, but its mapping is guided by MODIS active fires, so it is not fully independent of the hotspot record.",
-  "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
+  "No cloud-cover denominator yet, so cloudy months read low for every satellite alike. Observing days are global, not regional clear-sky opportunity.",
+  "Near-real-time rows carry no FIRMS type. Untyped heat anomalies outside the static mask remain in the vegetation series; the latest unclassified share is shown for each area.",
+  "The interval widening factor is fitted on a VIIRS-only denial reconstruction; its measured out-of-sample coverage is shown rather than assumed to be exactly 95%.",
   "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",
-  "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua's data changed after 2020 (orbit drift, and a new MODIS archive version); from the onset measured from the data the record uses VIIRS only, still on the Aqua 2002–2020 scale.",
+  "Terra to Aqua is the weakest link and is used only for 2000 to 2002. After 2020 the MODIS archive changed its reported acquisition times and version; from the measured onset the record uses VIIRS only, still on the Aqua 2002–2020 scale. That acquisition-time shift is an archive change, not a physical orbit drift.",
   "MODIS changes collection (6.03 to 61.03) at the start of 2023; this is listed but not yet step-tested.",
   "Near-real-time rows cannot be compared with standard processing from the mirror, so those months are labelled provisional, not adjusted.",
   "Brick-kiln evidence is a published Sentinel-2 kiln map (kiln structures in the 2024-25 dry season, about 8 in 10 right inside labelled footprints, about 2 in 10 outside) Black Marble night lights, a weak witness because city lights drown a kiln's, and Sentinel-1 radar contrast with the surroundings (dry season against monsoon), which also responds to buildings and moisture. It shows structures, not kilns in operation, and the map is licensed for non-commercial use.",
@@ -29,10 +32,93 @@ const LIMITS = [
   "The outlook drops cells whose typed history is 30% or more static sources; a new gas-flare field can look above normal until FIRMS types it.",
 ];
 
+/** What the independent checks found. A check that has not been run reads as "not done", never as a zero. */
+function Validation({ burned, kilns }: { burned: BurnedArea | null; kilns: KilnCheck | null }) {
+  if (!burned && !kilns) {
+    return <p className="muted">Neither independent check has been run in this deployment. They are run by
+      <code>scripts/validation/burned_area.py</code> and <code>scripts/validation/kilns.py</code> and their
+      results are published here when they complete.</p>;
+  }
+  return (
+    <>
+      {burned && (
+        <div className="method-body">
+          <p><b>Burned area (NASA MCD64A1 C6.1).</b> Burned area is an independent physical measurement: it
+            counts the pixels that changed, not the fires a satellite saw. The harmonized record is compared
+            with it month by month over {burned.window.first.slice(0, 4)}–{burned.window.last.slice(0, 4)} in
+            {" "}{Object.keys(burned.per_area).length} areas.</p>
+          <table className="tbl">
+            <thead><tr><th>Series against burned area</th><th>Rank correlation (median of the areas)</th></tr></thead>
+            <tbody>
+              <tr><td>Harmonized Aqua-scale estimate</td><td className="num">{fmt(burned.summary.median_spearman_harmonized_vs_burned, 2)}</td></tr>
+              <tr><td>Raw all-sensor detections</td><td className="num">{fmt(burned.summary.median_spearman_raw_vs_burned, 2)}</td></tr>
+            </tbody>
+          </table>
+          <p><b>The 2012 step.</b> VIIRS Suomi-NPP joined in 2012. MCD64A1 is built from MODIS alone, so burned
+            area must not move when VIIRS arrives. The same twelve calendar months of 2012 against the same
+            months of 2009–2011, as a ratio:</p>
+          <table className="tbl">
+            <thead><tr><th>Series</th><th>2012 ÷ 2009–2011</th></tr></thead>
+            <tbody>
+              <tr><td>Raw all-sensor detections</td><td className="num">×{fmt(burned.summary.median_step_2012_raw, 2)}</td></tr>
+              <tr><td>Harmonized Aqua-scale estimate</td><td className="num">×{fmt(burned.summary.median_step_2012_harmonized, 2)}</td></tr>
+              <tr><td>Burned area (independent)</td><td className="num">×{fmt(burned.summary.median_step_2012_burned_area, 2)}</td></tr>
+            </tbody>
+          </table>
+          <p className="muted small">The raw count jumps, burned area does not, so the jump was an instrument
+            change and not a change on the ground. {burned.summary.areas_harmonized_at_least_as_good_as_raw != null &&
+              <>The harmonized record tracks burned area at least as well as the raw counts in{" "}
+                {burned.summary.areas_harmonized_at_least_as_good_as_raw} of {burned.summary.areas_compared} areas. </>}
+            {Object.keys(burned.catalogue_gaps ?? {}).length > 0 &&
+              <>The Planetary Computer mirror is missing a few product months; they are listed in the file and left
+                out of the comparison. </>}</p>
+        </div>
+      )}
+      {kilns && (
+        <div className="method-body">
+          <p><b>Brick kilns (APAD inventory, {kilns.area.name}).</b> The published persistent-heat cells are
+            compared with the {kilns.inventory.name} list of operating kilns, and with randomly placed cells of
+            the same number in the same area:</p>
+          <table className="tbl">
+            <thead><tr><th>Match radius</th><th>Cells on a kiln</th><th>By chance</th><th>Kilns covered</th><th>By chance</th></tr></thead>
+            <tbody>
+              {kilns.results.map((r) => (
+                <tr key={r.radius_km}>
+                  <td>{r.radius_km} km</td>
+                  <td className="num">{r.cells_matching_a_kiln} of {r.published_cells} ({fmt(r.precision * 100, 1)}%)</td>
+                  <td className="num">{fmt(r.random_baseline_precision * 100, 1)}%</td>
+                  <td className="num">{r.kilns_matching_a_cell} of {r.inventory_kilns_in_area} ({fmt(r.recall * 100, 1)}%)</td>
+                  <td className="num">{fmt(r.random_baseline_recall * 100, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="warn">{kilns.verdict}</p>
+          <p className="muted small">Inventory: {kilns.inventory.name}, {kilns.inventory.licence}, retrieved
+            {" "}{kilns.inventory.retrieved_at.slice(0, 10)} (SHA-256 {kilns.inventory.sha256.slice(0, 12)}…). The
+            Sentinel-2 kiln map behind the Bangladesh page is a second, independent inventory; it reaches the same
+            conclusion about the persistent-heat class.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function MethodPage({ regions }: PageProps) {
   const [rid, setRid] = useState("");
   const id = rid || regions.find((r) => r.preset)?.id || regions[0]?.id || null;
   const { region, err } = useRegion(id);
+  const [burned, setBurned] = useState<BurnedArea | null>(null);
+  const [kilns, setKilns] = useState<KilnCheck | null>(null);
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    let live = true;
+    Promise.all([api.burnedArea(), api.kilnCheck("dhaka-kilns")]).then(([b, k]) => {
+      if (!live) return;
+      setBurned(b); setKilns(k); setChecked(true);
+    });
+    return () => { live = false; };
+  }, []);
   return (
     <>
       <PageHead kicker="How it works" title="Proof" lead="How MODIS and every VIIRS satellite are put on one scale, how that is tested on years the calibration never saw, and what the result does not mean." />
@@ -118,13 +204,20 @@ export default function MethodPage({ regions }: PageProps) {
       </section>
 
       <section>
+        <h2>Checked against other data</h2>
+        <p>Checks that run outside the pipeline and publish their results, whether they pass or not. A check that
+          fails, or that has not been run, is written down as such: no result is ever quietly omitted.</p>
+        {checked ? <Validation burned={burned} kilns={kilns} /> : <div className="skeleton tall" />}
+      </section>
+
+      <section>
         <h2>Known limitations</h2>
         <ul className="plain">{LIMITS.map((l) => <li key={l}>{l}</li>)}</ul>
       </section>
 
       <section>
         <h2>Data and credits</h2>
-        <p className="small">We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS). Detections via the Portolan FIRMS mirror (CC0). Imagery: NASA GIBS. Night lights: NASA Black Marble (VIIRS Day/Night Band) via GIBS. Events: NASA EONET and GDACS (European Commission JRC, UN OCHA). News: The GDELT Project and Google News RSS (personal, non-commercial use). Place names: OpenStreetMap Nominatim. Base map: OpenFreeMap and OpenStreetMap contributors. Kiln Watch is an independent project and not an official NASA product.</p>
+        <p className="small">We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS). Burned area for the area-level check is NASA MCD64A1 Collection 6.1, from the LP DAAC via the public Planetary Computer catalogue; the per-case burned-area witness uses the same product through Google Earth Engine. The APAD brick-kiln inventory (CC BY 4.0) backs the independent kiln cross-check. Detections via the Portolan FIRMS mirror (CC0). Imagery: NASA GIBS. Night lights: NASA Black Marble (VIIRS Day/Night Band) via GIBS. Events: NASA EONET and GDACS (European Commission JRC, UN OCHA). News: The GDELT Project and Google News RSS (personal, non-commercial use). Place names: OpenStreetMap Nominatim. Base map: OpenFreeMap and OpenStreetMap contributors. Kiln Watch is an independent project and not an official NASA product.</p>
       </section>
     </>
   );

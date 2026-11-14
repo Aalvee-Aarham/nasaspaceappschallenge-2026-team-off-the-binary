@@ -427,16 +427,31 @@ function AlertForm({ regionId, name, median, onAlert, go }: { regionId: string; 
 function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean; onDrop: (t: string) => void; go: PageProps["go"] }) {
   const [state, setState] = useState<Record<string, AlertState | "gone" | "err">>({});
   const [test, setTest] = useState<Record<string, string>>({});
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!online || mine.length === 0) return;
     let live = true;
-    const load = () => mine.forEach((m) => api.alert(m.token)
-      .then((a) => live && setState((s) => ({ ...s, [m.token]: a })))
-      .catch((e) => live && setState((s) => ({ ...s, [m.token]: /unknown alert/.test(e.message) ? "gone" : "err" }))));
+    const pending = new Set(mine.map((m) => m.token));
+    const load = async () => {
+      await Promise.all(mine.map(async (m) => {
+        try {
+          const a = await api.alert(m.token);
+          if (!live) return;
+          setState((s) => ({ ...s, [m.token]: a }));
+          if (a.status === "running") pending.add(m.token); else pending.delete(m.token);
+        } catch (e) {
+          if (!live) return;
+          const message = e instanceof Error ? e.message : String(e);
+          setState((s) => ({ ...s, [m.token]: /unknown alert/.test(message) ? "gone" : "err" }));
+          pending.delete(m.token);
+        }
+      }));
+      if (live && pending.size) timer = setTimeout(load, 10000); // only builds need automatic polling
+    };
+    let timer = 0;
     load();
-    const t = setInterval(load, 10000); // building areas finish within minutes
-    return () => { live = false; clearInterval(t); };
-  }, [mine, online]);
+    return () => { live = false; clearTimeout(timer); };
+  }, [mine, online, tick]);
   const sendTest = (t: string) => {
     setTest((s) => ({ ...s, [t]: "sending…" }));
     api.sendTest(t).then((r) => setTest((s) => ({ ...s, [t]: r.sent ? `sent: ${r.subject}` : r.reason ?? "not sent" })))
@@ -483,6 +498,7 @@ function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean
             </div>
             <div className="row">
               {ok?.confirmed && <button className="btn ghost" onClick={() => sendTest(m.token)}>Send test email</button>}
+              <button className="btn ghost" onClick={() => setTick((n) => n + 1)}>Refresh status</button>
               <a className="btn ghost" href={api.workflowUrl(m.token)} download>n8n</a>
               <button className="btn ghost" onClick={remove}>Delete</button>
             </div>

@@ -25,6 +25,22 @@ def test_presets_have_transfer_validation():
     assert not empty, f"transfer_validation is null in: {empty} (run: cd server && python -m kw.build --transfer-only)"
 
 
+def test_map_cells_reconcile_with_the_calendar():
+    """The map cells of a month must add up to that month's calendar value.
+
+    The cells use the area's sensor weights, so the two agree by construction; what is left is rounding.
+    """
+    for d in sorted(p for p in REGIONS.iterdir() if (p / "grid.json").exists()):
+        monthly, grid = (json.loads((d / f"{n}.json").read_text(encoding="utf-8")) for n in ("monthly", "grid"))
+        values = monthly["classes"]["veg"]["hotspots"]["v"]
+        for i, period in enumerate(monthly["periods"]):
+            rows = grid["months"].get(period)
+            if not rows or values[i] is None:
+                continue
+            total = sum(v for _, v in rows)
+            assert abs(total - values[i]) <= 0.01 + 0.001 * abs(values[i]), f"{d.name} {period}: {total} vs {values[i]}"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
