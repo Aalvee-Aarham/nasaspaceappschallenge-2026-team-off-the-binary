@@ -345,7 +345,7 @@ The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m 
 The worldwide fire months behind "Is fire near you?" (`data/global/fire_season.parquet`, committed): `python -m kw.globe season`.
 Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
 Record-level independent checks: `python scripts/validation/kilns.py` and `uv run --with rasterio --with numpy --with planetary-computer python scripts/validation/burned_area.py` (results committed in `data/validation/`).
-Analyst keys: set `GEMINI_API_KEY` and optional fallbacks `GEMINI_API_KEYS=key2,key3,...` in a git-ignored `.env` (and as
+Analyst keys: set `GROQ_API_KEY` (primary), plus `GEMINI_API_KEY` and optional fallbacks `GEMINI_API_KEYS=key2,key3,...` in a git-ignored `.env` (and as
 secrets on Azure and Vercel). The analyst moves to the next key when one hits its free-tier quota, is overloaded or is
 refused, and uses the `gemini-flash-latest` alias so a retired model version does not break it. Never commit keys.
 MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
@@ -453,7 +453,7 @@ Detections are not fires and not burned area. Kiln Watch is an independent proje
 |---|---|---|
 | Claude Fable 5.2, Gemini Argon | Planning: brief, literature and rules review, method design | Public challenge page, papers, NASA/NOAA docs |
 | Claude Opus (Claude Code), Gemini Flash | Developing and writing code, running builds and tests | Our source code; public FIRMS data |
-| Gemini Flash, `gemini-flash-latest` (optional, at run time) | In-app analyst that puts tool results into words | Pipeline output only; every tool call is shown |
+| Groq `gpt-oss-120b`, Gemini Flash as fallback (optional, at run time) | In-app analyst: picks which deterministic algorithms answer a question; the algorithms write the answer | The question, screen state and algorithm list only (~1K tokens); never pipeline data. Every algorithm run is shown |
 
 No AI system produces any number in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
 

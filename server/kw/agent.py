@@ -1,13 +1,13 @@
-"""In-app analyst on Google Gemini's free tier (key from https://aistudio.google.com/apikey, env GEMINI_API_KEY).
-
-The model never computes a measurement: it can only call the deterministic tools below, and every call is
-returned to the UI as a visible trace. UI tools (ui_*) are not executed here — they are handed back to the
-browser, which moves the map / calendar.
+"""In-app analyst. The language model only routes: it reads the question plus a one-line catalogue of the
+deterministic algorithms below and replies with which to run and their arguments, in one small call (~1K tokens).
+The algorithms compute and word the judgment themselves (_SAY), so no pipeline data is ever sent to the model and
+every number in the answer comes from the pipeline. Groq first (GROQ_API_KEY), Gemini keys as fallbacks.
+UI steps (ui_*) are not executed here: they are handed back to the browser, which moves the map / calendar.
 """
+import calendar
 import json
 import os
 import re
-import time
 import urllib.error
 import urllib.request
 
@@ -15,231 +15,305 @@ import datetime as dt
 
 from . import charts, news_more, outlook, tools
 
-# gemini-flash-latest was measured hanging 60 s+ on tool calls while gemini-2.5-flash answers in ~2 s, so pin the fast one.
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")   # an alias: follows Google's current Flash, so a retired version never breaks the analyst
-MAX_STEPS = 8
-ASK_BUDGET_S = 45  # below the hosted 60 s function budget; the API has a deterministic fallback
+FALLBACK = "gemini-flash-lite-latest"  # tried when the main model is overloaded or silent
+# Groq's free tier allows 8K tokens/minute per model; a rate-limited model hands over to the next, then Gemini
+GROQ_MODELS = [m.strip() for m in os.environ.get("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b").split(",") if m.strip()]
+GROQ_MODEL = GROQ_MODELS[0]
+MAX_STEPS = 4
 
-SYSTEM = """You are the analyst inside Kiln Watch, a web app that harmonizes NASA FIRMS MODIS and VIIRS active-fire
-detections into one consistent 2000-present record per area.
-Rules:
-- Only state numbers that appear in tool results. Never estimate, extrapolate or invent values, dates or sources.
-- Name the tool a number came from in brackets, e.g. [get_period].
-- The primary unit is "hotspots on the Aqua MODIS scale": the vegetation-fire detections Aqua MODIS would have
-  recorded. It is not burned area and not a count of fires. Raw counts are not comparable across satellite eras.
-- Compare periods with the median, percentile and rank among years from the tools; never use sigma language.
-- A lack of news reports is never evidence that nothing happened, and reports are matched by place/date only.
-- The early warning is a climatological outlook (this month vs earlier years), never a forecast or an official alert.
-- Prefer moving the user's view with ui_* tools when it helps (select region, period, change view) — then explain.
-- Format in Markdown: put the key numbers, levels and the verdict in **bold**; use short bullet lists for several
-  points; no tables wider than 3 columns. Be brief: 2-6 sentences or a short list.
-- When a trend, season or comparison helps, call show_chart (it draws an animated chart from the pipeline under your
-  answer; describe it in one sentence, never restate all its numbers). At most 2 charts per answer.
-- For the current (unfinished) month always use early_warning, which compares the same days in earlier years; never
-  rank a month in progress with get_period. Round hotspot counts to whole numbers.
-- For any place name, call find_place first; query_hotspots and get_outlook work for any box without building.
-- Today's date is in [app state] as "today"; "recent", "last N days" and "next 30 days" are relative to it.
-- For fire cases or who lives near fire, call fire_cases / fire_case / exposure (place_exposure for one school, hospital or farm), and open them for the user with
-  ui_show_cases (optionally one verdict, e.g. agency_only, or one case_id).
-- A case witness that abstains means the source could not see. Never describe an absent witness as a negative finding.
-- Exposure is context, not impact. Never say who was affected, reached or endangered. Say how many people and
-  facilities lie in the cells where detections were recorded. Fire on farmland is not crop loss: say how often fire is
-  detected on farmland cells and in which months.
-- If a tool fails or data is missing, say so plainly."""
+CATALOGUE = """list_regions(): the built areas
+region_summary(region_id): key findings, long-term trend, most active years
+get_period(region_id, period): one finished month 'YYYY-MM' or ISO week 'YYYY-Www' against the same period in other years
+find_anomalies(region_id, granularity='month'|'week'): the most unusual periods on record
+evidence(region_id, period): daily detections, peak day, FIRMS map and Worldview links behind a period
+reports(region_id, period): news and NASA EONET reports for one period
+timeline_reports(region_id, start, end): reports month by month ('YYYY-MM') matched to the record
+early_warning(region_id): the month in progress vs the same days in earlier years, and the usual next 4 weeks
+check_watchlist(min_level='elevated'|'watch'|'normal'): built areas at or above a warning level
+fire_cases(region_id, verdict?): fire cases heard by independent witnesses; verdict 'agency_only' = fires the record does not show
+fire_case(region_id, case_id): one case and what each witness said
+exposure(region_id, period?): people, hospitals, schools, roads, farmland in the cells where fire was detected
+place_exposure(region_id, lat, lon): fire history at one point (a school, hospital or farm)
+casebook_overview(): cases and exposure for every built area
+place_risk(place): fire near any named place on Earth: last 7 days, usual season, 30-day outlook
+find_place(query): locate a place and the built areas overlapping it
+get_outlook(place?): climatological 30-day outlook in a place, or worldwide without a place
+query_hotspots(place, start?, end?): raw detections per satellite in any place ('YYYY-MM-DD', default last 14 days)
+annual_series(region_id): per year, harmonized hotspots vs raw detections
+season_profile(region_id): typical season start/peak/end, season trends, year-to-date rank
+compare_areas(region_ids): 2-6 built areas side by side
+situation_brief(region_id): a full written brief
+latest_fire_news(days=3): worldwide wildfire headlines of the last 1-30 days
+show_chart(kind, region_id?, region_ids?, month?, place?, start?, end?): draw a chart; kind one of """ + "|".join(charts.KINDS) + """
+ui_select_region(region_id) | ui_select_period(period) | ui_set_view(granularity?, scale?, tab?) | ui_show_cases(verdict?, case_id?): move the app's view"""
 
-_S = {"type": "STRING"}
-_N = {"type": "NUMBER"}
-_period = {"type": "STRING", "description": "'YYYY-MM' month or ISO week 'YYYY-Www'"}
-DECLS = [
-    {"name": "list_regions", "description": "Areas with harmonized records (presets and custom areas).",
-     "parameters": {"type": "OBJECT", "properties": {}}},
-    {"name": "region_summary", "description": "Trend tests, sensor-transition step tests, hold-out validation and totals for an area.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "get_period", "description": "Harmonized value with 95% interval, anomaly, raw per-sensor counts and coverage for one period.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": _period}, "required": ["region_id", "period"]}},
-    {"name": "find_anomalies", "description": "Periods ranking highest against the same month/week in other years.",
-     "parameters": {"type": "OBJECT", "properties": {
-         "region_id": _S, "granularity": {"type": "STRING", "enum": ["month", "week"]},
-         "min_percentile": {"type": "NUMBER"}, "top_n": {"type": "INTEGER"}}, "required": ["region_id"]}},
-    {"name": "evidence", "description": "Daily detections, strongest detections and FIRMS/Worldview links behind one period.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": _period}, "required": ["region_id", "period"]}},
-    {"name": "reports", "description": "Search NASA EONET and GDELT news for reports matching the area and period.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": _period}, "required": ["region_id", "period"]}},
-    {"name": "timeline_reports", "description": "News/event reports over a month range, matched month by month to the record, with a rule-based agreement verdict.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "start": {"type": "STRING", "description": "'YYYY-MM'"},
-                                                     "end": {"type": "STRING", "description": "'YYYY-MM'"}}, "required": ["region_id", "start", "end"]}},
-    {"name": "early_warning", "description": "Early-warning outlook for an area: level, this month vs the same days in earlier years, the usual next four weeks.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "check_watchlist", "description": "Built areas at or above a warning level (elevated, watch or normal), most serious first.",
-     "parameters": {"type": "OBJECT", "properties": {"min_level": {"type": "STRING", "enum": ["elevated", "watch", "normal"]}}}},
-    {"name": "fire_cases", "description": "Fire cases with independent witnesses (the harmonized record, a MODIS-versus-VIIRS cross-check, NASA EONET, GDACS and the press) and an agreement verdict; verdict='agency_only' returns the fires the record does not show.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "verdict": _S}, "required": ["region_id"]}},
-    {"name": "exposure", "description": "Population, hospitals and major roads in the cells where the record shows fire. Context, not an impact estimate: population is modelled 2020 data, and there is no fire perimeter.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "period": {"type": "STRING", "description": "optional 'YYYY-MM' month"}}, "required": ["region_id"]}},
-    {"name": "place_exposure", "description": "Fire history at one point (a school, hospital or farm): months with fire in its 11 km cell since 2000, last month, usual season, nearby cells, and the people, schools, hospitals and cropland there. Detections, not burned area or crop loss.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "lat": {"type": "NUMBER"}, "lon": {"type": "NUMBER"}}, "required": ["region_id", "lat", "lon"]}},
-    {"name": "fire_case", "description": "One fire case with what every witness said (the record, the MODIS-vs-VIIRS check, EONET, GDACS, the press) and its verdict. case_id comes from fire_cases.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S, "case_id": _S}, "required": ["region_id", "case_id"]}},
-    {"name": "casebook_overview", "description": "For every built area: number of fire cases, how many the record missed, people/hospitals/roads in the fire cells, and which sources failed.",
-     "parameters": {"type": "OBJECT", "properties": {}}},
-    {"name": "find_place", "description": "Look up any place name: centre, a 0.5-4 degree box (west,south,east,north), built areas overlapping it.",
-     "parameters": {"type": "OBJECT", "properties": {"query": _S}, "required": ["query"]}},
-    {"name": "get_outlook", "description": "Climatological 30-day outlook cells (watch/above/season) inside a box, or worldwide summary without a box.",
-     "parameters": {"type": "OBJECT", "properties": {"west": _N, "south": _N, "east": _N, "north": _N}}},
-    {"name": "query_hotspots", "description": "Raw FIRMS detections per day and satellite for any box (<=400 sq deg) and dates (<=366 days, default last 14 days).",
-     "parameters": {"type": "OBJECT", "properties": {"west": _N, "south": _N, "east": _N, "north": _N,
-                                                     "start": {"type": "STRING", "description": "YYYY-MM-DD"}, "end": {"type": "STRING", "description": "YYYY-MM-DD"}},
-                    "required": ["west", "south", "east", "north"]}},
-    {"name": "annual_series", "description": "Per year: harmonized hotspots vs raw detections of all satellites for an area.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "season_profile", "description": "Typical fire-season start/peak/end (ISO weeks), peak months, trends, year-to-date rank.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "compare_areas", "description": "2-6 built areas side by side: level, peak months, trend, last 10 years.",
-     "parameters": {"type": "OBJECT", "properties": {"region_ids": {"type": "ARRAY", "items": _S}}, "required": ["region_ids"]}},
-    {"name": "situation_brief", "description": "Markdown situation brief for a built area (level, month, next 30 days, events, trend).",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "latest_fire_news", "description": "Worldwide wildfire headlines and events of the last 1-30 days.",
-     "parameters": {"type": "OBJECT", "properties": {"days": {"type": "INTEGER"}}}},
-    {"name": "show_chart", "description": "Draw a chart under the answer from pipeline data. kind: annual (raw vs harmonized per year), "
-     "month_across_years (one calendar month every year; give month 'YYYY-MM'), recent_months, recent_weeks, season (fire year so far "
-     "vs earlier years), anomalies, box_daily (needs west/south/east/north/start/end), compare_months (typical month-by-month "
-     "season of 2-6 areas; give region_ids).",
-     "parameters": {"type": "OBJECT", "properties": {"kind": {"type": "STRING", "enum": list(charts.KINDS)}, "region_id": _S,
-                                                     "region_ids": {"type": "ARRAY", "items": _S},
-                                                     "month": _S, "west": _N, "south": _N, "east": _N, "north": _N, "start": _S, "end": _S},
-                    "required": ["kind"]}},
-    {"name": "ui_select_region", "description": "Open an area in the app.",
-     "parameters": {"type": "OBJECT", "properties": {"region_id": _S}, "required": ["region_id"]}},
-    {"name": "ui_show_cases", "description": "Open the Cases & exposure panel on the map for the open area, optionally filtered to one verdict or with one case selected.",
-     "parameters": {"type": "OBJECT", "properties": {"verdict": {"type": "STRING", "enum": ["corroborated", "agency_only", "satellite_only", "reported", "abstained", "insufficient"]}, "case_id": _S}}},
-    {"name": "ui_select_period", "description": "Highlight a calendar cell and open its details.",
-     "parameters": {"type": "OBJECT", "properties": {"period": _period}, "required": ["period"]}},
-    {"name": "ui_set_view", "description": "Change the calendar view.",
-     "parameters": {"type": "OBJECT", "properties": {
-         "granularity": {"type": "STRING", "enum": ["month", "week"]},
-         "scale": {"type": "STRING", "enum": ["hotspots", "viirs", "celldays", "raw"]},
-         "tab": {"type": "STRING", "enum": ["calendar", "vs_median", "season", "continuity"]}}}},
-]
+ROUTER = """You route questions in Kiln Watch, an app with a harmonized 2000-present record of NASA FIRMS satellite fire
+detections per area. You never answer with numbers: you pick deterministic algorithms that compute the answer.
+Reply with JSON only: {"steps":[{"algo":"<name>","args":{...}}],"note":"<optional one short sentence, no numbers>"}
+- 1-4 steps. Use the open area and period from [state] when the question names no other.
+- The month in progress needs early_warning, never get_period. "Recent" and "this month" are relative to today in [state].
+- A place that is not a built area: place_risk, get_outlook or query_hotspots with "place".
+- Add show_chart for trends, seasons or comparisons, and a ui_* step when moving the view helps.
+- Greeting or a question about the app itself: no steps, answer in "note".
+Algorithms:
+""" + CATALOGUE
+
+
+def _box(a):
+    if all(a.get(k) is not None for k in ("west", "south", "east", "north")):
+        return [a["west"], a["south"], a["east"], a["north"]]
+    if a.get("place"):
+        p = tools.find_place(a["place"])
+        if p.get("found"):
+            return p["bbox"]
+        raise ValueError(f"place not found: {a['place']}")
+    return None
+
+
+def _outlook(a):
+    box = _box(a)
+    return outlook.in_box(box, limit=15) if box else outlook.get()
+
+
+def _hotspots(a):
+    a.setdefault("end", str(dt.date.today()))
+    a.setdefault("start", str(dt.date.fromisoformat(a["end"]) - dt.timedelta(days=13)))
+    box = _box(a)
+    if not box:
+        raise ValueError("query_hotspots needs a place")
+    return tools.global_hotspots(box, a["start"], a["end"])
+
 
 _RUN = {
     "list_regions": lambda a: tools.list_regions(),
     "region_summary": lambda a: tools.region_summary(a["region_id"]),
     "get_period": lambda a: tools.get_period(a["region_id"], a["period"]),
     "find_anomalies": lambda a: tools.find_anomalies(a["region_id"], a.get("granularity", "month"),
-                                                     float(a.get("min_percentile", 90.0)), int(a.get("top_n", 8))),
-    "evidence": lambda a: _trim_evidence(tools.evidence(a["region_id"], a["period"])),
+                                                     float(a.get("min_percentile", 90.0)), int(a.get("top_n", 5))),
+    "evidence": lambda a: tools.evidence(a["region_id"], a["period"]),
     "reports": lambda a: tools.reports(a["region_id"], a["period"]),
-    "timeline_reports": lambda a: _trim_timeline(tools.timeline_reports(a["region_id"], a["start"], a["end"])),
+    "timeline_reports": lambda a: tools.timeline_reports(a["region_id"], a["start"], a["end"]),
     "early_warning": lambda a: tools.early_warning(a["region_id"]),
     "check_watchlist": lambda a: tools.warnings(a.get("min_level", "watch")),
     "fire_cases": lambda a: tools.list_cases(a["region_id"], a.get("verdict") or None, int(a.get("limit", 20))),
-    "exposure": lambda a: {k: v for k, v in tools.exposure(a["region_id"], a.get("period") or None).items() if k != "map_cells"},
+    "exposure": lambda a: tools.exposure(a["region_id"], a.get("period") or None),
     "place_exposure": lambda a: tools.exposure_place(a["region_id"], a["lat"], a["lon"]),
     "fire_case": lambda a: tools.get_case(a["region_id"], a["case_id"]),
     "casebook_overview": lambda a: tools.casebook_overview(),
-    "find_place": lambda a: tools.find_place(a["query"]),
-    "get_outlook": lambda a: _outlook(a),
-    "query_hotspots": lambda a: _hotspots(a),
+    "place_risk": lambda a: tools.place_risk(query=a.get("place") or a.get("query"), facilities=False),
+    "find_place": lambda a: tools.find_place(a.get("query") or a.get("place")),
+    "get_outlook": _outlook,
+    "query_hotspots": _hotspots,
     "annual_series": lambda a: tools.annual(a["region_id"]),
     "season_profile": lambda a: tools.season_profile(a["region_id"]),
     "compare_areas": lambda a: tools.compare_areas(a["region_ids"]),
     "situation_brief": lambda a: tools.briefing(a["region_id"]),
-    "latest_fire_news": lambda a: {**(r := news_more.latest(int(a.get("days", 3)))), "items": [
-        {k: i.get(k) for k in ("title", "date", "source", "outlet")} for i in r["items"][:40]]},
+    "latest_fire_news": lambda a: news_more.latest(int(a.get("days", 3))),
 }
 
 
-def _outlook(a):
-    if all(a.get(k) is not None for k in ("west", "south", "east", "north")):
-        return outlook.in_box([a["west"], a["south"], a["east"], a["north"]], limit=15)
-    o = outlook.get()
-    return {k: o[k] for k in ("as_of", "next_30_days", "counts", "regions", "rule", "caveat")} | {"classes": outlook.CLASSES}
+# ---- the judgment: each algorithm's result in a few sentences, written from the result alone ----
+
+def _n(x):
+    return f"{x:,.0f}" if isinstance(x, (int, float)) else "n/a"
 
 
-def _hotspots(a):
-    a.setdefault("end", str(dt.date.today()))
-    a.setdefault("start", str(dt.date.fromisoformat(a["end"]) - dt.timedelta(days=13)))
-    r = tools.global_hotspots([a["west"], a["south"], a["east"], a["north"]], a["start"], a["end"])
-    return {**r, "daily": r["daily"][-120:]}
+def _months(ms):
+    return ", ".join(calendar.month_name[m] for m in ms or [])
 
 
-def _trim_timeline(t):
-    return {**t, "items": [{k: i.get(k) for k in ("title", "date", "source", "outlet", "relevant", "fire")} for i in t["items"][:40]]}
+def _trend(t):
+    if not t or t.get("p") is None:
+        return "Long-term trend: not enough data."
+    y = f", {t['years'][0]}-{t['years'][1]}" if t.get("years") else ""
+    return (f"Seasonal Mann-Kendall test on monthly harmonized hotspots{y}: Sen slope {t['sen_per_year']} per year, p = {t['p']}"
+            + (" (no significant trend)." if t["p"] >= 0.05 else "."))
 
 
-def _trim_evidence(e):
-    e = dict(e)
-    e["daily"] = e["daily"][:60]
-    e["top_detections"] = e["top_detections"][:10]
-    return e
+def _items(items, k=5):
+    return [f"- [{i.get('title')}]({i['url']}) ({i.get('date')}, {i.get('outlet') or i.get('source')})" if i.get("url")
+            else f"- {i.get('title')} ({i.get('date')}, {i.get('outlet') or i.get('source')})" for i in (items or [])[:k]]
 
+
+def _failed(sources):
+    bad = [s["name"] for s in sources or [] if s.get("error") or s.get("searched") is False]
+    return [f"_Could not search: {', '.join(bad)} (unavailable, not 'nothing found')._"] if bad else []
+
+
+def _say_period(r, a):
+    v, h = r["hotspots_aqua_scale"], r.get("vs_history") or {}
+    out = [f"**{r['period']}**: **{_n(v['value'])}** hotspots on the Aqua MODIS scale (95% interval {_n(v['ci95'][0])}-{_n(v['ci95'][-1])})."]
+    if h.get("rank"):
+        out.append(f"Median of the same period in other years: **{_n(h.get('median_same_period'))}**; rank **{h['rank']} of {h['of_years']}** "
+                   f"({_n(h.get('percentile'))}th percentile).")
+    out.append(f"Raw detections, all satellites: {_n(r.get('raw_detections_all_satellites'))} (not comparable across satellite eras).")
+    if r.get("partial"):
+        out.append("_This period is still in progress; the early warning compares the same days in earlier years._")
+    return out
+
+
+def _say_warning(r, a):
+    nx, out = r.get("next_4_weeks") or {}, [f"**{r['name']}**: early-warning level **{r['level'].upper()}**. {r['headline']}"]
+    if nx.get("median") is not None:
+        out.append(f"The next four weeks usually bring **{_n(nx['median'])}** hotspots (10th-90th percentile {_n(nx['p10'])}-{_n(nx['p90'])}).")
+    if (y := r.get("year_to_date")) and y.get("rank"):
+        out.append(f"Fire year so far: **{_n(y['value'])}** hotspots, rank {y['rank']} of {y['n']} (median {_n(y['median'])}).")
+    return out + ["_Climatological outlook from history, not a forecast or an official alert._"]
+
+
+def _say_cases(r, a):
+    c = r["counts"]
+    out = [f"**{r['total']}** fire cases: " + ", ".join(f"{k.replace('_', ' ')} **{v}**" for k, v in c.items() if v) + "."]
+    out += [f"- {x['title']} ({x['date']}): {x.get('verdict_label') or x['verdict']} [case {x['id']}]" for x in r["cases"][:5]]
+    return out + _failed(r.get("sources")) + [f"_{r['caveat']}_"]
+
+
+def _say_case(r, a):
+    w = r.get("witnesses") or {}
+    seen = [f"{k.replace('_', ' ')}: {v.get('state')}" for k, v in w.items() if isinstance(v, dict) and v.get("state")]
+    out = [f"**{r['title']}** ({r['date']}): verdict **{r.get('verdict_label') or r['verdict']}**.", "Witnesses: " + ("; ".join(seen) or "none reported") + "."]
+    if isinstance(w.get("unavailable"), dict) and w["unavailable"]:
+        out.append("Could not look: " + "; ".join(f"{k} ({v})" for k, v in w["unavailable"].items()) + ".")
+    return out + ([r["note"]] if r.get("note") else [])
+
+
+def _say_exposure(r, a):
+    when = f" in {r['period']}" if r.get("period") else " since 2000"
+    return [f"Cells with fire detected{when}: **{_n(r['fire_cells'])}**. They hold **{_n(r['population'])}** people (modelled 2020), "
+            f"**{_n(r.get('hospitals'))}** hospitals, {_n(r.get('clinics'))} clinics, **{_n(r.get('schools'))}** schools and "
+            f"{_n(r.get('major_roads') if not isinstance(r.get('major_roads'), list) else len(r['major_roads']))} major roads.",
+            f"_{r['caveat']}_"]
+
+
+def _say_place_exposure(r, a):
+    if not r.get("in_record"):
+        return ["That point is outside the area's record."]
+    return [f"In this {r['cell_km2']} km² cell, fire was detected in **{r['months_with_fire']} of {r['months_in_record']}** months, "
+            f"last in **{r.get('last_fire') or 'never'}**; {r['neighbours_with_fire']} neighbouring cells also had fire.",
+            f"The cell holds {_n(r.get('population'))} people (modelled 2020), {_n(r.get('hospitals'))} hospitals, "
+            f"{_n(r.get('schools'))} schools and {_n(r.get('cropland_km2'))} km² of cropland.", f"_{r['caveat']}_"]
+
+
+def _say_outlook(r, a):
+    c = r["counts"]
+    out = [f"30-day outlook from {r['next_30_days'][0]}: **{_n(c.get('watch'))}** watch cells (season ahead and already above normal), "
+           f"{_n(c.get('above'))} above normal, {_n(c.get('season'))} in an active season."]
+    out += [f"- {g['name']}: {g['watch_cells']} watch cells" for g in (r.get("regions") or [])[:5]]
+    return out + ["_What the next 30 days usually bring, from history; not a forecast._"]
+
+
+def _say_hotspots(r, a):
+    t = r["totals_by_satellite"]
+    out = [f"Raw detections {r['start']} to {r['end']}: " + ", ".join(f"{s} **{_n(v['vegetation'])}**" for s, v in t.items()) + "."]
+    out += [f"- Busiest cell {c['lat']}, {c['lon']}: {c['detections']} detections" for c in r.get("top_cells", [])[:3]]
+    return out + [f"_{r['note']}_"]
+
+
+def _say_reports(r, a):
+    s = r["assessment"]
+    return ([f"**{s['label']}** (record rank {s.get('rank')} of {s.get('of_years')}); **{s.get('reports_found', 0)}** reports found."]
+            + _items(r.get("items")) + _failed(r.get("sources")) + [f"_{s.get('caveat', '')}_"])
+
+
+def _say_timeline(r, a):
+    v = r["verdict"]
+    out = [f"**{v['label']}**."] + _items([i for i in r["items"] if i.get("relevant") is not False])
+    if v.get("sources_failed"):
+        out.append(f"_Could not search: {', '.join(v['sources_failed'])} (unavailable, not 'nothing found')._")
+    return out
+
+
+def _say_place_risk(r, a):
+    return [f"**{r['place']['name']}**: level **{r['level']}**. {r['headline']}", *[f"- {x}" for x in r.get("reasons") or []], f"_{r['caveat']}_"]
+
+
+def _say_compare(r, a):
+    return [f"- **{x['name']}**: {x['level']}; peaks in {_months(x.get('peak_months'))}. {_trend(x.get('trend_full_harmonized'))}"
+            for x in r["areas"]]
+
+
+def _say_season(r, a):
+    w, y = r.get("typical_season_iso_weeks") or {}, r.get("year_to_date") or {}
+    out = [f"**{r['name']}**: peak months {_months(r.get('peak_months'))} hold {r.get('peak_share_pct')}% of a year's hotspots."]
+    if w:
+        out.append(f"Typical season: starts ISO week {w['start']}, peaks week {w['peak']}, ends week {w['end']} ({r.get('season_length_weeks')} weeks).")
+    if y.get("rank"):
+        out.append(f"Fire year so far: rank {y['rank']} of {y['n']}.")
+    return out
+
+
+def _say_annual(r, a):
+    full = [x for x in r if x.get("complete", True)]
+    top = sorted(full, key=lambda x: -x["harmonized"])[:3]
+    return ["Most active complete years (harmonized): " + ", ".join(f"**{x['year']}** ({_n(x['harmonized'])})" for x in top) + ".",
+            "Last years: " + ", ".join(f"{x['year']} {_n(x['harmonized'])}" for x in r[-6:]) + ".",
+            "_Raw detection counts grow with each new satellite and are not comparable across eras; the harmonized values are._"]
+
+
+_SAY = {
+    "list_regions": lambda r, a: ["Built areas: " + ", ".join(f"**{x['name']}** (`{x['id']}`)" for x in r) + "."],
+    "region_summary": lambda r, a: [f"**{r['name']}**", *[f"- {s}" for s in r["answers"]], f"- {_trend((r.get('trend_full') or {}).get('harmonized'))}"],
+    "get_period": _say_period,
+    "find_anomalies": lambda r, a: ["Most unusual periods:", *[
+        f"- **{x['period']}**: {_n(x['hotspots_aqua_scale']['value'])} hotspots, {(x['vs_history'].get('ratio_to_median') or 0):.1f}x the median, "
+        f"{_n(x['vs_history'].get('percentile'))}th percentile" for x in r]],
+    "evidence": lambda r, a: [f"Peak day **{r['peak_day']['date']}** with {r['peak_day']['detections']} detections; "
+                              f"{r['low_confidence_excluded']['excluded']} of {r['low_confidence_excluded']['of']} low-confidence detections excluded.",
+                              f"[FIRMS map]({r['links']['firms_map']}) · [Worldview]({r['links']['worldview']})", f"_{r['note']}_"],
+    "reports": _say_reports,
+    "timeline_reports": _say_timeline,
+    "early_warning": _say_warning,
+    "check_watchlist": lambda r, a: [f"**{r['count']}** areas at this level or above:",
+                                     *[f"- **{x['name']}**: {x['level']}. {x['headline']}" for x in r["alerts"]], f"_{r['disclaimer']}_"],
+    "fire_cases": _say_cases,
+    "fire_case": _say_case,
+    "exposure": _say_exposure,
+    "place_exposure": _say_place_exposure,
+    "casebook_overview": lambda r, a: [f"- **{x['name']}**: {x['cases']['total']} cases, {x['cases']['counts'].get('agency_only', 0)} not in the record; "
+                                       f"{_n((x.get('exposure') or {}).get('population'))} people in fire cells" for x in r["areas"]] + [f"_{r['caveat']}_"],
+    "place_risk": _say_place_risk,
+    "find_place": lambda r, a: [f"**{r['display_name']}** ({r['lat']}, {r['lon']})." + (
+        " Built areas here: " + ", ".join(f"`{b['id']}`" for b in r["built_areas_overlapping"]) if r.get("built_areas_overlapping") else
+        " No built area covers it.")] if r.get("found") else ["Place not found."],
+    "get_outlook": _say_outlook,
+    "query_hotspots": _say_hotspots,
+    "annual_series": _say_annual,
+    "season_profile": _say_season,
+    "compare_areas": _say_compare,
+    "situation_brief": lambda r, a: [r["markdown"]],
+    "latest_fire_news": lambda r, a: ["Latest wildfire headlines:", *_items(r.get("items"), 8)],
+}
+
+
+# ---- model calls: Groq first, then each Gemini key ----
 
 def available():
     return bool(os.environ.get("GROQ_API_KEY") or _keys())
 
 
-# Groq's free tier allows 8K tokens/minute per model and one analyst step is ~3K, so a rate-limited model hands over to the next
-GROQ_MODELS = [m.strip() for m in os.environ.get("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b").split(",") if m.strip()]
-GROQ_MODEL = GROQ_MODELS[0]
-
-
-def _lower_types(s):
-    """Gemini schemas use 'STRING'/'OBJECT'; JSON Schema (Groq/OpenAI) wants lowercase."""
-    if isinstance(s, dict):
-        return {k: (v.lower() if k == "type" and isinstance(v, str) else _lower_types(v)) for k, v in s.items()}
-    return [_lower_types(v) for v in s] if isinstance(s, list) else s
-
-
 def _groq(payload):
-    """Primary model: Groq's OpenAI-compatible API. Takes and returns the Gemini shapes the rest of this file uses."""
+    """Groq's OpenAI-compatible API, taking and returning the Gemini payload shape the rest of this file uses."""
     msgs = [{"role": "system", "content": payload["systemInstruction"]["parts"][0]["text"]}] if "systemInstruction" in payload else []
-    ids = []  # tool-call ids of the last assistant turn, matched in order to the functionResponse parts that follow
-    for c in payload["contents"]:
-        parts = c.get("parts", [])
-        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
-        calls = [p["functionCall"] for p in parts if "functionCall" in p]
-        resps = [p["functionResponse"] for p in parts if "functionResponse" in p]
-        if c.get("role") == "model":
-            ids = [f"call_{len(msgs)}_{i}" for i in range(len(calls))]
-            m = {"role": "assistant", "content": text or None}
-            if calls:
-                m["tool_calls"] = [{"id": i, "type": "function", "function": {"name": f["name"], "arguments": json.dumps(f.get("args") or {})}}
-                                   for i, f in zip(ids, calls)]
-            msgs.append(m)
-        elif resps:
-            msgs += [{"role": "tool", "tool_call_id": i, "content": json.dumps(r["response"], default=str)} for i, r in zip(ids, resps)]
-        else:
-            msgs.append({"role": "user", "content": text})
+    msgs += [{"role": "assistant" if c.get("role") == "model" else "user", "content": "".join(p.get("text", "") for p in c.get("parts", []))}
+             for c in payload["contents"]]
     body = {"messages": msgs, "temperature": payload.get("generationConfig", {}).get("temperature", 0.2)}
-    if payload.get("tools"):
-        body["tools"] = [{"type": "function", "function": _lower_types(d)} for d in payload["tools"][0]["functionDeclarations"]]
     for n, model in enumerate(GROQ_MODELS):
         req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps({**body, "model": model}).encode(),
                                      headers={"Content-Type": "application/json", "User-Agent": "kiln-watch",
                                               "Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
-                msg = json.load(r)["choices"][0]["message"]
+                text = json.load(r)["choices"][0]["message"].get("content") or ""
             break
         except urllib.error.HTTPError as ex:
             if ex.code not in (429, 498, 500, 502, 503) or n == len(GROQ_MODELS) - 1:  # rate limit or overload: next model
                 raise
-    text = re.sub(r"<think>.*?</think>", "", msg.get("content") or "", flags=re.S).strip()  # qwen inlines its reasoning
-    if payload.get("generationConfig", {}).get("responseMimeType") == "application/json":  # no JSON mode for arrays: cut the fences/prose
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()  # qwen inlines its reasoning
+    if payload.get("generationConfig", {}).get("responseMimeType") == "application/json":  # cut code fences / prose around the JSON
         lo, hi = min((text.find(b) for b in "[{" if b in text), default=0), max(text.rfind("]"), text.rfind("}"))
         text = text[lo:hi + 1] if hi >= lo else text
-    parts = ([{"text": text}] if text else []) + [
-        {"functionCall": {"name": t["function"]["name"], "args": json.loads(t["function"].get("arguments") or "{}") or {}}}
-        for t in msg.get("tool_calls") or []]
-    return {"candidates": [{"content": {"role": "model", "parts": parts}}], "_model": f"groq/{model}"}
-
-
-FALLBACK = "gemini-flash-lite-latest"  # tried when the main model is overloaded or silent
-
-
-def _call(contents):
-    return _post({"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": contents,
-                  "tools": [{"functionDeclarations": DECLS}], "generationConfig": {"temperature": 0.2}})
+    return {"candidates": [{"content": {"role": "model", "parts": [{"text": text}]}}], "_model": f"groq/{model}"}
 
 
 def _keys():
@@ -263,10 +337,6 @@ def _post(payload):
 
 
 def _post_gemini(payload):
-    for c in payload.get("contents", []):  # tool calls Groq made carry no signature; Gemini 3 accepts this documented placeholder
-        for p in c.get("parts", []):
-            if "functionCall" in p:
-                p.setdefault("thoughtSignature", "skip_thought_signature_validator")
     body = json.dumps(payload).encode()
     keys, why = _keys(), []
     if not keys:
@@ -308,8 +378,13 @@ def _post_key(body, key):
             raise RuntimeError(f"Gemini did not answer in time ({ex}).") from None
 
 
+def _text(res):
+    parts = ((res.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [{}]
+    return "".join(p.get("text", "") for p in parts if not p.get("thought"))
+
+
 def classify_headlines(titles, area):
-    """Gemini labels each headline: does it report a vegetation fire (wildfire, forest, grass, crop, peat) burning in
+    """The model labels each headline: does it report a vegetation fire (wildfire, forest, grass, crop, peat) burning in
     or near the area? Returns a list of True/False in input order. Only filters what is counted; never adds data.
     Asks for the numbers of the matching headlines (robust to long lists), 60 headlines per request."""
     labels, model = [], MODEL
@@ -322,68 +397,61 @@ def classify_headlines(titles, area):
                   f"Reply with only a JSON array of the matching headline numbers (0 to {len(chunk) - 1}).\n\n{numbered}")
         res = _post({"contents": [{"role": "user", "parts": [{"text": prompt}]}],
                      "generationConfig": {"temperature": 0, "responseMimeType": "application/json"}})
-        parts = ((res.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [{}]
-        hits = json.loads("".join(p.get("text", "") for p in parts if not p.get("thought")) or "[]")
+        hits = json.loads(_text(res) or "[]")
         if not isinstance(hits, list):
-            raise RuntimeError("Gemini did not return a list of headline numbers")
+            raise RuntimeError("the model did not return a list of headline numbers")
         keep = {int(x) for x in hits if isinstance(x, (int, float, str)) and str(x).strip().isdigit()}
         labels += [i in keep for i in range(len(chunk))]
         model = res.get("_model", MODEL)
     return labels, model
 
 
+# ---- the analyst ----
+
+def route(message, history=None, context=None):
+    """One model call: which algorithms answer this question. Sends only the catalogue, the area list, the screen
+    state and the last question - never pipeline data."""
+    state = {"today": str(dt.date.today()), **{k: v for k, v in (context or {}).items() if isinstance(v, (str, int, float)) and len(str(v)) < 80}}
+    areas = "; ".join(f"{r['id']}={r['name']}" for r in tools.list_regions())
+    prev = [m["text"][:200] for m in (history if isinstance(history, list) else []) if isinstance(m, dict) and m.get("role") == "user" and m.get("text")][-1:]
+    msg = f"[state] {json.dumps(state)}\n[built areas] {areas}\n" + (f"[previous question] {prev[0]}\n" if prev else "") + f"[question] {message[:1000]}"
+    res = _post({"systemInstruction": {"parts": [{"text": ROUTER}]}, "contents": [{"role": "user", "parts": [{"text": msg}]}],
+                 "generationConfig": {"temperature": 0, "responseMimeType": "application/json"}})
+    try:
+        plan = json.loads(_text(res))
+    except ValueError:
+        raise RuntimeError("the model did not return a plan") from None
+    steps = [s for s in (plan.get("steps") or []) if isinstance(s, dict) and isinstance(s.get("algo"), str)][:MAX_STEPS]
+    return steps, str(plan.get("note") or "")[:300], res.get("_model", MODEL)
+
+
 def ask(message, history=None, context=None):
     if not available():
         raise RuntimeError("Set GROQ_API_KEY (free at https://console.groq.com/keys) or GEMINI_API_KEY to enable the analyst.")
-    # the model does not know today's date: without it "the last 14 days" lands in its training year
-    ctx = json.dumps({"today": str(dt.date.today()), **(context or {})})
-    contents = [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in (history if isinstance(history, list) else [])[-8:]
-                if isinstance(m, dict) and m.get("role") in ("user", "model") and m.get("text")]
-    contents.append({"role": "user", "parts": [{"text": f"[app state: {ctx}]\n{message}"}]})
-    trace, actions, shown, calls_made = [], [], [], []
-    nudged = False
-    deadline = time.monotonic() + ASK_BUDGET_S
-    for _ in range(MAX_STEPS):
-        if time.monotonic() >= deadline:
-            raise RuntimeError(f"the analyst ran out of its {ASK_BUDGET_S}s budget; here are the record's own findings")
-        res = _call(contents)
-        cand = (res.get("candidates") or [{}])[0]
-        content = cand.get("content") or {"role": "model", "parts": []}
-        contents.append(content)  # echo verbatim so thought signatures survive
-        calls = [p["functionCall"] for p in content.get("parts", []) if "functionCall" in p]
-        if not calls:
-            text = "".join(p.get("text", "") for p in content.get("parts", []) if not p.get("thought"))
-            if not text.strip() and trace and not nudged:  # Gemini sometimes ends silently after tool calls
-                nudged = True
-                contents.append({"role": "user", "parts": [{"text": "Now write the answer for me from the tool results above."}]})
-                continue
-            return {"answer": text.strip() or "(no answer)", "trace": trace, "actions": actions, "model": res.get("_model", MODEL),
-                    "charts": (shown or charts.auto(calls_made))[:2]}
-        replies = []
-        for c in calls:
-            name, args = c.get("name"), c.get("args") or {}
+    steps, note, model = route(message, history, context)
+    rid = (context or {}).get("region_id")
+    trace, actions, shown, calls_made, blocks = [], [], [], [], [note] if note else []
+    for s in steps:
+        name, args = s["algo"], s.get("args") if isinstance(s.get("args"), dict) else {}
+        if rid and name in _RUN:
+            args.setdefault("region_id", rid)  # the open area, when the router named none
+        ok = True
+        try:
             if name.startswith("ui_"):
                 actions.append({"name": name, "args": args})
-                result = {"ok": True}
             elif name == "show_chart":
-                try:
-                    box = [args[k] for k in ("west", "south", "east", "north")] if "west" in args else None
-                    spec = charts.build(args.get("kind"), args.get("region_id"), args.get("month"), box, args.get("start"), args.get("end"),
-                                       args.get("region_ids"))
-                    shown.append(spec)
-                    result = {"ok": True, "title": spec["title"], "points": len(spec["x"])}
-                except Exception as ex:
-                    result = {"error": str(ex)}
+                shown.append(charts.build(args.get("kind"), args.get("region_id") or rid, args.get("month"), _box(args),
+                                          args.get("start"), args.get("end"), args.get("region_ids")))
             elif name in _RUN:
-                try:
-                    result = _RUN[name](args)
-                    calls_made.append((name, args))
-                except Exception as ex:
-                    result = {"error": str(ex)}
+                r = _RUN[name](args)
+                calls_made.append((name, args))
+                blocks.append("\n".join(_SAY[name](r, args)))
             else:
-                result = {"error": f"unknown tool {name}"}
-            trace.append({"tool": name, "args": args, "ok": "error" not in (result if isinstance(result, dict) else {})})
-            replies.append({"functionResponse": {"name": name, "response": {"result": result}}})
-        contents.append({"role": "user", "parts": replies})
-    return {"answer": "Stopped after too many tool calls; try a narrower question.", "trace": trace,
-            "actions": actions, "model": res.get("_model", MODEL), "charts": shown[:2]}
+                ok = False
+                blocks.append(f"_Unknown algorithm {name}._")
+        except Exception as ex:
+            ok = False
+            blocks.append(f"_{name} could not run: {ex}_")
+        trace.append({"tool": name, "args": args, "ok": ok})
+    answer = "\n\n".join(b for b in blocks if b) or "I could not match that to an algorithm. Try naming an area and a month."
+    return {"answer": answer, "trace": trace, "actions": actions, "model": model, "charts": (shown or charts.auto(calls_made))[:2]}
