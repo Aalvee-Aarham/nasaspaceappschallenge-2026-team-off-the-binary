@@ -13,7 +13,7 @@ import time
 
 import duckdb
 
-from . import news
+from . import cases, news
 from . import science as sc
 from .build import OUT, build_region, write_index
 from .firms import CACHE, CONF_SQL, LIVE_TTL_S, SENSORS, connect, fetch_year
@@ -586,3 +586,49 @@ def briefing(region_id):
           "_Satellite hotspots, harmonized across MODIS and VIIRS (Aqua MODIS scale). Detections are not confirmed fires "
           "and not burned area. Compared with history; not a forecast or an official alert._"]
     return {"region_id": region_id, "markdown": "\n".join(L), "level": ew["level"], "as_of": ew["as_of"]}
+
+
+def list_cases(region_id, verdict=None, limit=50):
+    """Fire cases for an area, each with its witnesses and an agreement verdict."""
+    if verdict and verdict not in cases.VERDICTS:
+        raise ValueError(f"verdict must be one of: {', '.join(cases.VERDICTS)}")
+    c = _read(region_id, "cases")
+    rows = [x for x in c["cases"] if not verdict or x["verdict"] == verdict]
+    return {"region_id": region_id, "as_of": c["built_at"], "data_through": c.get("data_through"), "counts": c["counts"],
+            "sources": c["sources"], "caveat": c.get("caveat", cases.CAVEAT), "total": len(rows), "cases": rows[:limit]}
+
+
+def get_case(region_id, case_id):
+    for x in _read(region_id, "cases")["cases"]:
+        if x["id"] == case_id:
+            return x
+    raise NotFound(f"no case '{case_id}' in '{region_id}'")
+
+
+def exposure(region_id, period=None):
+    """Population and infrastructure in the 0.1 degree cells where the record shows fire. Context, not impact."""
+    if period and not (len(period) == 7 and period[4] == "-" and period[:4].isdigit() and period[5:].isdigit() and 1 <= int(period[5:]) <= 12):
+        raise ValueError("period must be a calendar month, 'YYYY-MM'")
+    try:
+        ex = _read(region_id, "exposure")
+    except NotFound:
+        raise NotFound(f"no exposure layer built for '{region_id}'")
+    grid = _read(region_id, "grid")
+    fire = {ci for ci, _ in grid["months"].get(period, [])} if period else {ci for rows in grid["months"].values() for ci, _ in rows}
+    cells = ex["cells"]                                      # [lat, lon, population, hospitals, clinics]: index-parallel with grid.cells
+    err = ex["infrastructure"].get("errors") or {}
+    pop = sum(cells[ci][2] for ci in fire)
+    hosp = [dict(zip(ex["hospital_columns"], h)) for h in ex["hospitals"] if h[3] in fire]
+    roads = [dict(zip(ex["road_columns"], r)) for r in ex["roads"] if fire.intersection(r[4])]
+    for h in hosp:
+        h["cell"] = grid["cells"][h["cell"]]
+    for r in roads:
+        r["cells"] = [grid["cells"][ci] for ci in r["cells"] if ci in fire]
+    return {"region_id": region_id, "period": period, "fire_cells": len(fire), "population": pop,
+            "population_source": ex["population"],
+            "hospitals": None if "hospitals" in err else sum(cells[ci][3] for ci in fire),
+            "clinics": None if "hospitals" in err else sum(cells[ci][4] for ci in fire),
+            "hospital_list": [] if "hospitals" in err else hosp[:50],
+            "major_roads": None if "roads" in err else len(roads), "road_list": [] if "roads" in err else roads[:50],
+            "errors": err, "truncated": ex["infrastructure"].get("truncated"), "scope": ex["infrastructure"].get("scope"),
+            "built_at": ex["built_at"], "caveat": ex["caveat"]}

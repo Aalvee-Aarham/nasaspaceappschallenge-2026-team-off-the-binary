@@ -104,6 +104,22 @@ def get_situation_brief(region_id: str) -> dict:
     return tools.briefing(region_id)
 
 
+@mcp.tool(title="Fire cases", annotations=RO)
+def get_fire_cases(region_id: str, verdict: str = "", limit: int = 20) -> dict:
+    """Fire cases for an area with independent witnesses (the harmonized record, a MODIS-against-VIIRS cross-check,
+    NASA EONET, GDACS and the press) and an agreement verdict. verdict='agency_only' returns the fires the record
+    does not show. A witness that could not see says so: missing reports are never evidence that nothing happened."""
+    return tools.list_cases(region_id, verdict or None, max(1, min(limit, 200)))
+
+
+@mcp.tool(title="Exposure in the fire cells", annotations=RO)
+def get_exposure(region_id: str, period: str = "") -> dict:
+    """Population, hospitals and major roads in the 0.1 degree cells where the harmonized record shows fire. A context
+    layer, not an impact estimate: there is no fire perimeter, no smoke and no fire spread here, and population is
+    modelled 2020 data (WorldPop). period is an optional 'YYYY-MM' month."""
+    return tools.exposure(region_id, period or None)
+
+
 @mcp.tool(title="Early warning for an area", annotations=RO)
 def get_early_warning(region_id: str) -> dict:
     """Climatological early warning for a built area: level (elevated/watch/normal/quiet/insufficient), this month

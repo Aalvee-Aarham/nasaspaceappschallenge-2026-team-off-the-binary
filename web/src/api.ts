@@ -13,6 +13,7 @@ export type ClassBlock = {
   viirs_scale: Band & { modelled: boolean[] };
   celldays: Band;
   aqua_only: Num[];
+  viirs_only?: Num[];   // absent in files built before the casebook
   history: History;
 };
 export type RawSensor = { det: number[]; det_D: number[]; det_N: number[]; celldays: number[]; frp: number[]; static_det: number[] };
@@ -55,6 +56,8 @@ export type Meta = {
   steps: Record<string, { period: string; raw_all_sensors: Num; aqua_only: Num; harmonized: Num; raw_all_sensors_excess?: Num; harmonized_excess?: Num }>;
   placebo: { n: number; excess_p05: number; excess_median: number; excess_p95: number; dates: string } | null;
   trend: Record<"2003-2020" | "full", Record<"harmonized" | "aqua_only" | "raw_all_sensors", Trend>>;
+  features?: { cases?: { available: boolean; built_at?: string; count?: number; reason?: string }; exposure?: { available: boolean; built_at?: string; reason?: string } };
+  external_sources?: { name: string; role: string; url: string; vintage: string; license: string }[];
   drift: Record<string, [number, number][]>;
   warning_backtest?: { scored: boolean; by_day?: Record<string, { elevated?: { pss: Num; pod: Num; far: Num; hits: number; base_rate: Num } }> } | null;
   aqua_overpass?: { years: Record<string, number>; n: Record<string, number>; baseline_hour: Num; orbit_onset?: string | null; version_change?: { version: string; from: string } | null; onset: string | null; rule: string } | null;
@@ -67,6 +70,32 @@ export type Meta = {
   sensors: Record<string, { first: string; last: string; days: number }>;
   totals: { detections: number; static_detections: number; nrt_detections: number };
   provenance: { source: string; mirror: string; mirror_updated: string | null; license: string; acknowledgement: string; code_version: string; reproduce: string };
+};
+export type WitnessState = "fire" | "quiet" | "abstain";
+export type CaseVerdict = "corroborated" | "reported" | "satellite_only" | "agency_only" | "abstained" | "insufficient";
+export type CaseWitness = { source: string } & Record<string, any>;
+export type FireCase = {
+  id: string; title: string; date: string; lon: number; lat: number; place: string | null;
+  period: string; cell: [number, number]; cell_index: number | null;
+  witnesses: {
+    satellite: { state: WitnessState; reason: string | null; cell_hotspots: Num; cell_present: boolean; area_hotspots: Num;
+      ci95: [Num, Num] | null; percentile: Num; rank: Num; of_years: Num; coverage: Num; sensors: string[] };
+    cross_family: { state: WitnessState; reason: string | null; modis_only: Num; viirs_only: Num; ratio: Num; agrees: boolean | null };
+    agency: CaseWitness | null; disaster_system: CaseWitness | null; press: CaseWitness | null;
+  };
+  verdict: CaseVerdict; verdict_label: string; flags: string[]; note: string;
+};
+export type CasesResponse = {
+  region_id: string; as_of: string; data_through: string | null; counts: Record<CaseVerdict, number>;
+  sources: { name: string; role: string; searched: boolean; error: string | null; count: number; note: string | null; url: string | null }[];
+  caveat: string; total: number; cases: FireCase[];
+};
+export type ExposureResponse = {
+  region_id: string; period: string | null; fire_cells: number; population: number;
+  population_source: { source: string; url: string; vintage: number | string; method: string; note: string };
+  hospitals: number | null; clinics: number | null; hospital_list: { name: string; lat: number; lon: number; cell: [number, number] }[];
+  major_roads: number | null; road_list: { name: string; kind: string; lat: number; lon: number; cells: [number, number][] }[];
+  errors: Record<string, string>; truncated: Record<string, boolean> | null; scope: string | null; built_at: string; caveat: string;
 };
 export type Grid = { deg: number; cells: [number, number][]; months: Record<string, [number, number][]>; unit: string };
 export type StaticPts = { points: [number, number, number, number, number, number, number, number][] };
@@ -164,6 +193,9 @@ export const api = {
     .catch(() => json<{ regions: RegionItem[] }>("/data/regions/index.json"))
     .then((r) => r.regions),
   meta: (id: string) => json<Meta>(`/data/regions/${id}/meta.json`),
+  cases: (id: string, verdict?: string, limit = 200) =>
+    json<CasesResponse>(`/api/regions/${id}/cases?limit=${limit}${verdict ? `&verdict=${verdict}` : ""}`),
+  exposure: (id: string, period?: string) => json<ExposureResponse>(`/api/regions/${id}/exposure${period ? `?period=${period}` : ""}`),
   monthly: (id: string) => json<Block>(`/data/regions/${id}/monthly.json`),
   region: async (id: string): Promise<Region> => {
     const f = (n: string) => json<any>(`/data/regions/${id}/${n}.json`);

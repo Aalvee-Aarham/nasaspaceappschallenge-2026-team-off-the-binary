@@ -93,7 +93,8 @@ def eonet(bbox, start, end, limit=50):
         g = geo[-1]
         coords = g.get("coordinates") if g.get("type") == "Point" else None
         items.append({
-            "source": "NASA EONET", "title": ev.get("title"), "date": (g.get("date") or "")[:10],
+            "source": "NASA EONET", "id": ev.get("id"), "title": ev.get("title"), "date": (g.get("date") or "")[:10],
+            "start_date": ((ev.get("geometry") or [{}])[0].get("date") or "")[:10], "end_date": (ev.get("closed") or "")[:10],
             "url": (ev.get("sources") or [{}])[0].get("url") or ev.get("link"), "lang": "en",
             "outlet": ", ".join(s_.get("id", "") for s_ in ev.get("sources", [])),
             "lon": coords[0] if coords else None, "lat": coords[1] if coords else None,

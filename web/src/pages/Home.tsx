@@ -95,7 +95,7 @@ const TOUR: [string, string, Page | "punjab"][] = [
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
   ["Early warning", "And how often it was right in past years.", "warning"],
   ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
-  ["Ask Claude", "A 31-tool MCP server over the same record.", "mcp"],
+  ["Ask Claude", "A 33-tool MCP server over the same record.", "mcp"],
 ];
 const TILES: [string, Page][] = [
   ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],

@@ -2,7 +2,7 @@ import maplibregl, { GeoJSONSource, RasterTileSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { Outlook, Region, RegionItem, fmt, heat, ordinal } from "./api";
+import { FireCase, Outlook, Region, RegionItem, fmt, heat, ordinal } from "./api";
 
 export const FIRE_LAYERS = [
   { id: "VIIRS_NOAA20_Thermal_Anomalies_375m_All", label: "VIIRS NOAA-20", color: "#8BD17C", from: "2020-01-01" },
@@ -152,6 +152,9 @@ type Props = {
   focus: Focus | null;
   onDrawn: (bbox: number[]) => void;
   onPickRegion: (id: string) => void;
+  cases?: FireCase[] | null;       // the casebook layer, shown while the Cases tab is open
+  selCase?: string | null;
+  onPickCase?: (id: string) => void;
 };
 
 export default function MapView(p: Props) {
@@ -166,6 +169,8 @@ export default function MapView(p: Props) {
   outlookRef.current = p.outlook;
   const regionRef = useRef(p.region);
   regionRef.current = p.region;
+  const caseRef = useRef(p.onPickCase);
+  caseRef.current = p.onPickCase;
 
   useEffect(() => {
     const m = new maplibregl.Map({
@@ -204,6 +209,21 @@ export default function MapView(p: Props) {
           "circle-color": "#C9A2F2", "circle-opacity": 0.85, "circle-stroke-color": "#1B1430", "circle-stroke-width": 0.6,
         },
       });
+
+      // case points: colour is the second cue, the verdict word is in the popup and the table
+      m.addSource("cases", { type: "geojson", data: EMPTY });
+      m.addLayer({
+        id: "cases", type: "circle", source: "cases",
+        paint: {
+          "circle-radius": ["case", ["get", "sel"], 9, 6],
+          "circle-color": ["match", ["get", "v"], "agency_only", "#FF8A80", "corroborated", "#7FD4A0", "reported", "#7FB2EC",
+            "satellite_only", "#F6C64F", "#97A3B3"],
+          "circle-stroke-color": "#fff", "circle-stroke-width": ["case", ["get", "sel"], 2.5, 1], "circle-opacity": 0.95,
+        },
+      });
+      m.on("click", "cases", (e) => { const id = e.features?.[0]?.properties?.id; if (id) caseRef.current?.(id); });
+      m.on("mouseenter", "cases", () => (m.getCanvas().style.cursor = "pointer"));
+      m.on("mouseleave", "cases", () => (m.getCanvas().style.cursor = ""));
 
       addOutlookLayers(m);
       stopPulse = pulseOutlook(m);
@@ -256,6 +276,17 @@ export default function MapView(p: Props) {
     return () => { stopPulse(); m.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    (map.current!.getSource("cases") as GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: (p.cases ?? []).map((c) => ({
+        type: "Feature", properties: { id: c.id, v: c.verdict, sel: c.id === p.selCase },
+        geometry: { type: "Point", coordinates: [c.lon, c.lat] },
+      })),
+    });
+  }, [ready, p.cases, p.selCase]);
 
   // area outlines
   useEffect(() => {

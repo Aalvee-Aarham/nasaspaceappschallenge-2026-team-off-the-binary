@@ -15,6 +15,8 @@ const STEPS: [string, string][] = [
 ];
 
 const LIMITS = [
+  "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals and roads are an OpenStreetMap snapshot from the query date. No fire perimeter, no smoke, no fire spread and no impact estimate.",
+  "A fire case is matched to a 0.1° cell and a calendar month. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen.",
   "No cloud-cover denominator yet, so cloudy months read low for every satellite alike.",
   "Calibration is per area, calendar month and day/night. It is not stratified by land cover, fire size or scan angle, so a year with an unusual fire mix is biased.",
   "Terra to Aqua is the weakest link and is used only for 2000 to 2002. Aqua's data changed after 2020 (orbit drift, and a new MODIS archive version); from the onset measured from the data the record uses VIIRS only, still on the Aqua 2002–2020 scale.",
@@ -80,6 +82,17 @@ export default function MethodPage({ regions }: PageProps) {
           </tbody>
         </table>
         <p className="muted small">Each source is listed with its count and any error, so a failed source is never read as "no reports". Gemini may only drop headlines that are not about a vegetation fire there; it never adds data.</p>
+      </section>
+
+      <section>
+        <h2>Fire cases and their witnesses</h2>
+        <p>Every fire we publish is a case with several independent witnesses: the harmonized record, a MODIS-against-VIIRS cross-check, NASA EONET, GDACS and the press. A witness that could not see says so. Where an agency recorded a fire the record does not show, the case says that too. Absence of a report is never evidence of absence.</p>
+        <p className="muted small">The Cases tab in the Explorer lists them with a verdict: corroborated, reported, satellites only, record missed it, could not see, or nobody saw. The cross-check agreement band (within 25%) is a judgement band, not a statistical test.</p>
+      </section>
+
+      <section>
+        <h2>What is in the fire cells</h2>
+        <p>Population (WorldPop 2020, 1 km) and infrastructure (OpenStreetMap) inside the 0.1° cells where the record shows fire. This is a context layer: FIRMS gives detections, not a fire perimeter, so nothing here says the fire reached a place, and nothing here models smoke or fire spread. Population is modelled 2020 data.</p>
       </section>
 
       <section>

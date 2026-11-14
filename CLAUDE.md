@@ -16,7 +16,9 @@ NASA Space Apps 2026 "Harmonization of MODIS and VIIRS Hot Spots". One consisten
 - `server/kw/news.py` — NASA EONET + GDELT DOC (2017+) + optional ReliefWeb ; `news_more.py` adds Google News RSS, GDACS, worldwide feed, free-text place search
 - `server/kw/outlook.py` — worldwide 0.5° 30-day outlook from the global aggregate (rule `science.outlook_cell`)
 - `server/kw/alerts.py` — email (double opt-in, SMTP env) + n8n alerts; `personas.py` — Claude characters (MCP prompts, subagents); `charts.py` — analyst chart specs from pipeline data only
-- `server/kw/mcp_server.py` — 31 tools, 4 prompts, resources; also mounted by the API at `/mcp`
+- `server/kw/cases.py` — the casebook: fire cases heard by witnesses (record cell+area, MODIS-vs-VIIRS cross-check, EONET, GDACS, press), verdicts, `data/regions/<area>/cases.json`; `python -m kw.cases [area]` rebuilds it from the committed files
+- `scripts/build_exposure.py` — build-time only (needs `rasterio`): WorldPop 2020 + OSM hospitals/roads on the 0.1° grid → `exposure.json`; context, never impact
+- `server/kw/mcp_server.py` — 33 tools, 4 prompts, resources; also mounted by the API at `/mcp`
 - `web/src` — React + MapLibre UI (`App.tsx` shell + hash routing, `Map.tsx`, `Record.tsx` calendar/continuity/method, `Detail.tsx` cell inspector, `Timeline.tsx`, `Analyst.tsx` + `Chart.tsx`, `Loader.tsx` for every slow wait)
 - `web/src/pages/` — one file per page: `Warning` (early warning), `News`, `Data` (Download + Create), `Method`, `Connect` (MCP + n8n); `shared.tsx` has the page list
 - Early warning: rule in `science.warning_level`, assembly in `tools.early_warning`/`warnings`; keep it a climatological outlook, never a forecast

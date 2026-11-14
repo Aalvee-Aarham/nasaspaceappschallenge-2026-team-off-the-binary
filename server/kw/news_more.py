@@ -70,6 +70,7 @@ def gdacs(start, end, bbox=None):
         items.append({"source": "GDACS", "title": p.get("name") or p.get("description"), "date": (p.get("fromdate") or "")[:10],
                       "url": (p.get("url") or {}).get("report"), "lang": "en", "outlet": f"GDACS {p.get('alertlevel', '')} alert".strip(),
                       "lat": lat, "lon": lon, "severity": (p.get("severitydata") or {}).get("severitytext"),
+                      "burned_area_ha": (lambda sd: round(sd["severity"]) if sd.get("severityunit") == "ha" and sd.get("severity") is not None else None)(p.get("severitydata") or {}),
                       "country": p.get("country"), "to": (p.get("todate") or "")[:10], "alert": p.get("alertlevel")})
     return items, url
 
