@@ -59,7 +59,7 @@ export function Mcp(_: PageProps) {
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
   useEffect(() => { api.personas().then(setPs).catch(() => undefined); }, []);
-  const copy = (k: string, t: string) => navigator.clipboard?.writeText(t).then(() => { setCopied(k); setTimeout(() => setCopied(""), 1500); });
+  const copy = (k: string, t: string) => navigator.clipboard?.writeText(t).then(() => { setCopied(k); setTimeout(() => setCopied(""), 1500); }).catch(() => undefined);
   const nTools = TOOLS.reduce((a, [, l]) => a + l.reduce((b, [n]) => b + n.split(" / ").length, 0), 0);
   return (
     <>

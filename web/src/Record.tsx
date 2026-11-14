@@ -39,7 +39,7 @@ export function Calendar(p: CalProps) {
   const [focus, setFocus] = useState<string | null>(p.selected);
   const years = Array.from({ length: p.years[1] - p.years[0] + 1 }, (_, i) => p.years[0] + i);
   const fi = focus ? idx.get(focus) ?? null : null;
-  const gp = { ...p, years, idx, vmax, focus, onFocus: setFocus };
+  const gp = { ...p, years, idx, vmax, focus, onFocus: setFocus, s };
 
   return (
     <div className="calendar">
@@ -54,10 +54,10 @@ export function Calendar(p: CalProps) {
   );
 }
 
-type GridProps = Omit<CalProps, "years"> & { years: number[]; idx: Map<string, number>; vmax: number; focus: string | null; onFocus: (k: string | null) => void };
+type GridProps = Omit<CalProps, "years"> & { years: number[]; idx: Map<string, number>; vmax: number; focus: string | null; onFocus: (k: string | null) => void; s: ReturnType<typeof pick> };
 
 function cellStyle(b: Block, p: GridProps, i: number) {
-  const v = pick(b, p.scale, p.cls).v[i];
+  const v = p.s.v[i];
   if (v === null) return { cls: "nodata", bg: undefined, fg: undefined, text: "" };
   if (p.view !== "value") {
     const h = b.classes[p.cls].history;
@@ -69,7 +69,7 @@ function cellStyle(b: Block, p: GridProps, i: number) {
 }
 
 function ariaFor(b: Block, p: GridProps, i: number) {
-  const s = pick(b, p.scale, p.cls);
+  const s = p.s;
   const h = b.classes[p.cls].history;
   const parts = [`${periodLabel(b.periods[i])}: ${s.v[i] === null ? "no satellite observing" : `${fmt(s.v[i], 0)} ${SCALE_UNIT[p.scale]}`}`];
   if (h.rank[i] !== null) parts.push(`${ordinal(h.rank[i]!)} highest of ${h.n[i]} years`);
@@ -80,7 +80,7 @@ function ariaFor(b: Block, p: GridProps, i: number) {
 
 function MonthTable(p: GridProps) {
   const b = p.block;
-  const s = pick(b, p.scale, p.cls);
+  const s = p.s;
   const ref = useRef<HTMLTableElement>(null);
   const key = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`;
   const typical = Array.from({ length: 12 }, (_, m) => {
@@ -150,7 +150,14 @@ function WeekGrid(p: GridProps) {
     const i = p.idx.get(cur ?? "");
     if (i === undefined) return;
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onOpen(cur!); return; }
-    const d = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -52, ArrowDown: 52 } as Record<string, number>)[e.key];
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") { // same ISO week, previous/next year (not ±52 periods)
+      e.preventDefault();
+      const y = +cur!.slice(0, 4) + (e.key === "ArrowUp" ? -1 : 1), w = cur!.slice(6);
+      const t = p.idx.has(`${y}-W${w}`) ? `${y}-W${w}` : `${y}-W52`; // week 53 has no partner in most years
+      if (p.idx.has(t)) p.onFocus(t);
+      return;
+    }
+    const d = ({ ArrowLeft: -1, ArrowRight: 1 } as Record<string, number>)[e.key];
     if (d) { e.preventDefault(); p.onFocus(b.periods[Math.max(0, Math.min(b.periods.length - 1, i + d))]); }
   };
   return (
@@ -319,7 +326,7 @@ function annual(b: Block, vals: Num[]) {
     const y = +k.slice(0, 4);
     const cur = out.get(y) ?? { v: 0, partial: y === 2000 };
     cur.v += vals[i] ?? 0;
-    cur.partial ||= b.partial[i];
+    cur.partial ||= b.partial[i] || vals[i] == null; // a hole is not a zero
     out.set(y, cur);
   });
   return out;
@@ -374,7 +381,7 @@ export function Continuity({ r, cls }: { r: Region; cls: Cls }) {
       {wh && (
         <section>
           <h3>Rehearsal: the record without Suomi-NPP</h3>
-          <p>Rebuilding {wh.window.join(" to ")} with Suomi-NPP withheld keeps <b>{fmt((wh.inside_interval ?? 0) * 100, 0)}%</b> of {wh.n} months within the interval of the full record, with a mean difference of {fmt(wh.mean_abs_diff_pct, 1)}%.</p>
+          <p>Rebuilding {wh.window.join(" to ")} with Suomi-NPP withheld changes the record by <b>{fmt(wh.mean_abs_diff_pct, 1)}%</b> on average over {wh.n} months.</p>
         </section>
       )}
 
@@ -489,8 +496,9 @@ export function Method({ r, cls }: { r: Region; cls: Cls }) {
           </tbody>
         </table>
         <p className="muted small">
-          Before widening, the 95% intervals contained the observed value in {fmt((den.ours_seasonal_eb.interval_coverage_raw ?? 0) * 100, 0)}% of months.
-          {den.interval_scale > 1 ? ` Every interval that uses VIIRS is therefore widened ×${den.interval_scale.toFixed(2)}, which gives ${fmt((den.ours_seasonal_eb.interval_coverage ?? 0) * 100, 0)}% coverage.` : " No widening was needed."}
+          Before widening, the 95% intervals contained the observed value in {den.ours_seasonal_eb.interval_coverage_raw == null ? "—" : `${fmt(den.ours_seasonal_eb.interval_coverage_raw * 100, 0)}%`} of months.
+          {den.interval_scale > 1 ? ` Every interval that uses VIIRS is therefore widened ×${den.interval_scale.toFixed(2)}, which gives ${den.ours_seasonal_eb.interval_coverage == null ? "—" : `${fmt(den.ours_seasonal_eb.interval_coverage * 100, 0)}%`} coverage.` : " No widening was needed."}
+          {den.ours_seasonal_eb.interval_coverage_out_of_sample != null && ` Tested on months the widening never saw (factor fitted on 2017–2018, checked on 2019–2020): ${fmt(den.ours_seasonal_eb.interval_coverage_out_of_sample * 100, 0)}% coverage.`}
         </p>
       </section>
 
