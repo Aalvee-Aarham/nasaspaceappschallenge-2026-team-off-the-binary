@@ -166,6 +166,16 @@ def place(q: str = ""):
     return _guard(tools.find_place, q.strip()[:120])
 
 
+@app.get("/api/place-risk")
+def place_risk(q: str = "", lat: float | None = None, lon: float | None = None, radius_km: float = 10.0,
+               facilities: bool = True, label: str = ""):
+    """Is fire near ANY place on Earth? q = a place name or "lat, lon" (or pass lat and lon). Fire seen within
+    radius_km (1-25) in the last 7 days, the usual fire months there (2003-2025), the 30-day outlook, and the schools,
+    hospitals, clinics, care homes and fire stations nearby with their distance to that fire. No built area needed.
+    facilities=false skips the buildings (OpenStreetMap, the slow part when not cached) for a fast first answer."""
+    return _guard(tools.place_risk, q or None, lat, lon, radius_km, facilities, label or None)
+
+
 @app.get("/api/hotspots")
 def hotspots_any(west: float, south: float, east: float, north: float, start: str, end: str):
     """Raw detections per day and satellite for any box and window, from the global aggregate."""

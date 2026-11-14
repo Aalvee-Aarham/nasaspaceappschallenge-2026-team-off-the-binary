@@ -162,16 +162,16 @@ def geocode(q, limit=8):
             a = p.get("address", {})
             cc = (a.get("country_code") or "").lower()
             disp = str(p.get("display_name", q))
-            name = ", ".join(disp.split(",")[:2]).strip()
+            name = ", ".join(x.strip() for x in disp.split(",")[:2])
             places = list(dict.fromkeys([name.split(",")[0].strip(), *[v for v in (a.get("county"), a.get("state")) if v]]))
             candidates.append({"name": name, "display_name": disp, "country": a.get("country"), "country_code": cc,
-                               "lat": round(lat, 4), "lon": round(lon, 4),
+                               "lat": round(float(p.get("lat", lat)), 4), "lon": round(float(p.get("lon", lon)), 4),   # the place itself, not its box centre
                                "bbox": [round(max(-180, lon - hw), 2), round(max(-90, lat - hh), 2),
                                         round(min(180, lon + hw), 2), round(min(90, lat + hh), 2)],
                                "places": places, "lang": COUNTRY_LANG.get(cc, []) + ["en"]})
         first = dict(candidates[0])
         return {**first, "candidates": candidates}
-    return _cached(f"geo2:{q.strip().lower()}:{limit}", 365 * 86400, fetch)
+    return _cached(f"geo3:{q.strip().lower()}:{limit}", 365 * 86400, fetch)
 
 
 def search_place(place, start, end):

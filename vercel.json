@@ -7,7 +7,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{server/kw/**,data/regions/**,data/global/outlook.json,data/sensor_days.parquet}"
+      "includeFiles": "{server/kw/**,data/regions/**,data/global/outlook.json,data/global/fire_season.parquet,data/sensor_days.parquet}"
     }
   },
   "rewrites": [

@@ -465,3 +465,27 @@ def outlook_cell(fwd, back, now, floor=5):
     rising = season and usual >= 2 * max(quantiles(back, 11)[5] if len(back) > 1 else 0, 1)
     cls = "watch" if above and season else "above" if above else "season" if season else None
     return cls, round(usual, 1), round(p90, 1), pct, rising
+
+
+PLACE_RULE = ("near: a satellite saw vegetation fire within 5 km in the last 7 days. "
+              "watch: fire seen within the search distance in the last 7 days, or the place's 30-day outlook is 'watch' or "
+              "'above' (the last 30 days above normal), or fire was detected within the search distance in this or next "
+              "calendar month in at least half of the years 2003-2025. "
+              "season: the same in at least a fifth of those years, or the outlook says a usual fire season (at least 5 "
+              "hotspots in the next 30 days). low: none of these. unknown: the live check failed and nothing else applies. "
+              "History and satellite detections, never a forecast.")
+
+
+def place_level(fire_km, season_share, outlook_class, recent_ok=True, near_km=5.0):
+    """Plain-language fire level for one place or building. fire_km: distance to the nearest vegetation-fire
+    detection of the last 7 days inside the search distance (None when there was none); season_share: share of
+    years with fire nearby in this or next calendar month; outlook_class: the 0.5 degree outlook class or None.
+    ponytail: 5 km, 0.5 and 0.2 are judgement thresholds (0.5 matches the alerts' "usually"); tune with users."""
+    s = season_share or 0
+    if fire_km is not None and fire_km <= near_km:
+        return "near"
+    if fire_km is not None or outlook_class in ("watch", "above") or s >= 0.5:
+        return "watch"
+    if s >= 0.2 or outlook_class == "season":
+        return "season"
+    return "low" if recent_ok else "unknown"

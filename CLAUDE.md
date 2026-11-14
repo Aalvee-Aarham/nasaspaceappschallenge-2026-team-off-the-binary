@@ -20,10 +20,11 @@ NASA Space Apps 2026 "Harmonization of MODIS and VIIRS Hot Spots". One consisten
 - `scripts/build_exposure.py` — build-time only (needs `rasterio`): WorldPop 2020 + OSM hospitals/schools/roads + ESA WorldCover cropland on the 0.1° grid (`--add` adds schools and farmland to a built file) → `exposure.json`; context, never impact
 - `scripts/build_burned.py` — build-time only (needs `earthengine-api`, `EE_PROJECT` in `.env`): MODIS MCD64A1 burn scar per case → `burned_area.json`, applied by `python -m kw.cases <area>`
 - `scripts/build_kilns.py` — build-time only (Earth Engine + the raw FIRMS cache): Dhaka kiln inventory (deluair/bangladesh-brick-kilns, CC BY-NC), how little FIRMS sees of it, Black Marble night lights, Sentinel-1 radar contrast (one orbit, both seasons) → `kilns.json`. FIRMS cannot count kilns (measured: no better than random ground); never use it to find them
-- `server/kw/mcp_server.py` — 38 tools, 4 prompts, resources; also mounted by the API at `/mcp`
+- `server/kw/mcp_server.py` — 39 tools, 4 prompts, resources; also mounted by the API at `/mcp`
 - `web/src` — React + MapLibre UI (`App.tsx` shell + hash routing, `Map.tsx`, `Record.tsx` calendar/continuity/method, `Detail.tsx` cell inspector, `Timeline.tsx`, `Analyst.tsx` + `Chart.tsx`, `Loader.tsx` for every slow wait)
 - `web/src/pages/` — one file per page: `Warning` (early warning), `News`, `Data` (Download + Create), `Method`, `Connect` (MCP + n8n); `shared.tsx` has the page list
 - Early warning: rule in `science.warning_level`, assembly in `tools.early_warning`/`warnings`; keep it a climatological outlook, never a forecast
+- "Is fire near you?" (any place on Earth, top of the Cases & exposure page, `web/src/PlaceRisk.tsx`): `tools.place_risk` behind `GET /api/place-risk` and MCP `check_place_fire_risk`; last 7 days live from the FIRMS mirror, fire months from `data/global/fire_season.parquet` (`python -m kw.globe season`, committed, shipped by Dockerfile and vercel.json), outlook, OpenStreetMap buildings via Overpass (slow: the page asks with `facilities=false` first); rule in `science.place_level`
 
 ## Commands
 - Build presets: `cd server && python -m kw.firms && python -m kw.build`
@@ -37,3 +38,4 @@ NASA Space Apps 2026 "Harmonization of MODIS and VIIRS Hot Spots". One consisten
 - Detections are not fires and not burned area.
 - A witness that could not look (search failed, or the source does not reach back that far: GDELT 2017, GDACS 2021, MCD64A1 to its last month) is `unavailable[...]` with the reason, never "nothing found".
 - Never call FIRMS persistent heat sources "kilns": only 6 of 109 in Dhaka sit on a mapped kiln.
+- The place level is detections plus history, never a forecast or an official warning; a failed live check is `unknown`, never `low`.

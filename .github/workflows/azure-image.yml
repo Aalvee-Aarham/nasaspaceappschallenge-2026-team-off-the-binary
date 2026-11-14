@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [Dockerfile, "server/**", "web/**", "data/regions/**", "data/global/outlook.json", "data/*.parquet", "data/*.json"]
+    paths: [Dockerfile, "server/**", "web/**", "data/regions/**", "data/global/outlook.json", "data/global/fire_season.parquet", "data/*.parquet", "data/*.json"]
 jobs:
   image:
     runs-on: ubuntu-latest

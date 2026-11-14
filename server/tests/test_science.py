@@ -222,6 +222,18 @@ def test_contingency():
     assert sc.contingency([])["pod"] is None
 
 
+def test_place_level():
+    assert sc.place_level(2.0, 0, None) == "near"                  # fire seen 2 km away this week
+    assert sc.place_level(8.0, 0, None) == "watch"                 # fire inside the search distance, not close
+    assert sc.place_level(None, 0.6, None) == "watch"              # most years burn this month
+    assert sc.place_level(None, 0, "above") == "watch"             # the last 30 days were above normal
+    assert sc.place_level(None, 0.3, None) == "season"             # some years burn this month
+    assert sc.place_level(None, 0, "season") == "season"
+    assert sc.place_level(None, 0.1, None) == "low"
+    assert sc.place_level(None, 0.1, None, recent_ok=False) == "unknown"   # a failed live check is never "low"
+    assert sc.place_level(None, 0.6, None, recent_ok=False) == "watch"     # history alone still says something
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

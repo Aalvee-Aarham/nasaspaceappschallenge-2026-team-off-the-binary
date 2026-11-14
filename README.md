@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
   <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
-  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-38%20tools-3DDC97?style=for-the-badge" alt="MCP server, 38 tools"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-39%20tools-3DDC97?style=for-the-badge" alt="MCP server, 39 tools"></a>
 </p>
 
 <p align="center">
@@ -136,11 +136,29 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 </tr>
 <tr>
 <td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
-<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 38 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 38-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 39 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> A Gemini analyst and a 39-tool MCP server for Claude. The model writes the words; every number comes from the pipeline.</td>
 </tr>
 </table>
 
-**Cases & exposure.** Each fire case is heard by six witnesses (the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area, the news) and gets a plain verdict. Each witness that could not look says why. Beside it: how many people, hospitals and schools sit in the cells where fire was seen (context, never impact).
+**Is fire near you? (Cases & exposure page).** Type any town, village, school or address on Earth, or press
+"Use my location". In about ten seconds the page answers in plain words and pictures, for families and students as much
+as for fire managers and safety officers: a traffic-light level (fire close by, stay alert, fire season, low right now),
+the fire spots NASA satellites saw within 5, 10 or 25 km in the last 7 days, on a street map, how many of the last 23
+years had fire there this month, and the 30-day outlook. Then the schools, hospitals, clinics, care homes and fire
+stations around the place (OpenStreetMap), each with its distance to the nearest fire seen this week, and a one-click
+alert. No study area is needed: the fire months come from a 10 MB worldwide table built from the global FIRMS aggregate
+(`data/global/fire_season.parquet`, MODIS 2003-2025, one bit per year per calendar month per 0.1° cell), and the last
+7 days are read live from the public FIRMS mirror. Every source that could not answer says so; it is never shown as "no
+fire". A detection is heat seen from space, not a confirmed fire; history is not a forecast; this is not an official
+warning. The rule (`science.place_level`) is printed on the page.
+
+```bash
+curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
+```
+
+Same answer for Claude through the MCP tool `check_place_fire_risk`; every endpoint is listed at `/docs` on the API.
+
+**Nine study areas in depth.** Each fire case is heard by six witnesses (the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area, the news) and gets a plain verdict. Each witness that could not look says why. Beside it: how many people, hospitals and schools sit in the cells where fire was seen (context, never impact).
 
 **Bangladesh.** The Dhaka kiln belt is counted from a published kiln map and night lights, with NASA's fire product measured against it, not used to find kilns.
 
@@ -197,6 +215,7 @@ Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place bu
 Casebook witnesses (build time only; needs `pip install earthengine-api`, `earthengine authenticate` and `EE_PROJECT` in a git-ignored `.env`):
 `python scripts/build_burned.py && python -m kw.cases` (burned area), `python scripts/build_kilns.py` (Dhaka kiln evidence, needs `python -m kw.firms` first).
 The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
+The worldwide fire months behind "Is fire near you?" (`data/global/fire_season.parquet`, committed): `python -m kw.globe season`.
 Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
 Analyst key, MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
 
@@ -270,12 +289,12 @@ NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
 | ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
 | WorldPop Global 2000-2020 population grid, 1 km (CC BY 4.0) | [worldpop.org](https://www.worldpop.org) | Modelled 2020 population in the 0.1° cells where the record shows fire (context, not impact) |
-| OpenStreetMap via the Overpass API (ODbL) | [openstreetmap.org](https://www.openstreetmap.org/copyright) | Hospitals and major roads in those cells (context, not impact) |
+| OpenStreetMap via the Overpass API (ODbL) | [openstreetmap.org](https://www.openstreetmap.org/copyright) | Hospitals and major roads in those cells (context, not impact); for "Is fire near you?", the schools, kindergartens, colleges, hospitals, clinics, care homes and fire stations within 25 km of any place, live |
 | OpenFreeMap | [openfreemap.org](https://openfreemap.org) | Vector base map |
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
 | DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
 | FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
-| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 38-tool MCP server for Claude, Cursor and n8n |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 39-tool MCP server for Claude, Cursor and n8n |
 | Google Earth Engine | [earthengine.google.com](https://earthengine.google.com) | Build time only: reads MCD64A1 and Black Marble for the committed witness files; the live demo needs no Earth Engine |
 | Google Gemini API | [ai.google.dev](https://ai.google.dev) | Optional in-app analyst |
 | React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |

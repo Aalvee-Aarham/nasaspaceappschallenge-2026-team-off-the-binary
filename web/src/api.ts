@@ -421,3 +421,31 @@ export function downloadSvg(svg: SVGSVGElement | null, name: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ---------- any place on Earth: is fire near my school, hospital or home? (/api/place-risk) ----------
+export type PlaceLevel = "near" | "watch" | "season" | "low" | "unknown";
+export type PlaceKind = "school" | "hospital" | "clinic" | "care_home" | "fire_station";
+export type NearbyPlace = { name: string | null; kind: PlaceKind; lat: number; lon: number; km: number; fire_km: number | null; level: PlaceLevel };
+export type PlaceRisk = {
+  place: { name: string; display_name: string | null; country: string | null; lat: number; lon: number };
+  candidates: { name: string; display_name: string; country: string | null; lat: number; lon: number }[];
+  radius_km: number; level: PlaceLevel; headline: string; reasons: string[];
+  recent: { days: number; start: string; end: string; count: number; nearest_km: number | null; latest_utc: string | null; data_through: string | null;
+    detections: { time_utc: string; satellite: string; lat: number; lon: number; frp_mw: number; km: number }[] } | null;
+  season: { first_year: number; last_year: number; within_km: number; sensor: string;
+    by_month: { month: number; years_with_fire: number; record_years: number; share: number; last_year: number | null }[] } | null;
+  season_share_now: number | null;
+  outlook: { class: "watch" | "above" | "season" | null; usual_next_30: number; last_30: number; pct_last_30: number | null } | null;
+  facilities: { counts: Record<PlaceKind, number>; counts_near_fire: Record<PlaceKind, number>; truncated: boolean; list: NearbyPlace[]; source: string } | null;
+  built_area: { id: string; name: string } | null;
+  errors: Record<string, string>; rule: string; caveat: string;
+};
+export const placeRiskPath = (p: { q?: string; lat?: number; lon?: number; radius_km: number; facilities?: boolean; label?: string }) => {
+  const s = new URLSearchParams();
+  if (p.lat != null && p.lon != null) { s.set("lat", String(p.lat)); s.set("lon", String(p.lon)); } else s.set("q", p.q ?? "");
+  s.set("radius_km", String(p.radius_km));
+  if (p.facilities === false) s.set("facilities", "false");
+  if (p.label) s.set("label", p.label);
+  return `/api/place-risk?${s}`;
+};
+export const placeRisk = (p: Parameters<typeof placeRiskPath>[0]) => json<PlaceRisk>(placeRiskPath(p));

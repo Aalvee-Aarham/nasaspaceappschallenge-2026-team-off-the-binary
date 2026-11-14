@@ -19,6 +19,7 @@ from . import science as sc
 
 INSTRUCTIONS = ("Kiln Watch: one consistent 2000-present fire record for any place on Earth, harmonizing NASA FIRMS "
                 "MODIS (Terra, Aqua) and VIIRS (Suomi-NPP, NOAA-20, NOAA-21) hotspots onto the Aqua MODIS scale. "
+                "For 'is fire near my school, hospital or home?' anywhere, use check_place_fire_risk. "
                 "Start with find_place (any place name) or list_regions, then get_situation_brief, get_fire_outlook or "
                 "query_hotspots. Character prompts (fire_manager, fire_scientist, fact_checker, community_liaison) set "
                 "a role.\n\n" + personas.GUARDRAILS)
@@ -157,6 +158,23 @@ def get_place_exposure(region_id: str, lat: float, lon: float) -> dict:
     return tools.exposure_place(region_id, lat, lon)
 
 
+@mcp.tool(title="Is fire near this place?", annotations=RO_WEB)
+def check_place_fire_risk(place: str = "", lat: float | None = None, lon: float | None = None, radius_km: float = 10.0,
+                          max_facilities: int = 25) -> dict:
+    """ANY place on Earth (a town, an address, a school; or lat and lon): is fire near it, and which schools,
+    hospitals, clinics, care homes and fire stations are near that fire. Returns a plain-language level
+    (near / watch / season / low / unknown), a headline and reasons; vegetation-fire detections of every satellite
+    within radius_km (1-25) in the last 7 days (live NASA FIRMS); how often fire was seen there in each calendar month
+    2003-2025 (MODIS); the 30-day outlook; and OpenStreetMap facilities with their distance to the nearest fire seen
+    this week. No built area needed. Detections are not confirmed fires; history, not a forecast."""
+    out = tools.place_risk(place or None, lat, lon, radius_km, label=place or None)
+    if out.get("recent"):
+        out["recent"]["detections"] = out["recent"]["detections"][:20]
+    if out.get("facilities"):
+        out["facilities"]["list"] = out["facilities"]["list"][:max(0, min(int(max_facilities), 300))]
+    return out
+
+
 @mcp.tool(title="Early warning for an area", annotations=RO)
 def get_early_warning(region_id: str) -> dict:
     """Climatological early warning for a built area: level (elevated/watch/normal/quiet/insufficient), this month
@@ -247,7 +265,7 @@ def audit_sensor_harmonization(region_id: str) -> dict:
 @mcp.tool(title="Method and rules", annotations=RO)
 def get_method() -> dict:
     """How the record, early warning and outlook are computed, with their exact rules and limits."""
-    return {"early_warning_rule": sc.WARNING_RULE, "outlook_rule": sc.OUTLOOK_RULE, "guardrails": personas.GUARDRAILS,
+    return {"early_warning_rule": sc.WARNING_RULE, "outlook_rule": sc.OUTLOOK_RULE, "place_level_rule": sc.PLACE_RULE, "guardrails": personas.GUARDRAILS,
             "unit": "hotspots on the Aqua MODIS scale (vegetation fires; static sources separated)",
             "recent_weighted_baseline_half_life_years": sc.HALF_LIFE_YEARS,
             "data": "NASA FIRMS MODIS C6.1 and VIIRS 375 m (SP + NRT) via the Portolan GeoParquet mirror on Source Cooperative"}
@@ -390,7 +408,8 @@ def community_liaison(place: str = "my district", language: str = "English") -> 
 @mcp.resource("kilnwatch://about", name="About Kiln Watch", mime_type="text/markdown")
 def about() -> str:
     return ("# Kiln Watch\n\n" + INSTRUCTIONS + "\n\n## Early-warning rule\n" + sc.WARNING_RULE
-            + "\n\n## Outlook rule\n" + sc.OUTLOOK_RULE + "\n\nData: NASA FIRMS (MODIS C6.1, VIIRS 375 m) via the "
+            + "\n\n## Outlook rule\n" + sc.OUTLOOK_RULE + "\n\n## Place fire level\n" + sc.PLACE_RULE
+            + "\n\nData: NASA FIRMS (MODIS C6.1, VIIRS 375 m) via the "
             "Portolan mirror on Source Cooperative; imagery NASA GIBS; events NASA EONET and GDACS. Not an official NASA product.")
 
 

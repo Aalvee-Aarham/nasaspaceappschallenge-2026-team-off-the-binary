@@ -8,15 +8,18 @@ import hashlib
 import json
 import math
 import os
+import re
 import threading
 import time
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 
 import duckdb
 
 from . import cases, news
 from . import science as sc
 from .build import OUT, build_region, write_index
-from .firms import CACHE, CONF_SQL, LIVE_TTL_S, SENSORS, connect, fetch_year
+from .firms import BASE as FIRMS_BASE, CACHE, CONF_SQL, LIVE_TTL_S, SENSORS, connect, fetch_year
 from .regions import PRESETS, validate_bbox
 
 
@@ -893,3 +896,262 @@ def casebook_overview():
             pass
         out.append(row)
     return {"areas": out, "caveat": cases.CAVEAT}
+
+
+# ---------- any place on Earth: is fire near my school, hospital or home? ----------
+
+PLACE_KINDS = {"school": "school", "kindergarten": "school", "college": "school", "university": "school",
+               "hospital": "hospital", "clinic": "clinic", "doctors": "clinic", "nursing_home": "care_home",
+               "fire_station": "fire_station"}
+OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
+FACILITY_CAP = 3000     # elements per Overpass reply; a dense city can hold more (then 'truncated': try a smaller distance)
+RECENT_DAYS = 7
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December"]
+_LATLON = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$")
+
+
+def _facilities(lat, lon, radius_km):
+    """Schools, hospitals, clinics, care homes and fire stations within radius_km (OpenStreetMap, cached a week).
+    Asks Overpass for the bounding box (index-fast; 'around' on ways is several times slower) and cuts the circle here."""
+    r = int(radius_km * 1000)
+    d_lat = radius_km / 111.32
+    d_lon = d_lat / max(0.05, math.cos(math.radians(lat)))
+    box = f"{lat - d_lat:.4f},{lon - d_lon:.4f},{lat + d_lat:.4f},{lon + d_lon:.4f}"
+    q = (f'[out:json][timeout:40][bbox:{box}];(nwr["amenity"~"^({"|".join(PLACE_KINDS)})$"];'
+         f'nwr["healthcare"~"^(hospital|clinic)$"];nwr["social_facility"="nursing_home"];);out center tags {FACILITY_CAP};')
+
+    def fetch():
+        errs = []
+        for url in OVERPASS:
+            try:
+                d = json.loads(news._get(url, timeout=50, data=urllib.parse.urlencode({"data": q}).encode()))
+            except Exception as ex:  # noqa: BLE001 - try the next mirror, then report; never a silent empty list
+                errs.append(f"{url.split('/')[2]}: {str(ex)[:100]}")
+                continue
+            if d.get("remark") and "error" in d["remark"].lower():
+                errs.append(f"{url.split('/')[2]}: {d['remark'][:100]}")
+                continue
+            return d.get("elements", [])
+        raise RuntimeError("OpenStreetMap (Overpass) did not answer: " + "; ".join(errs))
+    els = news._cached(f"fac2:{lat:.3f},{lon:.3f},{r}", 7 * 86400, fetch)
+    out = []
+    for el in els:
+        t = el.get("tags", {})
+        la, lo = (el.get("lat"), el.get("lon")) if el["type"] == "node" else (el.get("center", {}).get("lat"), el.get("center", {}).get("lon"))
+        kind = (PLACE_KINDS.get(t.get("amenity")) or PLACE_KINDS.get(t.get("healthcare"))
+                or ("care_home" if t.get("social_facility") == "nursing_home" else None))
+        if la is None or not kind:
+            continue
+        km = _gc_km(lat, lon, la, lo)
+        if km <= radius_km:
+            out.append({"name": t.get("name:en") or t.get("name"), "kind": kind, "lat": round(la, 5), "lon": round(lo, 5),
+                        "km": round(km, 2)})
+    return out, len(els) >= FACILITY_CAP
+
+
+def _firms_through():
+    """Newest acquisition date in the mirror's current-year file (read from the Parquet footer, cached an hour)."""
+    f = f"{FIRMS_BASE}/year={dt.datetime.now(dt.timezone.utc).year}/detections.parquet"
+
+    def fetch():
+        con = connect()
+        con.execute("SET enable_progress_bar = false")
+        try:
+            return con.execute(f"SELECT max(stats_max) FROM parquet_metadata('{f}') WHERE path_in_schema = 'acq_date'").fetchone()[0]
+        finally:
+            con.close()
+    return news._cached(f"firms-through:{int(time.time() // 3600)}", 3600, fetch)
+
+
+def _recent_fires(lat, lon, radius_km, days=RECENT_DAYS):
+    """Vegetation-fire detections of every satellite within radius_km in the last `days` days, straight from the
+    public FIRMS mirror (confidence-filtered; FIRMS static types removed where typed; recent rows are untyped)."""
+    def fetch():
+        b = dt.date.today()
+        a = b - dt.timedelta(days=days)
+        d_lat = radius_km / 111.32
+        d_lon = d_lat / max(0.05, math.cos(math.radians(lat)))
+        files = [f"{FIRMS_BASE}/year={y}/detections.parquet" for y in sorted({a.year, b.year})]
+        con = connect()
+        con.execute("SET enable_progress_bar = false")
+        try:
+            # Narrow inner read, filters after: with the confidence ORs in the same WHERE, DuckDB stops pruning row
+            # groups by the box and scans the whole year (minutes instead of seconds).
+            rows = con.execute(f"""WITH t AS MATERIALIZED (
+                                       SELECT acq_datetime, satellite, sensor, confidence, confidence_pct, type, frp, geometry
+                                       FROM read_parquet({files}) WHERE acq_date >= DATE '{a}' AND ST_Intersects(geometry,
+                                       ST_MakeEnvelope({lon - d_lon}, {lat - d_lat}, {lon + d_lon}, {lat + d_lat})))
+                                   SELECT strftime(acq_datetime, '%Y-%m-%d %H:%M'), satellite, round(ST_Y(geometry), 4),
+                                          round(ST_X(geometry), 4), round(frp, 1)
+                                   FROM t WHERE {CONF_SQL} AND (type IS NULL OR type = 0)""").fetchall()
+        finally:
+            con.close()
+        dets = [{"time_utc": t, "satellite": s, "lat": la, "lon": lo, "frp_mw": f, "km": round(_gc_km(lat, lon, la, lo), 2)}
+                for t, s, la, lo, f in rows]
+        return {"start": str(a), "end": str(b),
+                "detections": sorted((d for d in dets if d["km"] <= radius_km), key=lambda d: d["km"])}
+    return news._cached(f"recent:{lat:.2f},{lon:.2f},{radius_km}:{int(time.time() // 3600)}", 3600, fetch)
+
+
+@functools.lru_cache(maxsize=2)
+def _season_years(path, _mtime):
+    con = duckdb.connect()
+    kv = dict(con.execute(f"SELECT key::VARCHAR, value::VARCHAR FROM parquet_kv_metadata('{path}')").fetchall())
+    con.close()
+    return int(kv["first_year"]), int(kv["last_year"])
+
+
+def _season(lat, lon, half):
+    """Years with MODIS fire in each calendar month in the (2*half+1)^2 block of 0.1 degree cells around a point."""
+    from .globe import SEASON
+    if not SEASON.exists():
+        raise NotFound("the worldwide fire-season table is not on this server (python -m kw.globe season)")
+    path = SEASON.as_posix()
+    first, last = _season_years(path, SEASON.stat().st_mtime)
+    gy, gx = math.floor(lat * 10 + 1e-9), math.floor(lon * 10 + 1e-9)   # ponytail: no wrap at the antimeridian
+    con = duckdb.connect()
+    rows = con.execute(f"""SELECT * EXCLUDE (gy, gx) FROM read_parquet('{path}')
+                           WHERE gy BETWEEN {gy - half} AND {gy + half} AND gx BETWEEN {gx - half} AND {gx + half}""").fetchall()
+    con.close()
+    n = last - first + 1
+    months = []
+    for m in range(12):
+        mask = 0
+        for r in rows:
+            mask |= r[m] or 0
+        yrs = [first + b for b in range(n) if mask >> b & 1]
+        months.append({"month": m + 1, "years_with_fire": len(yrs), "record_years": n, "share": round(len(yrs) / n, 2),
+                       "last_year": yrs[-1] if yrs else None})
+    return {"first_year": first, "last_year": last, "within_km": round((half + 0.5) * 11), "by_month": months,
+            "sensor": "MODIS (Terra and Aqua), confidence-filtered, static types removed"}
+
+
+def _place_text(name, level, radius_km, dets, season, ocls, rec_ok):
+    """Headline and reasons in plain words (one source for the web page, the API and MCP)."""
+    today = dt.date.today()
+    reasons = []
+    if not rec_ok:
+        reasons.append("The live satellite check could not be read just now, so fire in the last 7 days is unknown. "
+                       "Try again in a few minutes.")
+    elif dets:
+        reasons.append(f"Satellites saw {len(dets)} fire {'detection' if len(dets) == 1 else 'detections'} within "
+                       f"{radius_km:g} km in the last {RECENT_DAYS} days; the closest was {dets[0]['km']:.1f} km away "
+                       f"on {dets[0]['time_utc'][:10]}.")
+    else:
+        reasons.append(f"No fire was seen by satellites within {radius_km:g} km in the last {RECENT_DAYS} days.")
+    if season:
+        bm = season["by_month"]
+        m0, m1 = bm[today.month - 1], bm[today.month % 12]
+        busy = [m for m in sorted(bm, key=lambda m: -m["years_with_fire"])[:3] if m["years_with_fire"] > 0]
+        reasons.append(f"In {MONTH_NAMES[m0['month'] - 1]}, fire was seen within about {season['within_km']} km in "
+                       f"{m0['years_with_fire']} of {m0['record_years']} years; in {MONTH_NAMES[m1['month'] - 1]}, "
+                       f"{m1['years_with_fire']} of {m1['record_years']}."
+                       + (f" The usual fire months here are {', '.join(MONTH_NAMES[m['month'] - 1] for m in busy)}."
+                          if busy else " Fire is rare here."))
+    if ocls in ("watch", "above"):
+        reasons.append("The last 30 days had more fire than usual in this part of the world.")
+    elif ocls == "season":
+        reasons.append("The next 30 days are usually a fire season in this part of the world.")
+    headline = {
+        "near": f"Fire was seen close to {name} this week.",
+        "watch": f"Stay alert: fire was seen around {name} this week." if dets
+        else f"Stay alert: fire often happens near {name} at this time of year.",
+        "season": f"Fire sometimes happens near {name} at this time of year.",
+        "low": f"No fire seen near {name} this week, and this is not usually a fire month here.",
+        "unknown": f"We could not check the last 7 days for {name} just now.",
+    }[level]
+    return headline, reasons
+
+
+def place_risk(query=None, lat=None, lon=None, radius_km=10.0, facilities=True, label=None):
+    """Fire near any place on Earth, in plain words: what satellites saw within radius_km in the last 7 days, how
+    often fire happens there at this time of year (2003-2025), its 30-day outlook, and the schools, hospitals,
+    clinics, care homes and fire stations around it, each with its distance to the nearest fire seen this week.
+    Every source that could not be read says why (never shown as 'no fire'). Not a forecast, not an official warning.
+    facilities=False leaves the buildings out ('facilities' is then None and not in 'errors'): a fast first answer."""
+    from . import news_more, outlook
+    radius_km = float(radius_km)
+    if not 1 <= radius_km <= 25:
+        raise ValueError("radius_km must be 1-25")
+    place, candidates = None, []
+    if lat is None or lon is None:
+        q = (query or "").strip()[:120]
+        if not q:
+            raise ValueError("give a place name, or lat and lon")
+        if (m := _LATLON.match(q)):
+            lat, lon = float(m[1]), float(m[2])
+        else:
+            g = news_more.geocode(q)
+            if not g:
+                raise NotFound(f"no place called '{q}' was found; try a nearby town, or add the country")
+            lat, lon = g["lat"], g["lon"]
+            place = {k: g.get(k) for k in ("name", "display_name", "country")}
+            candidates = [{k: c.get(k) for k in ("name", "display_name", "country", "lat", "lon")} for c in g.get("candidates", [])[1:6]]
+    lat, lon = float(lat), float(lon)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("lat must be -90 to 90 and lon -180 to 180")
+    place = place or {"name": (label or "").strip()[:80] or "this place", "display_name": f"{lat:.4f}, {lon:.4f}", "country": None}
+
+    errors, got = {}, {}
+    with ThreadPoolExecutor(3) as pool:
+        jobs = {"recent": pool.submit(_recent_fires, lat, lon, radius_km), "through": pool.submit(_firms_through)}
+        if facilities:   # the slow one (Overpass, 20-45 s uncached): the web page asks for it second
+            jobs["facilities"] = pool.submit(_facilities, lat, lon, radius_km)
+        for k, f in jobs.items():
+            try:
+                got[k] = f.result()
+            except Exception as ex:  # noqa: BLE001 - a witness that could not look says so
+                errors[k] = str(ex)[:200]
+    try:
+        season = _season(lat, lon, max(1, round(radius_km / 11)))
+    except Exception as ex:  # noqa: BLE001
+        season, errors["season"] = None, str(ex)[:200]
+    try:
+        ol = outlook.at(lat, lon)
+    except Exception as ex:  # noqa: BLE001
+        ol, errors["outlook"] = None, str(ex)[:200]
+
+    rec = got.get("recent")
+    dets = rec["detections"] if rec else []
+    near_km = dets[0]["km"] if dets else None
+    today = dt.date.today()
+    share = max(season["by_month"][today.month - 1]["share"], season["by_month"][today.month % 12]["share"]) if season else None
+    ocls = ((ol or {}).get("outlook") or {})
+    level = sc.place_level(near_km, share, ocls.get("class"), recent_ok=rec is not None)
+
+    facs, trunc = got.get("facilities", (None, False))
+    counts = counts_near = None
+    if facs is not None:
+        for f in facs:
+            f["fire_km"] = round(min(_gc_km(f["lat"], f["lon"], d["lat"], d["lon"]) for d in dets), 2) if dets else None
+            f["level"] = sc.place_level(f["fire_km"], share, ocls.get("class"), recent_ok=rec is not None)
+        order = {"near": 0, "watch": 1, "season": 2, "unknown": 3, "low": 4}
+        facs.sort(key=lambda f: (order[f["level"]], f["fire_km"] if f["fire_km"] is not None else 1e9, f["km"]))
+        kinds = ("school", "hospital", "clinic", "care_home", "fire_station")
+        counts = {k: sum(f["kind"] == k for f in facs) for k in kinds}
+        counts_near = {k: sum(f["kind"] == k and f["level"] == "near" for f in facs) for k in kinds}
+
+    headline, reasons = _place_text(place["name"].split(",")[0], level, radius_km, dets, season, ocls.get("class"), rec is not None)
+    built = next(({"id": r["id"], "name": r["name"]} for r in list_regions()
+                  if r["bbox"][1] <= lat <= r["bbox"][3] and r["bbox"][0] <= lon <= r["bbox"][2]), None)
+    return {
+        "place": {**place, "lat": round(lat, 5), "lon": round(lon, 5)}, "candidates": candidates, "radius_km": radius_km,
+        "level": level, "headline": headline, "reasons": reasons,
+        "recent": None if rec is None else {
+            "days": RECENT_DAYS, "start": rec["start"], "end": rec["end"], "count": len(dets), "nearest_km": near_km,
+            "latest_utc": max((d["time_utc"] for d in dets), default=None), "detections": dets[:300],
+            "data_through": got.get("through")},
+        "season": season, "season_share_now": share,
+        "outlook": ocls or None, "outlook_note": (ol or {}).get("note"),
+        "facilities": None if facs is None else {
+            "counts": counts, "counts_near_fire": counts_near, "truncated": trunc, "list": facs[:300],
+            "source": "OpenStreetMap via Overpass API (amenity school, kindergarten, college, university, hospital, "
+                      "clinic, doctors, nursing_home, fire_station; healthcare hospital, clinic)"},
+        "built_area": built, "errors": errors, "rule": sc.PLACE_RULE,
+        "caveat": ("Satellites see heat from space a few hours after it happens and miss small, short or cloud-covered "
+                   "fires. A detection is not a confirmed fire and not its edge; factories, gas flares and kilns can also "
+                   "show as heat. Schools and hospitals come from OpenStreetMap, which maps some places better than "
+                   "others. History and detections, not a forecast and not an official warning: in an emergency, call "
+                   "your local fire service."),
+    }
