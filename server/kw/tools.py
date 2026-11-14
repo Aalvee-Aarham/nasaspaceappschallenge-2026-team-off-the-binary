@@ -528,10 +528,11 @@ def find_place(query):
     from . import news_more  # local import: only this lookup needs it
     g = news_more.geocode(query)
     if not g:
-        return {"found": False, "query": query}
+        return {"found": False, "query": query, "candidates": []}
     w, s, e, n = g["bbox"]
     near = [r for r in list_regions() if not (r["bbox"][2] < w or r["bbox"][0] > e or r["bbox"][3] < s or r["bbox"][1] > n)]
-    return {"found": True, **g, "built_areas_overlapping": [{"id": r["id"], "name": r["name"]} for r in near]}
+    candidates = g.get("candidates") or [g]
+    return {"found": True, **g, "candidates": candidates, "built_areas_overlapping": [{"id": r["id"], "name": r["name"]} for r in near]}
 
 
 def sensor_status():

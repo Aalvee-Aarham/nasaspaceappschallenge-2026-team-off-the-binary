@@ -33,6 +33,23 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
     if (!online) return;
     api.outlook().then(setO).catch(() => undefined);
     api.health().then((h) => { setEmailOn(!!h.email); setServerless(!!h.serverless); }).catch(() => undefined);
+
+    const hash = window.location.hash || window.location.search;
+    const match = hash.match(/(?:token|add_alert)=([A-Za-z0-9_-]+)/);
+    if (match) {
+      const tok = match[1];
+      api.alert(tok).then((a) => {
+        addAlert({ token: tok, name: a.name || "My area" });
+      }).catch(() => undefined);
+    }
+
+    if (savedAlerts().length === 0) {
+      api.recentAlerts().then((list) => {
+        if (list && list.length > 0) {
+          list.forEach(addAlert);
+        }
+      }).catch(() => undefined);
+    }
   }, [online]);
 
   const addAlert = (s: Saved) => { const l = [...mine.filter((m) => m.token !== s.token), s]; setMine(l); saveAlerts(l); };

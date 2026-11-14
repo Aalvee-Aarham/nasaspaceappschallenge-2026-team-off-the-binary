@@ -170,6 +170,30 @@ export type LatestNews = { window: [string, string]; sources: { name: string; co
 export type PlaceNews = Omit<Reports, "assessment" | "items"> & { place: { name: string; country: string | null; lat: number; lon: number; bbox: number[] }; items: NewsItem[]; caveat: string };
 export type Persona = { id: string; name: string; role: string; for: string; tagline: string; style: string; workflow: string; starters: string[]; system_prompt: string };
 export type WildEvent = { title: string; date: string; lat: number; lon: number; url: string | null; region_id: string | null };
+export type PlaceCandidate = {
+  name: string;
+  display_name: string;
+  country?: string | null;
+  country_code?: string;
+  lat: number;
+  lon: number;
+  bbox: [number, number, number, number];
+  places?: string[];
+};
+export type PlaceResult = {
+  found: boolean;
+  name?: string;
+  display_name?: string;
+  country?: string | null;
+  country_code?: string;
+  lat?: number;
+  lon?: number;
+  bbox?: [number, number, number, number];
+  places?: string[];
+  built_areas_overlapping?: { id: string; name: string }[];
+  candidates?: PlaceCandidate[];
+  query?: string;
+};
 export type Events = { source: string; count: number; events: WildEvent[]; note: string };
 export type OutlookClass = "watch" | "above" | "season";
 /** [lat, lon, class, usual next 30 d, p90 next 30 d, last 30 d, percentile of last 30 d, rising 0/1, usual last 30 d] */
@@ -222,10 +246,12 @@ export const api = {
   createAlert: (body: { region_id?: string; bbox?: number[]; name?: string; ratio: number; email?: string; triggers?: Trigger[] }) => json<AlertSub>("/api/alerts", post(body)),
   sendTest: (token: string) => json<{ sent: boolean; reason?: string; subject?: string }>(`/api/alerts/${token}/send-test`, { method: "POST" }),
   latestNews: (days: number) => json<LatestNews>(`/api/news/latest?days=${days}`),
+  findPlace: (q: string) => json<PlaceResult>(`/api/place?q=${encodeURIComponent(q)}`),
   placeNews: (place: string, start: string, end: string) => json<PlaceNews>(`/api/news/search?place=${encodeURIComponent(place)}&start=${start}&end=${end}`),
   personas: () => json<{ personas: Persona[] }>("/api/personas").then((r) => r.personas),
   personaUrl: (id: string) => `${API}/api/personas/${id}.md`,
   alert: (token: string) => json<AlertState>(`/api/alerts/${token}`),
+  recentAlerts: () => json<{ token: string; name: string }[]>("/api/alerts/recent"),
   deleteAlert: (token: string) => json<{ deleted: boolean }>(`/api/alerts/${token}`, { method: "DELETE" }),
   workflowUrl: (token: string) => `${API}/api/alerts/${token}/n8n.json`,
   evidence: (id: string, p: string) => json<Evidence>(`/api/regions/${id}/evidence?period=${p}`),

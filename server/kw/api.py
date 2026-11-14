@@ -6,6 +6,13 @@ import io
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except ImportError:
+    pass
+
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
@@ -142,6 +149,12 @@ def news_search(place: str, start: str = "", end: str = ""):
     return _guard(run)
 
 
+@app.get("/api/place")
+def place(q: str = ""):
+    """Geocode any place name to centre, bbox and overlapping areas (Nominatim via backend cache)."""
+    return _guard(tools.find_place, q.strip()[:120])
+
+
 @app.get("/api/hotspots")
 def hotspots_any(west: float, south: float, east: float, north: float, start: str, end: str):
     """Raw detections per day and satellite for any box and window, from the global aggregate."""
@@ -247,15 +260,33 @@ def alert_create(request: Request, body: dict = Body(...)):
                   _public_base(request))
 
 
-def _note(title, text, ok=True):
+def _note(title, text, ok=True, token="", name=""):
     color = "#00a1ff" if ok else "#ff8a80"
+    target = f"/#pg=warning&token={token}" if token else "/#pg=warning"
+    script = f"""<script>
+try {{
+    const k = 'kw.alerts';
+    const list = JSON.parse(localStorage.getItem(k) || '[]');
+    if ('{token}' && !list.some(x => x.token === '{token}')) {{
+        list.push({{ token: '{token}', name: '{html.escape(name)}' }});
+        localStorage.setItem(k, JSON.stringify(list));
+    }}
+}} catch(e) {{}}
+</script>""" if token and ok else ""
     return HTMLResponse(f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
                         f"<title>Kiln Watch</title><body style='margin:0;background:#05080d;color:#f1f4f8;font:16px Inter,"
                         f"Arial,sans-serif;display:grid;place-items:center;min-height:100vh'><div style='max-width:460px;"
                         f"padding:24px'><p style='color:#ff7a6e;font-size:11px;letter-spacing:.12em;text-transform:uppercase'>"
                         f"Kiln Watch</p><h1 style='font-size:22px;color:{color}'>{html.escape(title)}</h1><p>{html.escape(text)}"
-                        f"</p><p><a href='/#pg=warning' style='color:#00a1ff'>Back to Early warning</a></p></div>",
+                        f"</p><p><a href='{target}' style='color:#00a1ff'>Back to Early warning</a></p></div>{script}",
                         status_code=200 if ok else 400)
+
+
+@app.get("/api/alerts/recent")
+def alerts_recent():
+    """Confirmed alerts on this server (for session recovery)."""
+    d = alerts._load()
+    return [{"token": t, "name": sub.get("name") or sub.get("region_id")} for t, sub in d.items() if sub.get("confirmed")]
 
 
 @app.get("/api/alerts/{token}/confirm")
@@ -265,7 +296,7 @@ def alert_confirm(token: str, code: str = ""):
     except (ValueError, tools.NotFound) as ex:
         return _note("Link not valid", str(ex), False)
     return _note("Alert confirmed", f"You will get an email when fire activity around {sub.get('name')} crosses your "
-                 "thresholds. Every email has a one-click unsubscribe link.")
+                 "thresholds. Every email has a one-click unsubscribe link.", True, token, sub.get("name") or "")
 
 
 @app.get("/api/alerts/{token}/unsubscribe")
