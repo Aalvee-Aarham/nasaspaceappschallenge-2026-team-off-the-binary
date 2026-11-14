@@ -334,7 +334,10 @@ export default function App() {
             <h2>Kiln Watch</h2>
             <label className="check"><input type="checkbox" checked={layers.grid} onChange={(e) => setLayers({ ...layers, grid: e.target.checked })} /><i className="sw-grid" />Harmonized activity, {periodLabel(month)}</label>
             <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />FIRMS persistent heat sources (flares, industry; not a kiln inventory)</label>
-            {!region && <p className="muted small">Open an area to see these.</p>}
+            {!region ? <p className="muted small">Open an area to see these.</p>
+              : <p className="muted small">{region.statics.points.length
+                  ? `${fmt(region.statics.points.length)} in this area. Zoom in if the dots look small.`
+                  : "None in this area: FIRMS marks no spot here as a steady heat source."}</p>}
             <h2>Who is nearby</h2>
             <label className="check"><input type="checkbox" checked={layers.facilities} onChange={(e) => setLayers({ ...layers, facilities: e.target.checked })} disabled={!online} /><i className="sw-fac" />Schools, hospitals and clinics</label>
             {layers.facilities && (

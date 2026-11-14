@@ -439,6 +439,7 @@ export default function MapView(p: Props) {
       if (key === lastKey) return;   // same tiles, already complete
       ctl?.abort();
       ctl = new AbortController();
+      facRef.current?.({ state: "loading", n: 0 });   // the first answer can take a minute: say so while it is on its way
       try {
         const r = await fetch(`${apiOrigin()}/api/facilities?west=${box[0]}&south=${box[1]}&east=${box[2]}&north=${box[3]}`, { signal: ctl.signal });
         if (!r.ok) throw new Error(((await r.json().catch(() => null))?.detail as string) || `HTTP ${r.status}`);
