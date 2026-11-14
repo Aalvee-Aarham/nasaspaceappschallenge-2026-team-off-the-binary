@@ -956,3 +956,35 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
   .pr-months span, .pr-months b { font-size: 11.5px; }
   .pr-go { flex: 1 1 100%; }
 }
+
+/* explorer facilities layer */
+.check i.sw-fac { background: conic-gradient(#4F8BFF 0 25%, #FFFFFF 0 50%, #FF8FB1 0 75%, #E63946 0); }
+.fac-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); padding: 2px 0 4px 18px; }
+.fac-key span { display: inline-flex; align-items: center; gap: 5px; }
+.fac-key i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #0A0E15; display: inline-block; }
+.fac-key p { margin: 4px 0 0; flex-basis: 100%; }
+.fac-st { margin: 4px 0 0; flex-basis: 100%; font-size: 12.5px; color: var(--text); }
+.fac-st.err { color: #ff8a6a; }
+.fac-float { position: absolute; top: 12px; left: 96px; z-index: 3; max-width: 360px; background: rgba(3, 5, 8, .92); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 6px 10px; }
+.fac-float .fac-st { margin: 0; }
+
+/* analyst */
+/* Chart marks must be visible at rest: the global reduced-motion rule removes every animation, and these used to
+   start hidden (dashoffset 1 / opacity 0) and rely on the animation to appear, so charts were empty with motion off. */
+.aline { stroke-dasharray: none; stroke-dashoffset: 0; animation: a-draw 1.3s cubic-bezier(.4,0,.2,1) both; }
+.aline.dash { stroke-dasharray: 4 3; opacity: 1; animation: a-fade .8s ease both; }
+.aband { opacity: .2; animation: a-fade .9s ease .3s both; }
+@keyframes a-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes a-fade { from { opacity: 0; } }
+/* AI identity */
+.ai-av { flex: none; display: block; filter: drop-shadow(0 0 6px rgba(0,161,255,.45)); }
+.ai-av-bg { fill: rgba(0,161,255,.14); stroke: rgba(0,161,255,.55); stroke-width: .8; }
+.ai-av-face { fill: var(--focus); }
+.ai-av-line { stroke: var(--focus); stroke-width: 1.4; stroke-linecap: round; }
+.ai-av-eye { fill: #04121F; }
+.ai-av-mouth { stroke: #04121F; stroke-width: 1.3; stroke-linecap: round; }
+.ai-av-spark { fill: var(--gold); transform-box: fill-box; transform-origin: center; animation: twinkle 3.5s ease-in-out infinite; }
+.ai-tag, .ahead .ai-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 99px; font: 700 10px var(--display); letter-spacing: .08em; vertical-align: 2px; color: #00121F; background: var(--focus); }
+.msg.model { display: flex; gap: 8px; align-items: flex-start; }
+.msg.model > .ai-av { margin-top: 2px; }
+.msg-body { flex: 1; min-width: 0; }

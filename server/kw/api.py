@@ -180,6 +180,14 @@ def place_risk(q: str = "", lat: float | None = None, lon: float | None = None, 
     return _guard(tools.place_risk, q or None, lat, lon, radius_km, facilities, label or None)
 
 
+@app.get("/api/facilities")
+def facilities_in_box(west: float, south: float, east: float, north: float):
+    """Schools, hospitals, clinics, care homes and fire stations in a box of at most 1° x 1° (OpenStreetMap, cached).
+    Answers at once; `loading` > 0 means some tiles are still being fetched: ask again in a few seconds."""
+    from . import facilities
+    return _guard(facilities.facilities, west, south, east, north)
+
+
 @app.get("/api/hotspots")
 def hotspots_any(west: float, south: float, east: float, north: float, start: str, end: str):
     """Raw detections per day and satellite for any box and window, from the global aggregate."""

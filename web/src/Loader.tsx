@@ -19,6 +19,7 @@ export const STEPS = {
     "Testing the calibration on years it never saw",
     "Ranking every month against the same month in other years",
     "Building the weekly record and the fire season",
+    "Checking fire cases against news and disaster alerts",
     "Writing the calendar files",
   ],
   analyst: [
@@ -33,12 +34,12 @@ export const STEPS = {
   evidence: ["Opening the cached NASA FIRMS rows", "Counting detections per day and satellite", "Finding the strongest detections"],
 };
 
+// Past the usual time we cannot know how much is left (a slow outside server), so these never promise "almost done".
 const LATE = [
-  "Taking a little longer than usual",
-  "Still working: the news and data services are busy",
-  "A few more seconds",
-  "Almost there",
-  "Nearly done; long windows have many months to match",
+  "Taking longer than usual",
+  "Still working: an outside data service is slow right now",
+  "Still waiting for the data service; a source that does not answer is reported, not hidden",
+  "Still working",
 ];
 
 /** An engaging wait: what is happening now, how long it has taken, and an honest progress hint. */

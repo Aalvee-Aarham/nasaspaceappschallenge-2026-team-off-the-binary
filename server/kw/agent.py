@@ -101,8 +101,10 @@ DECLS = [
      "parameters": {"type": "OBJECT", "properties": {"days": {"type": "INTEGER"}}}},
     {"name": "show_chart", "description": "Draw a chart under the answer from pipeline data. kind: annual (raw vs harmonized per year), "
      "month_across_years (one calendar month every year; give month 'YYYY-MM'), recent_months, recent_weeks, season (fire year so far "
-     "vs earlier years), anomalies, box_daily (needs west/south/east/north/start/end).",
+     "vs earlier years), anomalies, box_daily (needs west/south/east/north/start/end), compare_months (typical month-by-month "
+     "season of 2-6 areas; give region_ids).",
      "parameters": {"type": "OBJECT", "properties": {"kind": {"type": "STRING", "enum": list(charts.KINDS)}, "region_id": _S,
+                                                     "region_ids": {"type": "ARRAY", "items": _S},
                                                      "month": _S, "west": _N, "south": _N, "east": _N, "north": _N, "start": _S, "end": _S},
                     "required": ["kind"]}},
     {"name": "ui_select_region", "description": "Open an area in the app.",
@@ -224,7 +226,7 @@ def _post_key(body, key):
             if ex.code in (401, 403, 429, 503):
                 raise _NextKey(str(ex.code)) from None
             raise RuntimeError(f"Gemini error {ex.code}: {detail}") from None
-        except (TimeoutError, urllib.error.URLError) as ex:
+        except OSError as ex:  # timeouts, URLError, SSL EOF and RemoteDisconnected (not a URLError) all land here
             if model != FALLBACK:
                 continue
             raise RuntimeError(f"Gemini did not answer in time ({ex}).") from None
@@ -290,7 +292,8 @@ def ask(message, history=None, context=None):
             elif name == "show_chart":
                 try:
                     box = [args[k] for k in ("west", "south", "east", "north")] if "west" in args else None
-                    spec = charts.build(args.get("kind"), args.get("region_id"), args.get("month"), box, args.get("start"), args.get("end"))
+                    spec = charts.build(args.get("kind"), args.get("region_id"), args.get("month"), box, args.get("start"), args.get("end"),
+                                       args.get("region_ids"))
                     shown.append(spec)
                     result = {"ok": True, "title": spec["title"], "points": len(spec["x"])}
                 except Exception as ex:

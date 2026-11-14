@@ -8,7 +8,8 @@ import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
 const PlaceRiskCheck = lazy(() => import("../PlaceRisk"));
 
 export default function CasesPage({ regions, online, area }: PageProps) {
-  const choices = regions;   // a built custom area is a choice here too, not just the presets
+  const presets = regions.filter((r) => r.preset);
+  const choices = presets.length ? presets : regions;   // the nine study areas: only they carry exposure
   const [rid, setRid] = useState("");
   const id = rid || (area && choices.some((r) => r.id === area) ? area : null) || choices[0]?.id || null;
   const info = regions.find((r) => r.id === id);

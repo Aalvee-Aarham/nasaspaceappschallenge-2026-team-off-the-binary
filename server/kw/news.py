@@ -59,8 +59,10 @@ def _cached(key, ttl_s, fn):
         fresh = False
     if fresh:
         if isinstance(val, dict) and "__error__" in val:
-            raise RuntimeError(val["__error__"])
-        return val
+            if time.time() - f.stat().st_mtime < min(ttl_s, 600):   # a failure is remembered briefly, never for the full TTL
+                raise RuntimeError(val["__error__"])
+        else:
+            return val
 
     def write(val):
         fd, tmp = tempfile.mkstemp(dir=CACHE, prefix=f".{f.stem}-", suffix=".tmp")

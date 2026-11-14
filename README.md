@@ -30,9 +30,10 @@
 
 <p align="center"><sub>Demo video: link added after upload (see <code>docs/demo/SUBMISSION.md</code>).</sub></p>
 
-<p align="center"><sub>The live demo serves the nine prebuilt regions. Run it with Docker (the same image runs on Azure, see "Two hosts, one site") to build any place on Earth.</sub></p>
+<p align="center"><sub>Nine areas are prebuilt with the full record; "Is fire near you?" works for any place on Earth; any other box can be built live (5 to 10 minutes, see "Two hosts, one site").</sub></p>
 
 <p align="center">
+  <a href="#is-fire-near-you">Is fire near you?</a> ·
   <a href="#the-problem-in-one-picture">Problem</a> ·
   <a href="#the-fix">Fix</a> ·
   <a href="#the-proof">Proof</a> ·
@@ -45,6 +46,49 @@
   <a href="#references">References</a> ·
   <a href="#team-off-the-binary">Team</a>
 </p>
+
+---
+
+## Is fire near you?
+
+**For families, students, fire managers and safety officers, anywhere on Earth.** Type a town, village, school or
+address, or press "Use my location". The answer comes in plain words and pictures, with large text and big buttons for
+people who are not used to maps.
+
+<p align="center"><img src="docs/readme/app-fire-near-you.jpg" alt="Is fire near you? for Ludhiana: 'Stay alert', 9 fire spots this week, the closest 5.6 km away, fire in November in 23 of 23 years, and a street map with the fire spots and the 10 km circle" width="100%"></p>
+
+| You see | Where it comes from |
+|---|---|
+| A traffic-light level: **low right now · fire season · stay alert · fire close by** | The rule `science.place_level`, printed on the page |
+| The fire spots satellites saw within 5, 10 or 25 km in the **last 7 days**, on a street map | NASA FIRMS, every satellite, read live from the public mirror |
+| **How many of the last 23 years** had fire there this month, and which months usually burn | A worldwide table of fire months per 0.1° cell, MODIS 2003–2025 (`data/global/fire_season.parquet`, 10 MB) |
+| What the **next 30 days** usually bring | The worldwide 30-day outlook |
+| **Schools, hospitals, clinics, care homes and fire stations** nearby, each with its distance to the nearest fire this week, red when it is within 5 km | OpenStreetMap |
+| A one-click alert for the place | Email or n8n |
+
+**How long it takes, honestly.** The fire answer usually comes in 5 to 20 seconds (up to a minute when NASA's data server is
+slow). The list of schools and hospitals comes from OpenStreetMap's free public servers: usually 20 to 45 seconds, and the
+page says so and offers a retry if they do not answer within about a minute. Places already looked up are instant for a week.
+
+**On the live map too.** In the Explorer, the layer **Who is nearby** puts the same schools, hospitals, clinics, care homes
+and fire stations on the globe next to the fire layers. Click one for its name; switch it on and off in the Layers panel.
+Zoom in to a town to load it. In the nine study areas a list appears at once while the full one loads; elsewhere a new
+town takes up to a few minutes the first time, and the map stays usable meanwhile.
+
+<p align="center"><img src="docs/readme/app-nearby-layer.jpg" alt="Explorer map of Kathmandu with the Who is nearby layer on: schools, hospitals and clinics as coloured dots, and a hospital's name in a popup" width="100%"></p>
+
+**For developers and AI assistants.** The same answer is a public API with no key, and an MCP tool for Claude:
+
+```bash
+curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
+curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/facilities?west=85.25&south=27.65&east=85.5&north=27.75"
+```
+
+MCP: `check_place_fire_risk`. Every endpoint is listed at `/docs` on the API.
+
+**What it is not.** A dot is heat seen from space a few hours ago, not a confirmed fire; factories, gas flares and kilns can
+show as heat. History is not a forecast. This is not an official warning: in an emergency, call your local fire service.
+A source that could not answer says so; it is never shown as "no fire" or "no buildings".
 
 ---
 
@@ -225,23 +269,7 @@ harmonization. Re-run the checks with `python scripts/discussion_checks.py` (wri
 </tr>
 </table>
 
-**Is fire near you? (Cases & exposure page).** Type any town, village, school or address on Earth, or press
-"Use my location". In about ten seconds the page answers in plain words and pictures, for families and students as much
-as for fire managers and safety officers: a traffic-light level (fire close by, stay alert, fire season, low right now),
-the fire spots NASA satellites saw within 5, 10 or 25 km in the last 7 days, on a street map, how many of the last 23
-years had fire there this month, and the 30-day outlook. Then the schools, hospitals, clinics, care homes and fire
-stations around the place (OpenStreetMap), each with its distance to the nearest fire seen this week, and a one-click
-alert. No study area is needed: the fire months come from a 10 MB worldwide table built from the global FIRMS aggregate
-(`data/global/fire_season.parquet`, MODIS 2003-2025, one bit per year per calendar month per 0.1° cell), and the last
-7 days are read live from the public FIRMS mirror. Every source that could not answer says so; it is never shown as "no
-fire". A detection is heat seen from space, not a confirmed fire; history is not a forecast; this is not an official
-warning. The rule (`science.place_level`) is printed on the page.
-
-```bash
-curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
-```
-
-Same answer for Claude through the MCP tool `check_place_fire_risk`; every endpoint is listed at `/docs` on the API.
+**Is fire near you?** The check for any place and the "Who is nearby" map layer: see [Is fire near you?](#is-fire-near-you).
 
 **Nine study areas in depth.** Each fire case is heard by six witnesses (the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area, the news) and gets a plain verdict. Each witness that could not look says why. Beside it: how many people, hospitals and schools sit in the cells where fire was seen (context, never impact).
 
@@ -298,7 +326,7 @@ flowchart LR
 | **Best Use of Data** | Every fire number traces to FIRMS detections. Denial tests, placebo tests, measured interval coverage; fire cases heard by six witnesses (EONET, GDACS, MODIS burned area, news); kilns from a published map and Black Marble. Downloads for all of it. |
 | **Best Use of Technology** | Remote GeoParquet queried in place. One tool layer behind the app, the AI analyst and a remote MCP endpoint. Earth Engine at build time only (MODIS burned area, Black Marble, Sentinel-1), so the live demo needs none. |
 | **Galactic Impact** | A record that survives the end of MODIS, a worldwide outlook now counted by NOAA-20 with its held-out error published, and alerts for any box on Earth. |
-| **Local Impact** | Bangladesh's kiln belt: we measured that NASA's fire product cannot count kilns (4.6% of mapped kilns against 4.2% of random ground) and count them from a published map, checked by night lights and Sentinel-1 radar. |
+| **Local Impact** | "Is fire near you?": any family, school or hospital can check its own street in plain words, with the schools and hospitals near a fire on the map. And Bangladesh's kiln belt: we measured that NASA's fire product cannot count kilns (4.6% of mapped kilns against 4.2% of random ground) and count them from a published map, checked by night lights and Sentinel-1 radar. |
 
 <details>
 <summary><b>Run it</b> (Python 3.11+, Node 20+)</summary>
@@ -416,6 +444,7 @@ We acknowledge the use of data and imagery from NASA's Fire Information for Reso
 (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
 
 Detections are not fires and not burned area. Kiln Watch is an independent project, not an official NASA product.
+
 ---
 
 ## Use of AI

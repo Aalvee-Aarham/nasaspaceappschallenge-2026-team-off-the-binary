@@ -23,9 +23,26 @@
 .h3d-nav > * { pointer-events: auto; }
 .h3d-nav .brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 650; font-size: 15px; letter-spacing: .02em; text-transform: uppercase; }
 .h3d-nav .brand svg { width: 30px; height: 30px; }
-.h3d-nav nav { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: clamp(18px, 3.4vw, 50px); }
-.h3d-nav nav button { background: none; border: 0; padding: 6px 0; color: var(--grey); font-size: 15px; transition: color .25s; }
+.h3d-nav nav { display: flex; gap: clamp(12px, 1.3vw, 26px); margin: 0 auto; padding: 0 24px; }
+.h3d-nav nav button { background: none; border: 0; padding: 6px 0; color: var(--soft); font-size: 14px; white-space: nowrap; transition: color .25s; }
 .h3d-nav nav button:hover { color: #fff; }
+.h3d-menu { display: none; width: 40px; height: 40px; margin-left: 10px; place-items: center; background: none; border: 1px solid var(--hair); color: #fff; padding: 0; }
+.h3d-menu svg { width: 22px; height: 22px; }
+/* medium screens: the page links take a second row under the brand and the Explorer button */
+@media (max-width: 1220px) {
+  .h3d-nav { flex-wrap: wrap; row-gap: 6px; padding-top: 18px; padding-bottom: 18px; }
+  .h3d-nav nav { order: 3; flex-basis: 100%; justify-content: center; flex-wrap: wrap; column-gap: 18px; padding: 0; }
+}
+/* phones and tablets: the links fold into a menu */
+@media (max-width: 900px) {
+  .h3d-nav { flex-wrap: nowrap; }
+  .h3d-menu { display: grid; }
+  .h3d-box { margin-left: auto; }
+  .h3d-nav nav { display: none; position: absolute; top: 100%; left: var(--gut); right: var(--gut); flex-direction: column; gap: 0; padding: 8px 18px; background: rgba(0, 0, 0, .94); border: 1px solid var(--hair); }
+  .h3d-nav nav.open { display: flex; }
+  .h3d-nav nav button { text-align: left; padding: 12px 0; font-size: 16px; color: #fff; border-bottom: 1px solid var(--hair); }
+  .h3d-nav nav button:last-child { border-bottom: 0; }
+}
 .h3d-box { position: relative; display: inline-flex; align-items: center; gap: 10px; background: var(--blue); border: 0; color: #00121f; padding: 14px 24px; font-size: 15px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase;
   animation: h3d-ring 2.4s ease-out infinite; transition: background .25s, color .25s, transform .25s; }
 .h3d-box svg { width: 18px; height: 18px; transition: transform .25s; }
@@ -281,7 +298,6 @@ div.scr { background: radial-gradient(120% 90% at 70% 0%, #07152a 0%, #03070d 60
 .h3d-foot .legal { margin-top: 90px; padding: 22px 0 30px; border-top: 1px solid var(--hair); display: grid; gap: 6px; color: var(--grey); font-size: 12.5px; line-height: 1.5; }
 
 @media (max-width: 900px) {
-  .h3d-nav nav { display: none; }
   .h3d-cta span { display: none; }
   .h3d-col.narrow, .h3d-col.right, .h3d-say { align-self: start; margin-top: 15vh; }
   .h3d-say { width: auto; }

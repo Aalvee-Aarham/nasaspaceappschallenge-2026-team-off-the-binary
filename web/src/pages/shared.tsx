@@ -88,6 +88,12 @@ export const Offline = ({ what }: { what: string }) => (
   <p className="warn small">{what} needs the Kiln Watch API. Start it with <code>uvicorn kw.api:app --port 8000</code> in <code>server/</code>.</p>
 );
 
+/** The candidate called exactly what was typed, else the first: Nominatim ranks the state "Sylhet Division" above the city "Sylhet". */
+const named = (cands: PlaceCandidate[], q: string) => {
+  const want = q.split(",")[0].trim().toLowerCase();
+  return Math.max(0, cands.findIndex((c) => c.name.split(",")[0].trim().toLowerCase() === want));
+};
+
 /** Any place on Earth: search a name, type coordinates, or draw on the map. Boxes are 0.5 to 4 degrees, 16 square degrees at most. */
 export function AreaPicker({ online, cta, busy, onPick, onDraw }: {
   online: boolean; cta: string; busy?: boolean; onPick: (box: number[], name?: string) => void; onDraw?: () => void;
@@ -132,7 +138,7 @@ export function AreaPicker({ online, cta, busy, onPick, onDraw }: {
         { name: res.name ?? query, display_name: res.display_name ?? res.name ?? query, country: res.country, country_code: res.country_code, lat: res.lat ?? 0, lon: res.lon ?? 0, bbox: res.bbox, places: res.places }
       ];
       setCandidates(cands);
-      pickCandidate(cands[0], 0);
+      pickCandidate(cands[named(cands, query)], named(cands, query));
     } catch {
       // Fallback: direct Nominatim call if backend is offline
       try {
@@ -156,7 +162,7 @@ export function AreaPicker({ online, cta, busy, onPick, onDraw }: {
           };
         });
         setCandidates(cands);
-        pickCandidate(cands[0], 0);
+        pickCandidate(cands[named(cands, query)], named(cands, query));
       } catch {
         setMsg("Place search is unavailable. You can enter the coordinates directly below.");
       }

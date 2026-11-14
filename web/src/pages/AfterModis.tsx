@@ -34,7 +34,7 @@ export default function AfterModis({ regions }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Continuity" title="After MODIS" lead="The MODIS archive changed its reported acquisition times, both MODIS missions are nearing their ends, and Suomi-NPP has already stopped. Switch sensors off and see whether the record still holds." />
+      <PageHead kicker="Continuity" title="After MODIS" lead="NASA's MODIS satellites are drifting and nearing the end of their lives, and Suomi-NPP has already stopped. Switch satellites off and see whether the record still holds." />
       {regions.length > 0 && id && <AreaSelect regions={regions} value={id} onChange={setRid} />}
       {err && <p className="error">{err}</p>}
       {!region && !err && <div className="skeleton tall" />}
@@ -86,11 +86,11 @@ export default function AfterModis({ regions }: PageProps) {
 
           {ao && years.length > 0 && (
             <section>
-              <h2>The MODIS acquisition-time archive changes</h2>
+              <h2>Aqua is drifting</h2>
               <LineChart x={years} name={`${m.id}-aqua-overpass`} label="Aqua MODIS local overpass hour by year" yFmt={hhmm}
                 marks={onsetYear && years.includes(onsetYear) ? [{ at: years.indexOf(onsetYear), color: "#E69F00", text: "onset" }] : undefined}
                 lines={[{ name: "Median local solar time of Aqua daytime detections", color: SENSOR_COLOR.MODIS_A, vals: years.map((y) => ao.years[y]), wide: true }]} />
-              <p>The reported local time of Aqua's daytime detections moved from <b>{ao.baseline_hour == null ? "–" : hhmm(ao.baseline_hour)}</b> to <b>{hhmm(ao.years[years[years.length - 1]])}</b>. Terra moved the other way and VIIRS stayed fixed, so this is an archive/reporting-time change—not a physical sun-synchronous orbital drift.
+              <p>Aqua's afternoon pass has moved from <b>{ao.baseline_hour == null ? "–" : hhmm(ao.baseline_hour)}</b> to <b>{hhmm(ao.years[years[years.length - 1]])}</b> local time. Terra and Aqua no longer adjust their orbits, so Terra's crossing time drifts earlier and Aqua's later, while the VIIRS satellites hold theirs.
                 {ao.onset && <> From <b>{ao.onset}</b> the record uses VIIRS only, still on the Aqua 2002–2020 scale.</>}
                 {ao.version_change && <> The MODIS archive also changed algorithm version (<b>{ao.version_change.version}</b>) in <b>{ao.version_change.from}</b>.</>}</p>
               <p className="muted small">{ao.rule}</p>

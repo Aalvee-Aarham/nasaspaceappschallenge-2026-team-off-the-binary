@@ -398,7 +398,7 @@ export function Continuity({ r, cls }: { r: Region; cls: Cls }) {
           <thead><tr><th>Event</th><th>Raw</th><th>Real change (Aqua only)</th><th>Harmonized</th><th>Left over</th></tr></thead>
           <tbody>{Object.entries(m.steps).map(([s, st]) => {
             const measured = s === "MODIS_TIME_SHIFT";
-            const label = measured ? "MODIS time shift" : SHORT[s] ?? s;
+            const label = measured ? "Aqua drift onset" : SHORT[s] ?? s;
             const color = measured ? "#F6C64F" : SENSOR_COLOR[s];
             return <tr key={s}><td><i className="dot" style={{ background: color }} />{label} <span className="muted">{st.period}</span></td>
               <td className="num">{ratio(st.raw_all_sensors)}</td><td className="num">{ratio(st.aqua_only)}</td><td className="num">{ratio(st.harmonized)}</td>
@@ -423,10 +423,10 @@ export function Continuity({ r, cls }: { r: Region; cls: Cls }) {
 
       {drift.length > 0 && (
         <section>
-          <h3>Acquisition-time and processing signature</h3>
+          <h3>Orbit drift signature</h3>
           <LineChart x={driftYears.map(String)} name={`${m.id}-drift`} label="Yearly detection ratios between satellites" yFmt={(v) => v.toFixed(2)}
             lines={drift.map(([k, v], j) => ({ name: k.split("/").map((s) => SHORT[s]).join(" ÷ "), color: ["#E69F00", "#CC79A7", "#009E73"][j], vals: driftYears.map((y) => v.find((q) => q[0] === y)?.[1] ?? null) }))} />
-          <p className="muted small">Detections in co-observed months, per year. A ratio that is flat and then bends after about 2020 shows Terra and Aqua moving away from their co-observation geometry. The reported MODIS acquisition times also shift at the measured onset; this is an archive change, not a physical sun-synchronous orbit drift.</p>
+          <p className="muted small">Detections in co-observed months, per year. A ratio that is flat and then bends after about 2020 shows Terra and Aqua drifting from their crossing times, which is why the MODIS calibration stops at 2020.</p>
         </section>
       )}
 

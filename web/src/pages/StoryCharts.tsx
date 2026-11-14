@@ -70,7 +70,14 @@ export function PixelCard({ cams }: { cams: (keyof typeof CAM)[] }) {
 const X0 = 60, X1 = 900, Y0 = 380, Y1 = 24;
 const LAUNCH: [string, string][] = [["VIIRS_SNPP", "VIIRS arrives"], ["VIIRS_NOAA20", "NOAA-20"], ["VIIRS_NOAA21", "NOAA-21"]];
 
-function annual(m: Block) {
+/** The baseline years, from meta.sensors: the first full year with Aqua flying to the year before Suomi NPP's first
+ *  detection (both MODIS, no VIIRS). */
+function baseYears(meta: Meta): [number, number] {
+  const a = meta.sensors.MODIS_A?.first ?? "", v = meta.sensors.VIIRS_SNPP?.first ?? "";
+  return [+a.slice(0, 4) + (a.endsWith("-01-01") ? 0 : 1), +v.slice(0, 4) - 1];
+}
+
+function annual(m: Block, [b0, b1]: [number, number]) {
   const by = new Map<number, { r: number; h: number; n: number }>();
   m.periods.forEach((p, i) => {
     if (m.partial[i]) return;
@@ -79,14 +86,17 @@ function annual(m: Block) {
     by.set(y, o);
   });
   const ys = [...by].filter(([, o]) => o.n === 12).sort((a, b) => a[0] - b[0]);
-  const base = ys.filter(([y]) => y >= 2003 && y <= 2011); // MODIS-only years, both Terra and Aqua flying
+  const base = ys.filter(([y]) => y >= b0 && y <= b1);
+  if (!base.length) return [];
   const br = base.reduce((a, [, o]) => a + o.r, 0) / base.length, bh = base.reduce((a, [, o]) => a + o.h, 0) / base.length;
   return ys.map(([y, o]) => ({ y, r: o.r / br, h: o.h / bh }));
 }
 
 export function JumpChart({ m, meta, fixBeat }: { m: Block | null; meta: Meta | null; fixBeat: number }) {
-  const rows = useMemo(() => (m ? annual(m) : []), [m]);
-  const ya = rows[0]?.y ?? 2001, yb = rows[rows.length - 1]?.y ?? 2025;
+  const base = useMemo(() => (meta ? baseYears(meta) : null), [meta]);
+  const rows = useMemo(() => (m && base ? annual(m, base) : []), [m, base]);
+  const ya = rows[0]?.y ?? 0, yb = rows[rows.length - 1]?.y ?? 0;
+  const years = rows.map((r) => r.y).filter((v) => v % 5 === 0); // axis labels every five years of the data
   const top = Math.max(2, ...rows.map((r) => r.r)) * 1.08;
   const x = (y: number) => X0 + ((y - ya) / Math.max(1, yb - ya)) * (X1 - X0), y = (v: number) => Y0 - (v / top) * (Y0 - Y1);
   const path = (k: "r" | "h") => rows.map((r, i) => `${i ? "L" : "M"}${x(r.y).toFixed(1)},${y(r[k]).toFixed(1)}`).join("");
@@ -96,7 +106,7 @@ export function JumpChart({ m, meta, fixBeat }: { m: Block | null; meta: Meta | 
     <figure className="chartcard jumpc">
       <svg viewBox="0 0 1000 420" aria-hidden>
         {ticks.map((t) => <g key={t} className={`tick ${t === 1 ? "one" : ""}`}><line x1={X0} x2={X1} y1={y(t)} y2={y(t)} /><text x={X0 - 12} y={y(t) + 5}>×{t}</text></g>)}
-        {[2005, 2010, 2015, 2020, 2025].filter((v) => v >= ya && v <= yb).map((v) => <text key={v} className="yr" x={x(v)} y={Y0 + 30}>{v}</text>)}
+        {years.map((v) => <text key={v} className="yr" x={x(v)} y={Y0 + 30}>{v}</text>)}
         {LAUNCH.map(([k, l], i) => {
           const p = meta?.steps[k]?.period, yy = p ? +p.slice(0, 4) + (+p.slice(5, 7) - 1) / 12 : 0;
           return (
@@ -111,7 +121,7 @@ export function JumpChart({ m, meta, fixBeat }: { m: Block | null; meta: Meta | 
         <g className="end raw" data-b={fixBeat - 1} data-in="1.5">{last && <text x={x(last.y) + 10} y={y(last.r) + 5}>Raw count</text>}</g>
         <g className="end harm" data-b={fixBeat} data-in="1.3">{last && <text x={x(last.y) + 10} y={y(last.h) + 5}>Kiln Watch</text>}</g>
       </svg>
-      <figcaption>{meta?.name ?? "…"} · hotspots per year · average of 2003–2011 = ×1</figcaption>
+      <figcaption>{meta?.name ?? "…"} · hotspots per year · average of {base ? `${base[0]}–${base[1]}` : "…"} = ×1</figcaption>
     </figure>
   );
 }

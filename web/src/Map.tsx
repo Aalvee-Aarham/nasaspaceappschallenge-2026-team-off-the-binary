@@ -2,10 +2,10 @@ import maplibregl, { GeoJSONSource, RasterTileSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { FireCase, Outlook, Region, RegionItem, fmt, heat, ordinal } from "./api";
+import { FireCase, Outlook, Region, RegionItem, apiOrigin, fmt, heat, ordinal } from "./api";
 
-import { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
-import type { Basemap, Focus, Layers, Projection } from "./mapConfig";
+import { FACILITY_KINDS, FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
+import type { Basemap, FacilityStatus, Focus, Layers, Projection } from "./mapConfig";
 
 export { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
 export type { Basemap, Focus, Layers, Projection } from "./mapConfig";
@@ -151,7 +151,12 @@ type Props = {
   cases?: FireCase[] | null;     // the casebook layer, shown while the Cases & exposure panel is open
   selCase?: string | null;
   onPickCase?: (id: string) => void;
+  onFacilities?: (s: FacilityStatus) => void;   // status of the schools-and-hospitals layer
+  facilitiesRetry?: number;                     // bump to fetch that layer again after a failure
 };
+
+const FAC_MAX = 0.6;   // degrees per side of the view; wider asks people to zoom in (the API takes up to 1° once snapped)
+const FAC_TILE = 0.25; // the API caches 0.25° tiles: snapping the box makes small pans reuse them
 
 export default function MapView(p: Props) {
   const el = useRef<HTMLDivElement>(null);
@@ -167,6 +172,8 @@ export default function MapView(p: Props) {
   regionRef.current = p.region;
   const caseRef = useRef(p.onPickCase);
   caseRef.current = p.onPickCase;
+  const facRef = useRef(p.onFacilities);
+  facRef.current = p.onFacilities;
 
   useEffect(() => {
     const m = new maplibregl.Map({
@@ -191,6 +198,30 @@ export default function MapView(p: Props) {
 
       m.addSource("grid", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "grid", type: "fill", source: "grid", paint: { "fill-color": ["get", "c"], "fill-opacity": 0.72, "fill-outline-color": "rgba(0,0,0,0)" } });
+
+      // schools, hospitals, clinics, care homes, fire stations (OpenStreetMap): under the fire layers so fires stay visible
+      m.addSource("facilities", { type: "geojson", data: EMPTY, attribution: "© OpenStreetMap contributors" });
+      m.addLayer({
+        id: "facilities", type: "circle", source: "facilities", layout: { visibility: "none" },
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2.5, 13, 5.5],
+          "circle-color": ["match", ["get", "k"], ...Object.entries(FACILITY_KINDS).flatMap(([k, v]) => [k, v.color]), "#999999"] as unknown as string,
+          "circle-stroke-color": "#0A0E15", "circle-stroke-width": 1,
+        },
+      });
+      m.on("click", "facilities", (e) => {
+        const q = e.features?.[0]?.properties;
+        if (!q) return;
+        const div = document.createElement("div");   // OSM names are user data: textContent, never HTML
+        const b = document.createElement("b");
+        b.textContent = q.name || "Unnamed";
+        const sp = document.createElement("span");
+        sp.textContent = `${FACILITY_KINDS[q.k as keyof typeof FACILITY_KINDS]?.label ?? q.k} · OpenStreetMap`;
+        div.append(b, document.createElement("br"), sp);
+        new maplibregl.Popup({ className: "kw-pop", offset: 8 }).setLngLat(e.lngLat).setDOMContent(div).addTo(m);
+      });
+      m.on("mouseenter", "facilities", () => (m.getCanvas().style.cursor = "pointer"));
+      m.on("mouseleave", "facilities", () => (m.getCanvas().style.cursor = ""));
 
       for (const f of [...FIRE_LAYERS].reverse()) {
         m.addSource(f.id, { type: "raster", tiles: [wms(f.id, p.date)], tileSize: 256, attribution: "NASA FIRMS via GIBS" });
@@ -236,6 +267,7 @@ export default function MapView(p: Props) {
 
       m.on("click", "regions-fill", (e) => {
         const id = e.features?.[0]?.properties?.id;
+        if (m.queryRenderedFeatures(e.point, { layers: ["facilities"] }).length) return; // that click opens the place's popup
         if (id && !e.features?.[0]?.properties?.sel) pickRef.current(id);
       });
       m.on("mouseenter", "regions-fill", () => (m.getCanvas().style.cursor = "pointer"));
@@ -383,6 +415,49 @@ export default function MapView(p: Props) {
     });
   }, [ready, p.region]);
   useEffect(() => { if (ready) map.current!.setLayoutProperty("statics", "visibility", p.layers.statics ? "visible" : "none"); }, [ready, p.layers.statics]);
+
+  // schools and hospitals in view: debounced on move, snapped to the API's tiles, polled while tiles load
+  useEffect(() => {
+    if (!ready) return;
+    const m = map.current!;
+    const src = m.getSource("facilities") as GeoJSONSource;
+    m.setLayoutProperty("facilities", "visibility", p.layers.facilities ? "visible" : "none");
+    if (!p.layers.facilities) { facRef.current?.(null); return; }
+    let debounce = 0, poll = 0, lastKey = "", ctl: AbortController | null = null;
+    const load = async () => {
+      const b = m.getBounds();
+      const w = Math.max(-180, b.getWest()), e = Math.min(180, b.getEast()), s = b.getSouth(), n = b.getNorth();
+      if (e - w > FAC_MAX || n - s > FAC_MAX) { facRef.current?.({ state: "zoom", n: 0 }); return; }
+      const box = [Math.floor(w / FAC_TILE), Math.floor(s / FAC_TILE), Math.ceil(e / FAC_TILE), Math.ceil(n / FAC_TILE)].map((v) => v * FAC_TILE);
+      const key = box.join(",");
+      if (key === lastKey) return;   // same tiles, already complete
+      ctl?.abort();
+      ctl = new AbortController();
+      try {
+        const r = await fetch(`${apiOrigin()}/api/facilities?west=${box[0]}&south=${box[1]}&east=${box[2]}&north=${box[3]}`, { signal: ctl.signal });
+        if (!r.ok) throw new Error(((await r.json().catch(() => null))?.detail as string) || `HTTP ${r.status}`);
+        const d: { items: [number, number, string, string][]; loading: number; failed: string[]; partial: boolean; truncated: boolean } = await r.json();
+        src.setData({
+          type: "FeatureCollection",
+          features: d.items.map(([lat, lon, k, name]) => ({ type: "Feature", properties: { k, name }, geometry: { type: "Point", coordinates: [lon, lat] } })),
+        });
+        const base = { n: d.items.length, partial: d.partial, truncated: d.truncated };
+        if (d.loading) {
+          facRef.current?.({ state: "loading", ...base });
+          poll = window.setTimeout(load, 4000);
+        } else if (d.failed.length) facRef.current?.({ state: "failed", ...base, msg: d.failed[0] });
+        else { lastKey = key; facRef.current?.({ state: "ok", ...base }); }
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        src.setData(EMPTY);   // points from another box would read as this one
+        facRef.current?.({ state: "failed", n: 0, msg: (err as Error).message });
+      }
+    };
+    const onMove = () => { clearTimeout(debounce); clearTimeout(poll); debounce = window.setTimeout(load, 500); };
+    m.on("moveend", onMove);
+    onMove();
+    return () => { m.off("moveend", onMove); clearTimeout(debounce); clearTimeout(poll); ctl?.abort(); };
+  }, [ready, p.layers.facilities, p.facilitiesRetry]);
 
   // rectangle drawing
   const drawnRef = useRef(p.onDrawn);
