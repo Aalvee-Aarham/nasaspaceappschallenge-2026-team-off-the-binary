@@ -67,6 +67,9 @@ flowchart LR
 - **Why Aqua?** Its afternoon orbit is the only one flown continuously from 2002 through every VIIRS satellite.
 - **How?** Ratio of totals per calendar month, day and night apart, shrunk by empirical Bayes. No black box.
 - **Which satellites, when?** Read from the data. Suomi-NPP's end on 2 November 2026 was detected, not typed in.
+- **What about Aqua's drift?** Its overpass time is read from the FIRMS timestamps, and the MODIS archive version from the
+  data. Both changed in 2023 (the pass moved more than 15 minutes later; version 61.03 replaced 6.03). From 2023 the
+  record runs on VIIRS alone, still on the Aqua 2002–2020 scale, so it carries on unchanged when Aqua is switched off.
 
 <p align="center"><img src="docs/readme/sensors.svg" alt="Timeline of the five satellites, with Suomi-NPP ending on 2026-11-02" width="100%"></p>
 
@@ -83,20 +86,21 @@ We test the record the way the future will: by taking satellites away.
 
 <br>
 
-| Region | Raw step ÷ Aqua | Harmonized step ÷ Aqua | Error, uncalibrated | Error, Kiln Watch | Rank ρ | 95% interval coverage | Trend/yr raw | harmonized | Aqua only |
-|---|---|---|---|---|---|---|---|---|---|
-| Dhaka brick-kiln belt | 10.58 | 1.15 | +1864.3% | +13.1% | 0.67 | 96% | 0.7 | 0.0 | 0.0 |
-| Punjab–Haryana crop residue burning | 4.48 | 0.93 | +469.7% | -5.8% | 0.98 | 96% | 72.5 | 0.0 | -0.1 |
-| Chilecito, La Rioja | 4.06 | 1.04 | +812.3% | -9.7% | 0.89 | 96% | 2.5 | 0.0 | 0.0 |
-| Rondônia deforestation arc | 5.61 | 1.07 | +516.5% | -0.6% | 0.98 | 96% | 18.1 | -0.1 | -0.2 |
-| Fort McMurray boreal forest | 7.43 | 1.19 | +1030.2% | -8.9% | 0.83 | 96% | 1.7 | 0.0 | 0.0 |
-| South-east Australia | 5.95 | 0.99 | +815.3% | +4.1% | 0.98 | 96% | 34.4 | -0.9 | -1.0 |
-| Northern California | 3.47 | 0.99 | +782.9% | +8.1% | 0.98 | 96% | 33.5 | 1.0 | 0.7 |
-| Paraná Delta wetlands | 5.27 | 1.01 | +597.0% | +27.5% | 0.94 | 96% | 6.0 | -1.6 | -1.7 |
-| Niger Delta gas flares | 6.44 | 0.95 | +580.5% | -1.7% | 0.98 | 96% | 34.3 | 0.2 | 0.1 |
+| Region | Raw step ÷ Aqua | Harmonized step ÷ Aqua | Error, uncalibrated | Error, Kiln Watch | Rank ρ | Interval coverage, unwidened | Interval coverage, out of sample | Trend/yr raw | harmonized | Aqua only |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Dhaka brick-kiln belt | 10.58 | 1.12 | +1865.3% | +13.1% | 0.68 | 42% | 88% | 0.7 | 0.0 | 0.0 |
+| Punjab–Haryana crop residue burning | 4.48 | 0.93 | +469.7% | -5.8% | 0.98 | 94% | 92% | 72.5 | 0.0 | -0.1 |
+| Chilecito, La Rioja | 4.06 | 1.03 | +812.3% | -9.7% | 0.89 | 35% | 96% | 2.5 | 0.0 | 0.0 |
+| Rondônia deforestation arc | 5.61 | 1.07 | +516.5% | -0.6% | 0.98 | 77% | 96% | 18.1 | -0.1 | -0.2 |
+| Fort McMurray boreal forest | 7.43 | 1.18 | +1030.3% | -8.9% | 0.83 | 58% | 96% | 1.7 | 0.0 | 0.0 |
+| South-east Australia | 5.95 | 0.99 | +815.3% | +4.1% | 0.98 | 65% | 92% | 34.4 | -0.9 | -1.0 |
+| Northern California | 3.47 | 0.99 | +782.9% | +8.1% | 0.98 | 67% | 79% | 33.5 | 1.0 | 0.7 |
+| Paraná Delta wetlands | 5.27 | 1.01 | +597.0% | +27.5% | 0.94 | 79% | 92% | 6.0 | -1.6 | -1.7 |
+| Niger Delta gas flares | 6.44 | 0.95 | +580.5% | -1.7% | 0.98 | 77% | 100% | 34.3 | 0.2 | 0.1 |
 
-Errors are from the MODIS-denial test (calibrate on 2012–2016, rebuild 2017–2020 from VIIRS alone). The 96% coverage holds
-by construction: intervals are widened to reach 95% on that test. Trends are Sen slopes for 2003–2020.
+Errors are from the MODIS-denial test (calibrate on 2012–2016, rebuild 2017–2020 from VIIRS alone). Intervals are widened
+so 95% of the 2017–2020 test months fall inside. To check that this is not circular, the widening is also fitted on
+2017–2018 alone and tested on 2019–2020: that is the out-of-sample column. Trends are Sen slopes for 2003–2020.
 How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/#pg=method).
 
 </details>
@@ -105,7 +109,9 @@ How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/
 
 - Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 7%.
 - Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
-- No cloud-cover correction yet, and the early-warning rule has not been backtested.
+- Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
+- No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
+  scored months lean toward active ones, so its skill numbers there are not yet comparable across areas.
 
 ---
 

@@ -146,8 +146,8 @@ export default function Analyst(p: {
   };
 
   useEffect(() => {
-    if (p.seed) { send(p.seed); p.onSeedUsed(); }
-  }, [p.seed]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (p.seed && !busy) { send(p.seed); p.onSeedUsed(); } // wait for the running answer, never drop the question
+  }, [p.seed, busy]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]); // braces: scrollIntoView returns a Promise in new Chrome, which React would call as cleanup
 
   return (

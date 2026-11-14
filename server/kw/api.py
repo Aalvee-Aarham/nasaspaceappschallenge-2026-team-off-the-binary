@@ -58,7 +58,7 @@ def _guard(fn, *a, **kw):
 def health():
     regions = tools.list_regions()
     return {"ok": True, "agent": agent.available(), "model": agent.MODEL if agent.available() else None,
-            "email": alerts.smtp_ready(),
+            "email": alerts.smtp_ready(), "serverless": tools.SERVERLESS,
             "regions": len(regions), "data_through": max((r["data_through"] for r in regions), default=None)}
 
 
@@ -209,7 +209,12 @@ def hotspots(rid: str, start: str, end: str):
 
 
 def _public_base(request: Request):
-    return os.environ.get("PUBLIC_URL") or str(request.base_url)
+    # Links in emails must point at our own domain; the Host header is caller-controlled.
+    if os.environ.get("PUBLIC_URL"):
+        return os.environ["PUBLIC_URL"]
+    if alerts.smtp_ready():
+        raise HTTPException(503, "PUBLIC_URL must be set on a server that sends email")
+    return str(request.base_url)
 
 
 @app.post("/api/alerts")

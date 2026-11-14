@@ -105,10 +105,74 @@ def combine(estimates):
     mu = statistics.fmean(v for v, _, _ in estimates)
     weights = []
     for v, s2, cv in estimates:
-        counting = cv * (mu / v) if v > 0 else cv
+        # zero count: cv = (b/c)^2 from the max(x, 1) floor, so the variance at the pooled mean is sqrt(cv) * mu
+        counting = cv * (mu / v) if v > 0 else (math.sqrt(cv) * mu if mu > 0 else cv)
         weights.append(1.0 / max(mu * mu * s2 + counting, 1e-9))
     W = sum(weights)
     return sum(w * e[0] for w, e in zip(weights, estimates)) / W, 1.0 / W
+
+
+# ---------- interval calibration ----------
+
+def conformal_scale(z, level=0.95, base=1.96, min_n=10):
+    """Split-conformal widening: the smallest k >= 1 such that a share `level` of |error|/sd values lie within
+    base * k. Fewer than min_n values: 1.0 (no evidence to widen)."""
+    if len(z) < min_n:
+        return 1.0
+    zs = sorted(z)
+    return max(1.0, zs[min(len(zs) - 1, math.ceil(level * len(zs)) - 1)] / base)
+
+
+def split_coverage(zk, fit_end="2018-12", test_start="2019-01", base=1.96):
+    """Out-of-sample check of the widening: fit k on periods <= fit_end, report coverage on periods >= test_start.
+    zk: [(period key, |error|/sd)]. None when the fit side has fewer than 10 values or the test side is empty."""
+    fit = [x for k, x in zk if k <= fit_end]
+    test = [x for k, x in zk if k >= test_start]
+    if len(fit) < 10 or not test:
+        return None
+    k = conformal_scale(fit, base=base)
+    return {"k_fit": k, "n_test": len(test), "coverage": sum(x <= base * k for x in test) / len(test)}
+
+
+# ---------- warning skill ----------
+
+def contingency(pairs):
+    """Skill of yes/no warnings. pairs: (warned, happened) booleans. POD = hit rate, FAR = false-alarm ratio,
+    POFD = false-alarm rate, PSS = Peirce skill score (POD - POFD; 0 = no better than chance, 1 = perfect)."""
+    h = sum(w and e for w, e in pairs)
+    m = sum(e and not w for w, e in pairs)
+    f = sum(w and not e for w, e in pairs)
+    c = sum(not w and not e for w, e in pairs)
+    pod = h / (h + m) if h + m else None
+    pofd = f / (f + c) if f + c else None
+    return {"n": len(pairs), "hits": h, "misses": m, "false_alarms": f, "correct_negatives": c,
+            "base_rate": round((h + m) / len(pairs), 3) if pairs else None,
+            "pod": None if pod is None else round(pod, 3),
+            "far": round(f / (h + f), 3) if h + f else None,
+            "pss": None if pod is None or pofd is None else round(pod - pofd, 3)}
+
+
+# ---------- orbit drift ----------
+
+def solar_hour(utc_hours, lon):
+    """Local solar time (hours, 0-24) of an overpass from its UTC time of day and longitude."""
+    return (utc_hours + lon / 15.0) % 24
+
+
+DRIFT_TOL_H = 0.25  # 15 minutes: well above year-to-year noise of a yearly median, well below the ~2 h drift by 2026
+
+
+def drift_onset(medians, baseline=(2003, 2020), first=2021, tol_h=DRIFT_TOL_H):
+    """First year >= `first` whose median overpass hour differs from the baseline years' median by more than tol_h.
+    medians: {year: median local solar hour}. Returns (onset_year or None, baseline_hour or None)."""
+    base = [h for y, h in medians.items() if baseline[0] <= y <= baseline[1]]
+    if len(base) < 5:
+        return None, None
+    ref = statistics.median(base)
+    for y in sorted(medians):
+        if y >= first and abs(medians[y] - ref) > tol_h:
+            return y, ref
+    return None, ref
 
 
 # ---------- anomaly, trend, steps ----------

@@ -42,12 +42,7 @@ def find_place(query: str) -> dict:
     """Look up ANY place name on Earth (city, district, park, country region). Returns its centre, a box of 0.5-4
     degrees around it (west, south, east, north) for the box-based tools, local languages, and the built Kiln Watch
     areas that overlap it."""
-    g = news_more.geocode(query)
-    if not g:
-        return {"found": False, "query": query}
-    w, s, e, n = g["bbox"]
-    near = [r for r in tools.list_regions() if not (r["bbox"][2] < w or r["bbox"][0] > e or r["bbox"][3] < s or r["bbox"][1] > n)]
-    return {"found": True, **g, "built_areas_overlapping": [{"id": r["id"], "name": r["name"]} for r in near]}
+    return tools.find_place(query)
 
 
 @mcp.tool(title="List built areas", annotations=RO)

@@ -23,7 +23,7 @@ export type Block = {
   raw: Record<string, RawSensor> & { all_det: number[] };
   nrt_share: Num[];
 };
-export type Metric = { n: number; bias_pct?: Num; mae?: number; rmse?: number; spearman?: Num; interval_coverage?: Num; interval_coverage_raw?: Num };
+export type Metric = { n: number; bias_pct?: Num; mae?: number; rmse?: number; spearman?: Num; interval_coverage?: Num; interval_coverage_raw?: Num; interval_coverage_out_of_sample?: Num };
 export type Link = { sensor: string; reference: string; window: string[]; beta: number[]; pooled: number; sigma2: number; tau2: number; n_periods: number; calibrated: boolean };
 export type Trend = { tau: Num; p: Num; z: Num; sen_per_year: Num; n: number; years: number[] };
 export type Season = {
@@ -107,6 +107,8 @@ export type Warning = {
   refreshing?: boolean;
   next_4_weeks: { weeks: string[]; years_used: number; p10: Num; median: Num; p90: Num; usual_share_of_year_pct: Num };
   year_to_date: { value: number; weeks: number; rank: number; n: number; median: number } | null;
+  backtest?: { scored: boolean; reason?: string; first_year?: number; last_year?: number;
+    by_day?: Record<string, Record<"elevated" | "watch_or_above", { n: number; hits: number; misses: number; false_alarms: number; correct_negatives: number; base_rate: Num; pod: Num; far: Num; pss: Num }>> } | null;
 };
 export type Trigger = "anomaly" | "outlook" | "events";
 export type AlertSub = {
@@ -119,7 +121,7 @@ export type AlertState = {
   as_of?: string; stale?: boolean; refreshing?: boolean; month?: Warning["month"]; rule?: string; message?: string;
   triggers?: Trigger[]; email?: string | null; confirmed?: boolean; sent?: { at: string; subject: string }[];
   outlook?: { as_of: string; next_30_days: [string, string]; counts: Record<OutlookClass, number>; rising: number } | null;
-  events_in_box?: WildEvent[] | null; outlook_triggered?: boolean;
+  events_in_box?: WildEvent[] | null; events_error?: string | null; outlook_triggered?: boolean;
 };
 export type NewsItem = { source: string; title: string; date: string; url: string; lang: string; outlet: string; lat?: number; lon?: number; severity?: string; alert?: string; country?: string };
 export type LatestNews = { window: [string, string]; sources: { name: string; count: number; error: string | null }[]; items: NewsItem[]; note: string };
@@ -136,7 +138,7 @@ export type Outlook = {
   counts: Record<OutlookClass | "rising", number>; cells: OutlookCell[]; regions: OutlookRegion[]; rule: string; caveat: string;
 };
 export const LEVEL_LABEL: Record<Level, string> = { elevated: "Elevated", watch: "Watch", normal: "Normal", quiet: "Quiet", insufficient: "Not scored" };
-export type Health = { ok: boolean; agent: boolean; email?: boolean; model: string | null; regions: number; data_through: string | null };
+export type Health = { ok: boolean; agent: boolean; email?: boolean; serverless?: boolean; model: string | null; regions: number; data_through: string | null };
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -156,7 +158,9 @@ const post = (body: unknown): RequestInit => ({ method: "POST", headers: { "Cont
 
 export const api = {
   health: () => json<Health>("/api/health"),
-  regions: () => json<{ regions: RegionItem[] }>("/data/regions/index.json").then((r) => r.regions),
+  regions: () => json<{ regions: RegionItem[] }>("/api/regions")
+    .catch(() => json<{ regions: RegionItem[] }>("/data/regions/index.json"))
+    .then((r) => r.regions),
   meta: (id: string) => json<Meta>(`/data/regions/${id}/meta.json`),
   monthly: (id: string) => json<Block>(`/data/regions/${id}/monthly.json`),
   region: async (id: string): Promise<Region> => {
@@ -214,7 +218,8 @@ export function pick(b: Block, scale: Scale, cls: Cls): Band & { modelled?: bool
   if (scale === "hotspots") return c.hotspots;
   if (scale === "viirs") return c.viirs_scale;
   if (scale === "celldays") return c.celldays;
-  const v = cls === "veg" ? b.raw.all_det : b.periods.map((_, i) => SENSORS.reduce((a, s) => a + (b.raw[s]?.static_det[i] ?? 0), 0));
+  const raw = cls === "veg" ? b.raw.all_det : b.periods.map((_, i) => SENSORS.reduce((a, s) => a + (b.raw[s]?.static_det[i] ?? 0), 0));
+  const v = raw.map((x, i) => (SENSORS.some((s) => (b.coverage[s]?.[i] ?? 0) > 0) ? x : null)); // no satellite observing ≠ 0
   return { v, lo: v.map(() => null), hi: v.map(() => null) };
 }
 
