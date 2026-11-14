@@ -35,6 +35,7 @@ export type Block = {
   classes: { veg: ClassBlock; static: ClassBlock };
   raw: Record<string, RawSensor> & { all_det: number[] };
   nrt_share: Num[];
+  nrt_unclassified_share?: Num[];
 };
 export type Metric = { n: number; bias_pct?: Num; mae?: number; rmse?: number; spearman?: Num; interval_coverage?: Num; interval_coverage_raw?: Num; interval_coverage_out_of_sample?: Num };
 export type Link = { sensor: string; reference: string; window: string[]; beta: number[]; pooled: number; sigma2: number; tau2: number; n_periods: number; calibrated: boolean };
@@ -52,10 +53,10 @@ export type Season = {
 export type Meta = {
   id: string; name: string; country: string | null; story: string | null; places: string[]; bbox: number[];
   grid_deg: number; data_through: string; built_at: string;
-  estimand: { primary: string; why_aqua: string; secondary: string[]; not: string };
+  estimand: { primary: string; why_aqua: string; model_scope?: string; secondary: string[]; not: string };
   method: Record<string, string>;
   calibration: Record<string, Link[]>;
-  closure: Record<string, { sensor: string; reference: string; window: string[]; direct: number; composed: number; mismatch_pct: number; n: number }[]>;
+  closure: Record<string, { sensor: string; reference: string; window: string[]; direct: number; composed: number; composed_pooled?: number; composition_bias_pct?: number; mismatch_pct: number; n: number }[]>;
   validation: Record<string, { sensor: string; reference: string; train: string[]; test: string[]; ours_seasonal_eb: Metric; baseline_single_ratio: Metric; uncalibrated: Metric }[]>;
   transfer_validation: { train: string[]; test: string[]; calibrated_here: Metric; transferred_from_other_regions: Metric } | null;
   denial: {
@@ -274,6 +275,34 @@ export const LEVEL_LABEL: Record<Level, string> = { elevated: "Elevated", watch:
 export type Health = { ok: boolean; agent: boolean; email?: boolean; serverless?: boolean; model: string | null; regions: number; data_through: string | null };
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
 
+/** Independent validation results (NASA MCD64A1 burned area, APAD kiln inventory); see scripts/validation/. */
+export type BurnedArea = {
+  generated_at: string; question: string;
+  source: { name: string; collection: string; catalogue: string; product_page: string; licence: string };
+  window: { first: string; last: string; months: number };
+  summary: {
+    median_spearman_harmonized_vs_burned: number | null; median_spearman_raw_vs_burned: number | null;
+    areas_harmonized_at_least_as_good_as_raw?: number; areas_compared?: number;
+    median_step_2012_raw: number | null; median_step_2012_harmonized: number | null; median_step_2012_burned_area: number | null;
+  };
+  per_area: Record<string, {
+    name: string; months: number; first: string; last: string; months_missing_from_catalogue: string[];
+    spearman_harmonized_vs_burned: number | null; spearman_raw_vs_burned: number | null;
+    total_burned_km2: number; months_with_burned_area: number;
+  }>;
+  catalogue_gaps: Record<string, string[]>;
+  limitations: string[];
+};
+export type KilnCheck = {
+  generated_at: string; question: string;
+  area: { id: string; name: string; bbox: number[]; area_km2: number };
+  inventory: { name: string; url: string; licence: string; retrieved_at: string; sha256: string };
+  results: { radius_km: number; published_cells: number; cells_matching_a_kiln: number; precision: number;
+              inventory_kilns_in_area: number; kilns_matching_a_cell: number; recall: number;
+              random_baseline_precision: number; random_baseline_recall: number; better_than_chance: boolean }[];
+  verdict: string; limitations: string[];
+};
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   await ready;
   const r = await fetch(API + url, init);
@@ -289,6 +318,11 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 const post = (body: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** A validation file that has not been produced must read as "not done", never as a zero result. */
+async function maybeJson<T>(url: string): Promise<T | null> {
+  try { return await json<T>(url); } catch { return null; }
+}
 
 export const api = {
   health: () => json<Health>("/api/health"),
@@ -332,6 +366,8 @@ export const api = {
   csvUrl: (id: string, g: string) => `${API}/api/regions/${id}/export.csv?granularity=${g}`,
   hotspotsUrl: (id: string, start: string, end: string) => `${API}/api/regions/${id}/hotspots.csv?start=${start}&end=${end}`,
   ratioTableUrl: () => `${API}/data/regions/calibration_table.csv`,
+  burnedArea: () => maybeJson<BurnedArea>("/data/validation/burned_area.json"),
+  kilnCheck: (id: string) => maybeJson<KilnCheck>(`/data/validation/kilns_${id}.json`),
 };
 
 // ---------- shared helpers ----------

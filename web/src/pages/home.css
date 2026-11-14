@@ -144,6 +144,7 @@
 .h3d-console div.scr { display: flex; }
 div.scr { background: radial-gradient(120% 90% at 70% 0%, #07152a 0%, #03070d 60%); color: #e8eef5; font-size: 1.25cqw; display: flex; flex-direction: column; text-align: left; }
 .scr .wait { margin: auto; color: var(--grey); }
+.scr .failed { margin: auto; max-width: 60cqw; text-align: center; color: #ff8a6a; font-size: 1.3cqw; line-height: 1.5; }
 .scr header { display: flex; align-items: center; gap: 1cqw; padding: 1.5cqw 2.2cqw; border-bottom: 1px solid rgba(255, 255, 255, .08); font-size: 1.2cqw; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--blue); }
 .scr header em { font-style: normal; color: #fff; letter-spacing: 0; text-transform: none; font-size: 1.45cqw; }
 .scr header time { margin-left: auto; color: var(--grey); letter-spacing: .02em; text-transform: none; font-weight: 500; }

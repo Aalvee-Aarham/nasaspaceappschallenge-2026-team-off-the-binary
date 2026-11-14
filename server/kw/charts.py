@@ -27,7 +27,9 @@ def annual(rid):
 
 def month_across_years(rid, month):
     b = tools._block(rid, "month")
-    m = int(month[-2:]) if month else int(b["periods"][-1][5:7])
+    if month and not (len(month) == 7 and month[:4].isdigit() and month[5:].isdigit() and 1 <= int(month[5:]) <= 12):
+        raise ValueError("month must be 'YYYY-MM'")
+    m = int(month[5:]) if month else int(b["periods"][-1][5:7])
     v, part = b["classes"]["veg"]["hotspots"]["v"], b["partial"]
     rows = [(p[:4], v[i], part[i]) for i, p in enumerate(b["periods"]) if int(p[5:7]) == m and v[i] is not None]
     done = sorted(x for _, x, pa in rows if not pa)

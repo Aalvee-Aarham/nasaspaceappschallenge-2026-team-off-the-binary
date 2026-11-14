@@ -73,7 +73,8 @@ export function AreaSelect({ regions, value, onChange }: { regions: RegionItem[]
 export function Code({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => undefined);
+    const copy = navigator.clipboard?.writeText(text);
+    copy?.then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => undefined);
   };
   return (
     <div className="codeblock">
@@ -135,7 +136,8 @@ export function AreaPicker({ online, cta, busy, onPick, onDraw }: {
     } catch {
       // Fallback: direct Nominatim call if backend is offline
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=1&q=${encodeURIComponent(query)}`);
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=1&q=${encodeURIComponent(query)}`,
+                              { signal: AbortSignal.timeout(8000) });
         const list = await r.json();
         if (!list || !list.length) { setMsg(`No place called “${query}”.`); return; }
         const cl = (v: number) => Math.min(4, Math.max(0.5, v));

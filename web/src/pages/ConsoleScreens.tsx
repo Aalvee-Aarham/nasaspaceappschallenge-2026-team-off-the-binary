@@ -25,8 +25,14 @@ const n0 = (v: number) => Math.round(v).toLocaleString("en");
 const pctile = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b), i = (s.length - 1) * p, lo = Math.floor(i); return s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo); };
 const monthName = (period: string) => new Date(period + "-01T00:00:00Z").toLocaleDateString("en", { month: "long", timeZone: "UTC" });
 
-export function WarnScreen({ d, play }: { d: ConsoleData | null; play: boolean }) {
+/** A failed upstream must read as a failure, not as a screen that is still loading. */
+function Failed({ what, err }: { what: string; err: string }) {
+  return <div className="scr"><p className="failed">Couldn't load {what}: {err}</p></div>;
+}
+
+export function WarnScreen({ d, play, err }: { d: ConsoleData | null; play: boolean; err?: string }) {
   const t = useClock(play);
+  if (err) return <Failed what="the early-warning check" err={err} />;
   if (!d?.w.month) return <div className="scr ew"><p className="wait">Loading the early-warning check…</p></div>;
   const { w, prior } = d, m = w.month!, year = +m.period.slice(0, 4);
   const vals = prior.map(([, v]) => v);
@@ -109,8 +115,9 @@ export function Phone({ d, past, play }: { d: ConsoleData | null; past: PastAler
   );
 }
 
-export function AskScreen({ d, play }: { d: ConsoleData | null; play: boolean }) {
+export function AskScreen({ d, play, err }: { d: ConsoleData | null; play: boolean; err?: string }) {
   const t = useClock(play);
+  if (err) return <Failed what="the analyst example" err={err} />;
   if (!d?.w.month) return <div className="scr cs-ask"><p className="wait">Loading…</p></div>;
   const { w } = d, m = w.month!;
   const q = `Is ${monthName(m.period)} unusual here compared with earlier years?`;
@@ -148,8 +155,9 @@ export function AskScreen({ d, play }: { d: ConsoleData | null; play: boolean })
  *  then one case shows what its witnesses said. Everything comes from /api/regions/<id>/cases and /exposure. */
 export type CasesData = { id: string; name: string; bbox: number[]; cases: FireCase[]; counts: Record<CaseVerdict, number>; people: number | null; hospitals: number | null; schools: number | null; named: string[]; cells: [number, number, number, number][] | null };
 
-export function CasesScreen({ d, play }: { d: CasesData | null; play: boolean }) {
+export function CasesScreen({ d, play, err }: { d: CasesData | null; play: boolean; err?: string }) {
   const t = useClock(play);
+  if (err) return <Failed what="the casebook" err={err} />;
   if (!d) return <div className="scr cxs"><p className="wait">Loading the casebook…</p></div>;
   const total = d.cases.length, shown = VERDICTS.filter((v) => d.counts[v] > 0), max = Math.max(1, ...shown.map((v) => d.counts[v]));
   const pick = d.cases.find((c) => c.verdict === "agency_only") ?? d.cases.find((c) => c.verdict === "corroborated") ?? d.cases[0];

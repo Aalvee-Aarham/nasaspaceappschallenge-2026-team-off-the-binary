@@ -68,11 +68,11 @@ export default function Timeline(p: Props) {
   return (
     <div className="timeline">
       <div className="tl-controls">
-        <button className="icon" onClick={() => p.onMonth(toKey(Math.max(0, sel - 1)))} aria-label="Previous month">‹</button>
+        <button className="icon" onClick={() => p.onMonth(toKey(Math.max(0, sel - 1)))} aria-label="Previous month" disabled={sel <= 0}>‹</button>
         <button className="icon play" onClick={() => { if (sel >= n - 1) p.onMonth(toKey(0)); p.onPlay(!p.playing); }} aria-label={p.playing ? "Pause timelapse" : "Play timelapse"}>
           {p.playing ? "❚❚" : "▶"}
         </button>
-        <button className="icon" onClick={() => p.onMonth(toKey(Math.min(n - 1, sel + 1)))} aria-label="Next month">›</button>
+        <button className="icon" onClick={() => p.onMonth(toKey(Math.min(n - 1, sel + 1)))} aria-label="Next month" disabled={sel >= n - 1}>›</button>
       </div>
       <svg ref={svg} viewBox={`0 0 ${W} ${BAR + LANES.length * (LANE + 2) + 16}`} preserveAspectRatio="none" className="tl-svg"
         role="slider" aria-label="Month" aria-valuetext={p.month} aria-valuemin={0} aria-valuemax={n - 1} aria-valuenow={sel} tabIndex={0}
