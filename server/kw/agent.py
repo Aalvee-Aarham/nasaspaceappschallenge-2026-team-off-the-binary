@@ -109,7 +109,7 @@ _RUN = {
     "timeline_reports": lambda a: _trim_timeline(tools.timeline_reports(a["region_id"], a["start"], a["end"])),
     "early_warning": lambda a: tools.early_warning(a["region_id"]),
     "check_watchlist": lambda a: tools.warnings(a.get("min_level", "watch")),
-    "find_place": lambda a: news_more.geocode(a["query"]) or {"found": False},
+    "find_place": lambda a: tools.find_place(a["query"]),
     "get_outlook": lambda a: _outlook(a),
     "query_hotspots": lambda a: _hotspots(a),
     "annual_series": lambda a: tools.annual(a["region_id"]),
