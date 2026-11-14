@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { CaseVerdict, CasebookOverview, api, fmt } from "../api";
 import { CaseCard, CellMap, Icon, LABEL, VerdictChips, compact, peopleShade, useCases, useExposure } from "../casebook";
 import { FarmSection, PeopleSection, PlaceCheck } from "../exposure";
-import PlaceRiskCheck from "../PlaceRisk";
 import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
 
+// The place check draws a MapLibre map: lazy, so the map library stays out of the entry chunk.
+const PlaceRiskCheck = lazy(() => import("../PlaceRisk"));
+
 export default function CasesPage({ regions, online, area }: PageProps) {
-  const presets = regions.filter((r) => r.preset);
+  const choices = regions;   // a built custom area is a choice here too, not just the presets
   const [rid, setRid] = useState("");
-  const id = rid || (area && presets.some((r) => r.id === area) ? area : null) || presets[0]?.id || null;
+  const id = rid || (area && choices.some((r) => r.id === area) ? area : null) || choices[0]?.id || null;
   const info = regions.find((r) => r.id === id);
   const cs = useCases(id, online), ex = useExposure(id, null, online);
   const [all, setAll] = useState<CasebookOverview | null>(null);
@@ -34,7 +36,9 @@ export default function CasesPage({ regions, online, area }: PageProps) {
       <PageHead kicker="Cases & exposure" title="Is fire near you?"
         lead="Type any town, village, school or address in the world. See if NASA satellites saw fire near it this week, which schools, hospitals and care homes are close to that fire, and when fire usually comes." />
 
-      <PlaceRiskCheck online={online} onArea={(a) => { setRid(a); requestAnimationFrame(() => document.getElementById("cx-study")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+      <Suspense fallback={<div className="skeleton tall" />}>
+        <PlaceRiskCheck online={online} onArea={(a) => { setRid(a); requestAnimationFrame(() => document.getElementById("cx-study")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+      </Suspense>
 
       <header className="pr-split" id="cx-study">
         <h2>For fire managers and students: nine study areas in depth</h2>
@@ -43,7 +47,7 @@ export default function CasesPage({ regions, online, area }: PageProps) {
 
       {!online ? <Offline what="This page" /> : <>
         <div className="cx-pick">
-          {id && <AreaSelect regions={presets.length ? presets : regions} value={id} onChange={setRid} />}
+          {id && <AreaSelect regions={choices} value={id} onChange={setRid} />}
           {info?.story && <p className="muted small">{info.story}</p>}
         </div>
 
@@ -52,7 +56,7 @@ export default function CasesPage({ regions, online, area }: PageProps) {
             <h2 id="cx-map-h">Where fire meets people</h2>
             <div className="cx-split">
               <figure className="cx-fig">
-                {e?.map_cells ? <CellMap fill={0.8} bbox={info.bbox} cells={e.map_cells} cases={side === "cases" ? rows : []} hi={hi} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : ex.err ? <p className="muted">No exposure data for this area yet.</p> : <div className="skeleton tall" />}
+                {e?.map_cells ? <CellMap fill={0.8} bbox={info.bbox} cells={e.map_cells} cases={side === "cases" ? rows : []} hi={hi} sel={sel} onSel={setSel} onCell={(la, lo) => check(la, lo, `Cell ${(la - 0.05).toFixed(1)}°, ${(lo - 0.05).toFixed(1)}°`)} /> : ex.err ? <p className="error">Couldn't load exposure: {ex.err}</p> : <div className="skeleton tall" />}
               </figure>
               <div className="cx-side"><div className="cx-side-in">
                 {e && <p className="small cx-sum">Fire was detected in <b>{fmt(e.fire_cells)}</b> cells here, home to about <b>{compact(e.population)}</b> people, <b>{e.schools == null ? "–" : fmt(e.schools)}</b> schools and <b>{e.hospitals == null ? "–" : fmt(e.hospitals)}</b> hospitals.</p>}
@@ -63,7 +67,7 @@ export default function CasesPage({ regions, online, area }: PageProps) {
                   </div>
                   {side === "cases" ? <>
                     <p className="muted small">Known fires, checked against NASA EONET, GDACS and the news.{data && data.counts.agency_only > 0 && <> The satellite record missed <b>{fmt(data.counts.agency_only)}</b>.</>}</p>
-                    {cs.err ? <p className="muted small">No cases for this area yet.</p> : !data ? <div className="skeleton" /> : <>
+                    {cs.err ? <p className="error small">Couldn't load cases: {cs.err}</p> : !data ? <div className="skeleton" /> : <>
                       <VerdictChips counts={data.counts} active={filter} onPick={(v) => { setFilter(v); setSel(null); }} />
                       {chosen ? <CaseCard c={chosen} onClose={() => setSel(null)} /> : (
                         <ul className="cp-list" aria-label="Cases">

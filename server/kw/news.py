@@ -7,6 +7,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import tempfile
 import threading
 import time
 import urllib.error
@@ -48,12 +49,31 @@ def _get(url, timeout=30, data=None, headers=None):
 
 
 def _cached(key, ttl_s, fn):
+    """Cache success and, briefly, failure. Writes are atomic: a concurrent reader never parses a half-written file."""
     CACHE.mkdir(parents=True, exist_ok=True)
     f = CACHE / (hashlib.sha1(key.encode()).hexdigest() + ".json")
     if f.exists() and time.time() - f.stat().st_mtime < ttl_s:
-        return json.loads(f.read_text(encoding="utf-8"))
-    val = fn()
-    f.write_text(json.dumps(val, ensure_ascii=False), encoding="utf-8")
+        val = json.loads(f.read_text(encoding="utf-8"))
+        if isinstance(val, dict) and "__error__" in val:
+            raise RuntimeError(val["__error__"])
+        return val
+
+    def write(val):
+        fd, tmp = tempfile.mkstemp(dir=CACHE, prefix=f".{f.stem}-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(val, fh, ensure_ascii=False)
+            os.replace(tmp, f)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+
+    try:
+        val = fn()
+    except Exception as ex:
+        write({"__error__": str(ex)[:300]})
+        raise
+    write(val)
     return val
 
 

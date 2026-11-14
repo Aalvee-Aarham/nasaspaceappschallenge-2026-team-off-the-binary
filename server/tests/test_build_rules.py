@@ -80,6 +80,66 @@ def test_code_version_marks_uncommitted_builds():
     assert build._code_version() == want, (build._code_version(), want)
 
 
+def test_first_incomplete_iso_week_is_partial():
+    import datetime as dt
+    class Con:
+        def execute(self, _sql):
+            return type("Rows", (), {"fetchall": lambda self: [("MODIS_T", "2000-W44", 5)]})()
+    cov, partial = build._coverage(Con(), ["2000-W44"], True, dt.date(2000, 11, 5), first=dt.date(2000, 11, 1))
+    assert cov["MODIS_T"] == [1.0]  # every available day was observed…
+    assert partial == [True]        # …but the ISO week still began before the archive
+
+
+def test_seasonal_sen_slope_is_median_of_season_slopes():
+    seasons = [[(2000, 0.0), (2001, 50.0), (2002, 100.0)], [(2000, 10.0), (2001, 20.0)]]
+    r = build.sc.seasonal_mann_kendall(seasons)
+    assert r["sen_per_year"] == 30.0, r  # median(50, 10), not the pooled median 50
+    assert r["sen_per_year_pooled"] == 50.0, r
+
+
+def test_uncalibrated_chain_has_zero_calibration_variance():
+    fits = {"MODIS_T": {"beta": [2.0] * 12, "pooled": 2.0, "sigma2": 0.2},
+            "VIIRS_SNPP": {"beta": [3.0] * 12, "pooled": 3.0, "sigma2": 0.3},
+            "VIIRS_NOAA20": {"beta": [1.5] * 12, "pooled": 1.5, "sigma2": 0.1},
+            "VIIRS_NOAA21": {"beta": [1.2] * 12, "pooled": 1.2, "sigma2": 0.1}}
+    to_ref = build._chain(fits, key="none")
+    assert all(b == [1.0] * 12 for k, (b, _variance) in to_ref.items() if k != "MODIS_A")
+    assert all(variance == 0.0 for _b, variance in to_ref.values())
+
+
+def test_aggregate_keeps_nrt_unclassified_counts():
+    import duckdb
+    con = duckdb.connect()
+    con.execute("""CREATE TABLE dall (cls VARCHAR, obs VARCHAR, daynight VARCHAR, n INTEGER,
+                    frp DOUBLE, quality VARCHAR, unclassified INTEGER, acq_date DATE, gy INTEGER, gx INTEGER,
+                    sensor VARCHAR)""")
+    con.execute("""INSERT INTO dall VALUES
+                    ('veg','VIIRS_SNPP','D',4,10,'nrt',3,'2020-01-01',1,1,'VIIRS_SNPP'),
+                    ('veg','MODIS_A','D',2,5,'6.03',0,'2020-01-01',1,1,'MODIS')""")
+    con.execute("CREATE VIEW d AS SELECT * FROM dall")
+    agg = build._aggregate(con, False)
+    assert agg[("veg", "VIIRS_SNPP", "2020-01")]["unclassified"] == 3
+    assert agg[("veg", "MODIS_A", "2020-01")]["unclassified"] == 0
+
+
+def test_grid_cells_use_area_weights_and_reconcile_with_total():
+    class Con:
+        def execute(self, _sql):
+            rows = [("2020-01", 0, 0, "MODIS_A", "D", 0),
+                    ("2020-01", 0, 0, "VIIRS_SNPP", "D", 20),
+                    ("2020-01", 0, 1, "MODIS_A", "D", 10),
+                    ("2020-01", 0, 1, "VIIRS_SNPP", "D", 0)]
+            return type("Rows", (), {"fetchall": lambda self: rows})()
+    agg = {("veg", "MODIS_A", "2020-01"): {"det_D": 10},
+           ("veg", "VIIRS_SNPP", "2020-01"): {"det_D": 20}}
+    ref = {"MODIS_A": ([1.0] * 12, 0.0), "VIIRS_SNPP": ([1.0] * 12, 0.0)}
+    cals = {"veg": {"det_D": {"to_ref": ref}, "det_N": {"to_ref": ref}}}
+    cov = {s: [1.0 if s in ("MODIS_A", "VIIRS_SNPP") else 0.0] for s in build.OBSERVERS}
+    grid = build._grid(Con(), ["2020-01"], cov, cals)
+    vals = [v for _ci, v in grid["months"]["2020-01"]]
+    assert abs(sum(vals) - 15.0) < 1e-9, grid
+
+
 def test_drift_uses_same_months_every_year():
     keys = [f"{y}-{m:02d}" for y in (2020, 2021) for m in range(1, 13)]
     sats = ("MODIS_A", "VIIRS_SNPP", "MODIS_T", "VIIRS_NOAA20")

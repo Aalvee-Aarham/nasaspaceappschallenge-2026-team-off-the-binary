@@ -12,6 +12,7 @@ import os
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 from .news import COUNTRY_LANG, _cached, _get, _nominatim_lock, _run, open_wildfires
 
@@ -112,20 +113,20 @@ def gdacs(start, end, bbox=None, country=None):
 
 
 def _google_for(places, langs, start, end):
-    """Google News for an area: one query per language and calendar year (each feed is capped near 100 items)."""
+    """Google News for an area: one query per language and calendar year (each feed is capped near 100 items).
+    Independent feeds are fetched concurrently; results are unfolded in the original language/year order."""
     pl = " OR ".join(f'"{p}"' for p in places[:4] if p)
     spans, a = [], start
     while a <= end:
         b = min(end, dt.date(a.year, 12, 31))
         spans.append((a, b))
         a = b + dt.timedelta(days=1)
-    out, urls = [], []
-    for lang in [x for x in dict.fromkeys(langs + ["en"]) if x in GN_LOCALE][:3]:
-        for a, b in spans[-6:]:  # ponytail: last 6 years per language keeps one search near 10 s
-            items, url, _ = google_news(f"({pl}) ({GN_WORDS[lang]})", lang, a, b)
-            out += items
-            urls.append(url)
-    return out, urls[0] if urls else "", f"({pl}) + fire words in {', '.join(langs)}"
+    jobs = [(lang, a, b) for lang in [x for x in dict.fromkeys(langs + ["en"]) if x in GN_LOCALE][:3]
+            for a, b in spans[-6:]]  # ponytail: last 6 years per language keeps one search near 10 s
+    with ThreadPoolExecutor(min(8, len(jobs) or 1)) as ex:
+        results = list(ex.map(lambda j: google_news(f"({pl}) ({GN_WORDS[j[0]]})", *j), jobs))
+    return [x for items, _url, _q in results for x in items], (results[0][1] if results else ""), \
+        f"({pl}) + fire words in {', '.join(langs)}"
 
 
 def extra_sources(meta, start, end, sources, items):
@@ -209,13 +210,16 @@ def latest(days=7):
                  ("NASA EONET", lambda: [{"source": "NASA EONET", "title": e["title"], "date": e["date"], "url": e["url"],
                                           "lang": "en", "outlet": "NASA EONET", "lat": e["lat"], "lon": e["lon"]}
                                          for e in open_wildfires() if e["date"] >= str(start)])]
-        for name, fn in jobs:
+        def one(job):
             try:
-                it = fn()
-                items += it
-                sources.append({"name": name, "count": len(it), "error": None})
+                return job[1](), None
             except Exception as ex:  # one failing source never blanks the feed; it is listed as failed
-                sources.append({"name": name, "count": 0, "error": str(ex)[:120]})
+                return [], str(ex)[:120]
+        with ThreadPoolExecutor(len(jobs)) as ex:  # latency-bound RSS/API calls, not CPU work
+            outcomes = list(ex.map(one, jobs))
+        for (name, _fn), (it, error) in zip(jobs, outcomes):
+            items += it
+            sources.append({"name": name, "count": len(it), "error": error})
         seen, out = set(), []
         for i in sorted(items, key=lambda i: i.get("date") or "", reverse=True):
             k = (i.get("title") or "").strip().lower()[:90]

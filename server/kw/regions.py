@@ -80,7 +80,7 @@ MAX_AOI_DEG2 = 16.0  # ponytail: area cap keeps an on-demand build to minutes; r
 
 def validate_bbox(bbox):
     """Return a clean (w, s, e, n) or raise ValueError. w > e means the box crosses the antimeridian."""
-    if len(bbox) != 4:
+    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
         raise ValueError("bbox needs 4 numbers: west,south,east,north")
     w, s, e, n = (float(v) for v in bbox)
     if not (-180 <= w <= 180 and -180 <= e <= 180 and -90 <= s < n <= 90):

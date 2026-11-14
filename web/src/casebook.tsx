@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { CaseVerdict, CasesResponse, ExposureResponse, FireCase, SHORT, api, fmt } from "./api";
 
 // One model of the casebook for every place it appears: the Explorer panel, the Cases & exposure page and the home
@@ -126,6 +126,12 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
   const x = (lon: number) => ((lon - w) / (e - w)) * W, y = (lat: number) => ((n - lat) / (n - s)) * H;
   const max = Math.max(1, ...cells.map((c) => c[2]));
   const cw = (0.1 / (e - w)) * W + 0.4, ch = (0.1 / (n - s)) * H + 0.4;
+  // the cell background never changes while a case animates: draw it once, not on every frame
+  const background = useMemo(() => cells.map(([la, lo, p]) => (
+    <rect key={`${la},${lo}`} x={x(lo)} y={y(la + 0.1)} width={cw} height={ch} fill={peopleShade(p, max)}
+      stroke="rgba(241,244,248,0.22)" strokeWidth={0.5}
+      className={onCell ? "cb-cell" : undefined} onClick={onCell ? () => onCell(la + 0.05, lo + 0.05) : undefined} />
+  )), [cells, max, cw, ch, w, e, n, s, W, H, onCell]);
   const shown = Math.round(cases.length * reveal);
   const order = cases.slice(0, shown).sort((a, b) => (a.id === sel ? 1 : 0) - (b.id === sel ? 1 : 0));
   return (
@@ -137,9 +143,7 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
       {/* Real ground under the cells for orientation: NASA Blue Marble shaded relief for the exact bbox (plate carrée, so it lines up with x/y). */}
       <image href={reliefImage(bbox, W * 2, H * 2)} width={W} height={H} preserveAspectRatio="none" opacity={0.55} />
       <rect width={W} height={H} fill="#05080D" opacity={0.35} />
-      {cells.map(([la, lo, p], i) => <rect key={i} x={x(lo)} y={y(la + 0.1)} width={cw} height={ch} fill={peopleShade(p, max)}
-        stroke="rgba(241,244,248,0.22)" strokeWidth={0.5}
-        className={onCell ? "cb-cell" : undefined} onClick={onCell ? () => onCell(la + 0.05, lo + 0.05) : undefined} />)}
+      {background}
       {hi && <rect x={x(hi[1]) - 2} y={y(hi[0] + 0.1) - 2} width={cw + 4} height={ch + 4} fill="none" stroke="#F1F4F8" strokeWidth={2.5} pointerEvents="none" />}
       {order.map((c) => (
         <g key={c.id} className={onSel ? "cb-pt" : undefined} onClick={onSel ? () => onSel(c.id) : undefined}>

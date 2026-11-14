@@ -26,6 +26,8 @@ const median = (xs: number[]) => {
   return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
 };
 const fx = (v: number | null | undefined, d = 2) => (num(v) ? v.toFixed(d) : "…");
+/** An upstream failure keeps its own words; it must never read as "no reports". */
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function summarize(ms: Meta[]) {
   const first = (k: string) => ms.map((m) => m.sensors[k]?.first).filter(Boolean).sort()[0];
@@ -95,7 +97,7 @@ const TOUR: [string, string, Page | "punjab"][] = [
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
   ["Early warning", "And how often it was right in past years.", "warning"],
   ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
-  ["Ask Claude", "A 38-tool MCP server over the same record.", "mcp"],
+  ["Ask Claude", "An MCP server over the same record, read-only over HTTP.", "mcp"],
 ];
 const TILES: [string, Page][] = [
   ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],
@@ -126,6 +128,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
   const [stage, setStage] = useState(-1); // console screen playing: 0 explore, 1 early warning, 2 cases, 3 analyst
   const [cdata, setCdata] = useState<ConsoleData | null>(null);
   const [xdata, setXdata] = useState<CasesData | null>(null);
+  const [homeErrors, setHomeErrors] = useState<Record<string, string>>({});
   const [area, setArea] = useState<{ meta: Meta; monthly: Block } | null>(null); // the area the story charts show
   const presets = useMemo(() => regions.filter((r) => r.preset), [regions]);
 
@@ -187,7 +190,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
       if (!row) return;
       const [w, m] = await Promise.all([api.warning(row.region_id), api.meta(row.region_id)]);
       if (live && w.month && m.current) setCdata({ w, prior: m.current.prior, sentence: m.current.sentence });
-    }).catch(() => undefined);
+    }).catch((e) => { if (live) setHomeErrors((s) => ({ ...s, warning: msg(e) })); });
     return () => { live = false; };
   }, []);
 
@@ -204,13 +207,14 @@ export default function Home({ regions, go, openRegion }: PageProps) {
       const [cs, ex] = await Promise.all([api.cases(best.id), api.exposure(best.id).catch(() => null)]);
       if (live) setXdata({ id: best.id, name: best.name, bbox: r.bbox, cases: cs.cases, counts: cs.counts, people: ex?.population ?? null, hospitals: ex?.hospitals ?? null, schools: ex?.schools ?? null,
         named: [...new Map((ex?.hospital_list ?? []).map((h) => h.name).filter((n) => n.length <= 42).map((n) => [n.split(" ")[0], n] as const)).values()].slice(0, 3), cells: ex?.map_cells ?? null });
-    }).catch(() => undefined);
+    }).catch((e) => { if (live) setHomeErrors((s) => ({ ...s, cases: msg(e) })); });
     return () => { live = false; };
   }, [regions]);
 
   useEffect(() => {
     let live = true;
-    api.events().then((e) => { if (!live) return; setEvents(e); scene.current?.setEvents(e.events.filter((x) => Number.isFinite(x.lon) && Number.isFinite(x.lat))); }).catch(() => undefined);
+    api.events().then((e) => { if (!live) return; setEvents(e); scene.current?.setEvents(e.events.filter((x) => Number.isFinite(x.lon) && Number.isFinite(x.lat))); })
+      .catch((e) => { if (live) setHomeErrors((s) => ({ ...s, news: msg(e) })); });
     return () => { live = false; };
   }, []);
 
@@ -409,9 +413,9 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="h3d-console" aria-hidden>
               <div className="frame">
                 <img className="scr" src={`${import.meta.env.BASE_URL}shots/explore.jpg`} alt="" />
-                <WarnScreen d={cdata} play={stage === 1} />
-                <CasesScreen d={xdata} play={stage === 2} />
-                <AskScreen d={cdata} play={stage === 3} />
+                <WarnScreen d={cdata} play={stage === 1} err={homeErrors.warning} />
+                <CasesScreen d={xdata} play={stage === 2} err={homeErrors.cases} />
+                <AskScreen d={cdata} play={stage === 3} err={homeErrors.warning} />
                 {EXPLORE_TAGS.map(([t, l, tp]) => <span key={t} className="ptag" style={{ left: `${l}%`, top: `${tp}%` }}><i />{t}</span>)}
                 <b className="glass" />
               </div>
@@ -449,7 +453,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
                 return (
                   <a key={i} className="ncard pop" data-in={0.35 + i * 0.13} href={e?.url ?? undefined} target="_blank" rel="noreferrer">
                     <span className="src">NASA EONET · open event</span>
-                    <b>{e?.title ?? "Loading the live feed…"}</b>
+                    <b>{e?.title ?? (homeErrors.news ? `Couldn't load the live feed: ${homeErrors.news}` : "Loading the live feed…")}</b>
                     <span className="meta">{e ? `${e.date} · ${e.lat.toFixed(2)}°, ${e.lon.toFixed(2)}°` : ""}</span>
                   </a>
                 );

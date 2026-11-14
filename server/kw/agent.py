@@ -6,6 +6,7 @@ browser, which moves the map / calendar.
 """
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -16,6 +17,7 @@ from . import charts, news_more, outlook, tools
 # gemini-flash-latest was measured hanging 60 s+ on tool calls while gemini-2.5-flash answers in ~2 s, so pin the fast one.
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 MAX_STEPS = 8
+ASK_BUDGET_S = 45  # below the hosted 60 s function budget; the API has a deterministic fallback
 
 SYSTEM = """You are the analyst inside Kiln Watch, a web app that harmonizes NASA FIRMS MODIS and VIIRS active-fire
 detections into one consistent 2000-present record per area.
@@ -206,7 +208,7 @@ def _post_key(body, key):
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", data=body,
             headers={"Content-Type": "application/json", "x-goog-api-key": key})
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=15) as r:
                 res = json.load(r)
                 res["_model"] = model
                 return res
@@ -252,12 +254,15 @@ def ask(message, history=None, context=None):
         raise RuntimeError("Set GEMINI_API_KEY (free at https://aistudio.google.com/apikey) to enable the analyst.")
     # the model does not know today's date: without it "the last 14 days" lands in its training year
     ctx = json.dumps({"today": str(dt.date.today()), **(context or {})})
-    contents = [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in (history or [])[-8:]
-                if m.get("role") in ("user", "model") and m.get("text")]
+    contents = [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in (history if isinstance(history, list) else [])[-8:]
+                if isinstance(m, dict) and m.get("role") in ("user", "model") and m.get("text")]
     contents.append({"role": "user", "parts": [{"text": f"[app state: {ctx}]\n{message}"}]})
     trace, actions, shown, calls_made = [], [], [], []
     nudged = False
+    deadline = time.monotonic() + ASK_BUDGET_S
     for _ in range(MAX_STEPS):
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"the analyst ran out of its {ASK_BUDGET_S}s budget; here are the record's own findings")
         res = _call(contents)
         cand = (res.get("candidates") or [{}])[0]
         content = cand.get("content") or {"role": "model", "parts": []}
