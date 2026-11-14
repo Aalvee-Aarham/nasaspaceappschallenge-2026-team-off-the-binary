@@ -39,7 +39,9 @@ _lock = threading.Lock()
 def connect():
     con = duckdb.connect()
     con.execute("INSTALL spatial; LOAD spatial; INSTALL httpfs; LOAD httpfs;")
-    con.execute("SET http_retries = 6; SET http_retry_wait_ms = 2000;")
+    # DuckDB multiplies the wait by http_retry_backoff each retry (default 4: 2, 8, 32, 128 s...), so one flaky reply
+    # could stall a read for minutes; factor 2 caps six retries at about 2 minutes in total.
+    con.execute("SET http_retries = 6; SET http_retry_wait_ms = 2000; SET http_retry_backoff = 2;")
     return con
 
 

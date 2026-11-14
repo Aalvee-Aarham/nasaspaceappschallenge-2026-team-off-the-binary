@@ -3,11 +3,13 @@
 Spec: {id, title, subtitle, unit, x: [labels], series: [{name, values, type: line|bar|band|dash, color, axis, lo, hi}],
        highlight: index or None, source: tool name, note}. Rendered by web/src/Chart.tsx.
 """
+from statistics import median
+
 from . import tools
 
 MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 EMBER, BLUE, GOLD, GREY = "#EA7329", "#00A1FF", "#F6C64F", "#97A3B3"
-KINDS = ("annual", "month_across_years", "recent_months", "recent_weeks", "season", "anomalies", "box_daily")
+KINDS = ("annual", "month_across_years", "recent_months", "recent_weeks", "season", "anomalies", "box_daily", "compare_months")
 
 
 def _name(rid):
@@ -106,11 +108,28 @@ def box_daily(bbox, start, end):
             "note": "Raw counts: VIIRS sees more small fires than MODIS.", "source": "query_hotspots"}
 
 
-def build(kind, region_id=None, month=None, bbox=None, start=None, end=None):
+def compare_months(region_ids):
+    ids = list(dict.fromkeys(region_ids or []))[:6]
+    if len(ids) < 2:
+        raise ValueError("compare_months needs 2 to 6 region_ids")
+    series = []
+    for rid, color in zip(ids, (EMBER, BLUE, GOLD, "#009E73", "#56B4E9", GREY)):
+        b = tools._block(rid, "month")
+        v, part = b["classes"]["veg"]["hotspots"]["v"], b["partial"]
+        by = [[x for p, x, pa in zip(b["periods"], v, part) if int(p[5:7]) == m and x is not None and not pa] for m in range(1, 13)]
+        series.append({"name": _name(rid), "values": [median(xs) if xs else None for xs in by], "type": "line", "color": color})
+    return {"title": "When each area burns: the typical year", "subtitle": "median of complete months, every year on record",
+            "unit": "hotspots per month, Aqua scale", "x": MON, "series": series, "source": "compare_areas"}
+
+
+def build(kind, region_id=None, month=None, bbox=None, start=None, end=None, region_ids=None):
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}")
     if kind == "box_daily":
         spec = box_daily(bbox, start, end)
+    elif kind == "compare_months":
+        spec = compare_months(region_ids)
+        region_id = "+".join(region_ids)
     elif not region_id:
         raise ValueError("region_id is required for this chart")
     elif kind == "month_across_years":
@@ -136,6 +155,8 @@ def auto(trace_calls):
                 out.append(build("annual", rid))
             elif name == "timeline_reports" and rid:
                 out.append(build("recent_months", rid))
+            elif name == "compare_areas":
+                out.append(build("compare_months", region_ids=a.get("region_ids")))
             elif name == "query_hotspots":
                 out.append(build("box_daily", bbox=[a["west"], a["south"], a["east"], a["north"]], start=a.get("start"), end=a.get("end")))
         except Exception:  # a chart is a bonus; never fail the answer for it

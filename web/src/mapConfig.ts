@@ -8,7 +8,18 @@ export const FIRE_LAYERS = [
 
 export type Basemap = "dark" | "night" | "satellite" | "relief";
 export type Projection = "globe" | "mercator";
-export type Layers = { fires: Record<string, boolean>; grid: boolean; statics: boolean; outlook: boolean };
+export type Layers = { fires: Record<string, boolean>; grid: boolean; statics: boolean; outlook: boolean; facilities: boolean };
+
+/** Explorer facilities layer (OpenStreetMap): kind -> colour and legend label. */
+export const FACILITY_KINDS = {
+  school: { color: "#4F8BFF", label: "School, college" },
+  hospital: { color: "#FFFFFF", label: "Hospital" },
+  clinic: { color: "#FF8FB1", label: "Clinic, doctor" },
+  care_home: { color: "#FFD166", label: "Care home" },
+  fire_station: { color: "#E63946", label: "Fire station" },
+} as const;
+/** What the facilities layer is doing; null while it is off. */
+export type FacilityStatus = { state: "zoom" | "loading" | "ok" | "failed"; n: number; partial?: boolean; truncated?: boolean; msg?: string } | null;
 export type Focus = { bbox?: number[]; center?: [number, number]; zoom?: number; n: number };
 
 export const OUTLOOK_COLOR = { watch: "#FF3B2F", above: "#FF9A3C", season: "#F6C64F" } as const;

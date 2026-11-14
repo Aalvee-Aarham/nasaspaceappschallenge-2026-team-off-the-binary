@@ -84,6 +84,22 @@ export function Markdown({ text }: { text: string }) {
   return <div className="md">{out}</div>;
 }
 
+/** The AI assistant's face: a small chatbot with a sparkle, so nobody mistakes its answers for the record itself. */
+export function AiAvatar({ size = 28, label }: { size?: number; label?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className="ai-av" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <circle cx="12" cy="12" r="11.5" className="ai-av-bg" />
+      <path d="M12 7V4.6" className="ai-av-line" />
+      <circle cx="12" cy="4.2" r="1.2" className="ai-av-face" />
+      <rect x="5.5" y="7.5" width="13" height="10" rx="3.5" className="ai-av-face" />
+      <circle cx="9.6" cy="12" r="1.3" className="ai-av-eye" />
+      <circle cx="14.4" cy="12" r="1.3" className="ai-av-eye" />
+      <path d="M10.2 15h3.6" className="ai-av-mouth" />
+      <path d="M19.5 2.5l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" className="ai-av-spark" />
+    </svg>
+  );
+}
+
 /** Reveals a fresh answer quickly, as if typed (about 1.5 s whatever its length). */
 function useReveal(text: string, on: boolean) {
   const [n, setN] = useState(on ? 0 : text.length);
@@ -151,12 +167,12 @@ export default function Analyst(p: {
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]); // braces: scrollIntoView returns a Promise in new Chrome, which React would call as cleanup
 
   return (
-    <aside className={`analyst ${wide ? "wide" : ""}`} aria-label="Analyst">
+    <aside className={`analyst ${wide ? "wide" : ""}`} aria-label="AI analyst">
       <header>
         <div className="ahead">
-          <svg viewBox="0 0 24 24" className="spark" aria-hidden><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z" /><circle cx="19" cy="19" r="2" /></svg>
+          <AiAvatar size={32} />
           <div>
-            <h2>Analyst</h2>
+            <h2>Analyst <span className="ai-tag" title="AI assistant (Google Gemini)">AI</span></h2>
             <span className="muted small">{p.enabled ? `${p.model ?? "Gemini"} · answers only from Kiln Watch tools` : "off"}</span>
           </div>
         </div>
@@ -175,12 +191,14 @@ export default function Analyst(p: {
         ) : msgs.length === 0 && (
           <div className="intro">
             <h3>{p.context.region_name ? `Ask about ${p.context.region_name}` : "Ask about fire anywhere on Earth"}</h3>
-            <p className="muted small">Every number comes from Kiln Watch's own tools and every tool call is listed. Charts are drawn from the pipeline, never by the model.</p>
+            <p className="muted small">I am an AI assistant. Every number comes from Kiln Watch's own tools and every tool call is listed. Charts are drawn from the pipeline, never by the model.</p>
             {suggest.map((s, i) => <button key={s} className="suggest" style={{ animationDelay: `${i * 80}ms` }} onClick={() => send(s)}>{s}</button>)}
           </div>
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
+            {m.role === "model" && <AiAvatar label="AI analyst" />}
+            <div className="msg-body">
             {m.role === "model" && m.trace && m.trace.length > 0 && (
               <ol className="chips" aria-label="Tools used">
                 {m.trace.map((t, k) => (
@@ -197,9 +215,10 @@ export default function Analyst(p: {
                 <ol>{m.trace.map((t, k) => <li key={k} className={t.ok ? "" : "error"}><code>{t.tool}</code> {Object.values(t.args).map(String).join(", ")}</li>)}</ol>
               </details>
             )}
+            </div>
           </div>
         ))}
-        {busy && <div className="msg model"><Loader steps={STEPS.analyst} expected={12} compact /></div>}
+        {busy && <div className="msg model"><AiAvatar label="AI analyst is thinking" /><div className="msg-body"><Loader steps={STEPS.analyst} expected={12} compact /></div></div>}
         <div ref={end} />
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(text); }}>

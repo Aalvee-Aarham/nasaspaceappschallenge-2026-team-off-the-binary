@@ -7,7 +7,8 @@ import Loader from "./Loader";
 
 // "Is fire near you?": any place on Earth, in plain words and pictures, for families, students, fire managers and
 // safety officers. Every number comes from /api/place-risk. The answer comes in two steps: the fire check first
-// (about 10 s), then the schools and hospitals from OpenStreetMap (slower when not cached).
+// (measured 5-20 s: a live read of NASA's newest FIRMS file; up to a minute when that server is slow), then the
+// schools and hospitals from OpenStreetMap (measured 20-45 s on its shared public servers; instant once cached).
 
 export const LEVEL: Record<PlaceLevel, { word: string; icon: string; color: string; say: string }> = {
   near: { word: "Fire close by", icon: "🔥", color: "#FF5A4F", say: "Satellites saw fire within 5 km this week." },
@@ -56,13 +57,17 @@ export default function PlaceRiskCheck({ online, onArea }: { online: boolean; on
     requestAnimationFrame(() => out.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     placeRisk({ ...t, radius_km: r, facilities: false }).then((d) => {
       if (latest.current !== id) return;
-      setData(d); setBusy(false); setFacBusy(true);
-      const at = { lat: d.place.lat, lon: d.place.lon, label: d.place.name };
-      return placeRisk({ ...at, radius_km: r }).then((d2) => {
-        if (latest.current !== id) return;
-        if (d2.facilities) setFac(d2.facilities); else setFacErr(d2.errors.facilities ?? "The list could not be read.");
-      }).catch((e) => latest.current === id && setFacErr(e.message)).finally(() => latest.current === id && setFacBusy(false));
+      setData(d); setBusy(false);
+      return loadFac(d, r, id);
     }).catch((e) => { if (latest.current === id) { setErr(e.message); setBusy(false); } });
+  };
+  /** The buildings, asked second (slow); "Try again" repeats only this step. */
+  const loadFac = (d: PlaceRisk, r = d.radius_km, id = latest.current) => {
+    setFac(null); setFacErr(""); setFacBusy(true);
+    return placeRisk({ lat: d.place.lat, lon: d.place.lon, label: d.place.name, radius_km: r }).then((d2) => {
+      if (latest.current !== id) return;
+      if (d2.facilities) setFac(d2.facilities); else setFacErr(d2.errors.facilities ?? "The list could not be read.");
+    }).catch((e) => latest.current === id && setFacErr(e.message)).finally(() => latest.current === id && setFacBusy(false));
   };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,8 +107,8 @@ export default function PlaceRiskCheck({ online, onArea }: { online: boolean; on
 
       <div ref={out} className="pr-out" aria-live="polite">
         {err && <p className="pr-err" role="alert">{err}</p>}
-        {busy && <Loader steps={STEPS} expected={12} title="Checking for fire" />}
-        {data && <Result d={data} fac={fac} facBusy={facBusy} facErr={facErr} retryFac={() => run({ lat: data.place.lat, lon: data.place.lon, label: data.place.name })}
+        {busy && <Loader steps={STEPS} expected={20} title="Checking for fire" eta="usually 5 to 20 s; up to a minute when NASA's data server is slow" />}
+        {data && <Result d={data} fac={fac} facBusy={facBusy} facErr={facErr} retryFac={() => loadFac(data)}
           onPick={(c) => { setQ(c.display_name); run({ lat: c.lat, lon: c.lon, label: c.name }); }} onArea={onArea} />}
       </div>
     </div>
@@ -168,8 +173,9 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
 
       <section className="pr-sec" aria-labelledby="pr-b-h">
         <h3 id="pr-b-h">Schools, hospitals and care homes nearby</h3>
-        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={30} />
-          : facErr ? <p className="pr-err">The list of schools and hospitals could not be loaded ({facErr.replace(/^OpenStreetMap \(Overpass\) did not answer: /, "the map service is busy")}). <button className="link" onClick={retryFac}>Try again</button></p>
+        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={45}
+          eta="usually 20 to 45 s: OpenStreetMap's free servers are shared and busy; it stops and says so after about a minute" />
+          : facErr ? <p className="pr-err">The list of schools and hospitals could not be loaded ({facErr.replace(/^OpenStreetMap \(Overpass\) did not answer: /, "OpenStreetMap's free map service is busy: ")}). It is not "no buildings". <button className="link" onClick={retryFac}>Try again</button></p>
           : fac ? <Buildings f={fac} r={d.radius_km} anyFire={(r?.count ?? 0) > 0} /> : null}
       </section>
 

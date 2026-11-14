@@ -4,8 +4,8 @@ import { AgentReply, CaseVerdict, Cls, FireCase, Health, Outlook, Region, Region
 import Detail, { RangeNews } from "./Detail";
 import ExportPanel from "./Export";
 import Loader, { STEPS } from "./Loader";
-import { FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
-import type { Basemap, Focus, Layers, Projection } from "./mapConfig";
+import { FACILITY_KINDS, FIRE_LAYERS, OUTLOOK_COLOR, OUTLOOK_LABEL } from "./mapConfig";
+import type { Basemap, FacilityStatus, Focus, Layers, Projection } from "./mapConfig";
 import { Calendar, Continuity, Glance, SeasonView, useYearRange } from "./Record";
 import { Create, Download } from "./pages/Data";
 import { Mcp, N8n } from "./pages/Connect";
@@ -59,8 +59,10 @@ export default function App() {
   const [date, setDate] = useState(clampDate(h0.d ?? yesterday()));
   const [layers, setLayers] = useState<Layers>({
     fires: { VIIRS_NOAA20_Thermal_Anomalies_375m_All: true, MODIS_Combined_Thermal_Anomalies_All: true },
-    grid: true, statics: true, outlook: true,
+    grid: true, statics: true, outlook: true, facilities: false,
   });
+  const [facStatus, setFacStatus] = useState<FacilityStatus>(null);
+  const [facRetry, setFacRetry] = useState(0);
   const [basemap, setBasemap] = useState<Basemap>((["dark", "night", "satellite", "relief"] as string[]).includes(h0.b) ? (h0.b as Basemap) : "night");
   const [projection, setProjection] = useState<Projection>(h0.pj === "flat" ? "mercator" : "globe");
   const [outlook, setOutlook] = useState<Outlook | null>(null);
@@ -304,8 +306,10 @@ export default function App() {
             projection={projection} outlook={outlook} onOutlookPick={pickAround}
             drawing={drawing} focus={focus} onPickRegion={openRegion}
             cases={caseDots} selCase={selCase?.id ?? null} onPickCase={(id) => pickCase(cases.data?.cases.find((c) => c.id === id) ?? null)}
-            onDrawn={(b) => { setDrawing(false); setDraft(b); }} />
+            onDrawn={(b) => { setDrawing(false); setDraft(b); }}
+            onFacilities={setFacStatus} facilitiesRetry={facRetry} />
         </Suspense>
+        {layers.facilities && !layersOpen && facStatus && <div className="fac-float"><FacStatusLine s={facStatus} retry={() => setFacRetry((n) => n + 1)} /></div>}
 
         {outlook && layers.outlook && !layersOpen && <MapKey o={outlook} />}
         {drawing && <div className="hint" role="status">Drag a box over the area you want to analyse. Press Esc to cancel.</div>}
@@ -331,6 +335,16 @@ export default function App() {
             <label className="check"><input type="checkbox" checked={layers.grid} onChange={(e) => setLayers({ ...layers, grid: e.target.checked })} /><i className="sw-grid" />Harmonized activity, {periodLabel(month)}</label>
             <label className="check"><input type="checkbox" checked={layers.statics} onChange={(e) => setLayers({ ...layers, statics: e.target.checked })} /><i style={{ background: "#C9A2F2" }} />FIRMS persistent heat sources (flares, industry; not a kiln inventory)</label>
             {!region && <p className="muted small">Open an area to see these.</p>}
+            <h2>Who is nearby</h2>
+            <label className="check"><input type="checkbox" checked={layers.facilities} onChange={(e) => setLayers({ ...layers, facilities: e.target.checked })} disabled={!online} /><i className="sw-fac" />Schools, hospitals and clinics</label>
+            {layers.facilities && (
+              <div className="fac-key">
+                {Object.values(FACILITY_KINDS).map((k) => <span key={k.label}><i style={{ background: k.color }} />{k.label}</span>)}
+                {facStatus && <FacStatusLine s={facStatus} retry={() => setFacRetry((n) => n + 1)} />}
+                <p className="muted small">OpenStreetMap, as mapped by volunteers: gaps are common. Context, not impact.</p>
+              </div>
+            )}
+            {!online && <p className="muted small">Needs the Kiln Watch API.</p>}
             <h2>Base map</h2>
             {([["night", "Night lights (NASA Black Marble)"], ["dark", "Dark map"], ["satellite", "Satellite image of the day"], ["relief", "Blue Marble relief"]] as const).map(([k, l]) => (
               <label key={k} className="check"><input type="radio" name="base" checked={basemap === k} onChange={() => setBasemap(k)} />{l}</label>
@@ -358,7 +372,7 @@ export default function App() {
                 <p className="error">{job.error}</p>
                 <button className="btn" onClick={() => setJob(null)}>Back</button>
               </> : <>
-                <Loader steps={STEPS.build} expected={600} eta="Plan on 5 to 10 minutes" done={job.total ? job.done : undefined} total={job.total || undefined} />
+                <Loader steps={STEPS.build} expected={360} eta="plan on 3 to 6 minutes; longer when NASA's data server is slow" done={job.total ? job.done : undefined} total={job.total || undefined} />
                 <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. It reads 26 years of detections, one request per year, so it takes about as long for a small box as a large one. It keeps running on the server if you close this tab, and the finished area appears under Your areas. Next time it opens instantly.</p>
               </>}
             </div>
@@ -367,7 +381,7 @@ export default function App() {
               <h2>Analyse this area?</h2>
               <p className="num">{draft[1].toFixed(2)}°, {draft[0].toFixed(2)}° to {draft[3].toFixed(2)}°, {draft[2].toFixed(2)}°</p>
               {area > 16 ? <p className="error">This box is {area.toFixed(1)} square degrees. Draw one up to 16 (about 4° × 4°).</p>
-                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes <b>5 to 10 minutes</b>: it reads every detection since 2000, one request per year. A smaller box does not make it faster; after the first build the area opens instantly.</p>}
+                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes <b>minutes, not seconds</b> (measured 2½ min on a laptop, 6 min on the hosted server): it reads every detection since 2000, one request per year, then calibrates and checks the fire cases. A smaller box does not make it faster; after the first build the area opens instantly.</p>}
               {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker to build any place.</p>}
               <div className="row">
                 <button className="btn" onClick={() => startBuild()} disabled={area > 16 || !!health?.serverless}>Build record</button>
@@ -552,6 +566,21 @@ function EwBanner({ ew, onOpen }: { ew: Warnings; onOpen: () => void }) {
 }
 
 const day = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+function FacStatusLine({ s, retry }: { s: NonNullable<FacilityStatus>; retry: () => void }) {
+  const part = s.partial ? " Showing the area's partial build-time list meanwhile." : "";
+  if (s.state === "zoom") return <p className="fac-st" role="status">Zoom in to see schools and hospitals.</p>;
+  if (s.state === "loading") return <p className="fac-st" role="status">Loading schools and hospitals… {s.n ? `${fmt(s.n)} so far.` : ""}{part}</p>;
+  if (s.state === "failed") return (
+    <p className="fac-st err" role="alert" title={s.msg}>Could not load: map service busy.{part} <button className="linkish" onClick={retry}>Retry</button></p>
+  );
+  return (
+    <p className="fac-st" role="status">
+      {s.n ? `${fmt(s.n)} places in OpenStreetMap here.` : "None mapped in OpenStreetMap here."}
+      {s.truncated && " Very dense: some places may be missing."}
+    </p>
+  );
+}
 
 function OutlookKey({ o }: { o: Outlook }) {
   return (

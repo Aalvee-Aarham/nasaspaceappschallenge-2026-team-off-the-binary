@@ -164,7 +164,7 @@ export function CasesScreen({ d, play, err }: { d: CasesData | null; play: boole
   const w = pick?.witnesses;
   return (
     <div className={`scr cxs ${play ? "on" : ""}`}>
-      <header><i className="live" />Cases &amp; exposure<em>{d.name}</em><time>every fire, five witnesses</time></header>
+      <header><i className="live" />Cases &amp; exposure<em>{d.name}</em><time>every fire, six witnesses</time>{/* server/kw/cases.py _w: satellite, cross_family, agency, disaster_system, press, burned_area */}</header>
       <div className="cxs-body">
         <figure className="cxs-map">{d.cells && <CellMap bbox={d.bbox} cells={d.cells} cases={d.cases} reveal={ramp(t, 900, 1900)} label={`${d.name}: fire cases on the area's fire cells`} />}</figure>
         <aside>

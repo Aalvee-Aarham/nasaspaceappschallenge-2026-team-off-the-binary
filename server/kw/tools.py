@@ -12,7 +12,7 @@ import re
 import threading
 import time
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import duckdb
 
@@ -543,8 +543,10 @@ def start_aoi(bbox, name=None):
                         "bbox": bbox, "places": place.get("places", []), "lang": place.get("lang", ["en"]),
                         "story": "Custom area drawn on the map."}
 
-                def progress(y, d, t):
-                    _jobs[rid].update(done=d, total=t, stage=f"reading {y}")
+                def progress(y, d, t):   # measured after the last year: 1.5 min here, 2.5 min on the 1-CPU Azure replica
+                    _jobs[rid].update(done=d, total=t, stage=f"reading {y}" if d < t else
+                                      "all years read; now calibrating and checking fire cases against news and "
+                                      "disaster alerts (about 1 to 3 minutes more)")
 
                 build_region(rid, info, progress)
                 write_index()
@@ -1075,6 +1077,7 @@ PLACE_KINDS = {"school": "school", "kindergarten": "school", "college": "school"
                "hospital": "hospital", "clinic": "clinic", "doctors": "clinic", "nursing_home": "care_home",
                "fire_station": "fire_station"}
 OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
+OVERPASS_DEADLINE_S = 45   # the slowest good answer measured was ~40 s; past that the servers were queueing or down
 FACILITY_CAP = 3000     # elements per Overpass reply; a dense city can hold more (then 'truncated': try a smaller distance)
 RECENT_DAYS = 7
 MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -1082,30 +1085,53 @@ MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "
 _LATLON = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$")
 
 
+def _cached_ok(key, ttl_s, fn):
+    """news._cached, but a failure is not kept: it would be served for the whole ttl (a week for the buildings, so
+    'Try again' could never succeed). The failed call is still reported; the next one asks the source again."""
+    try:
+        return news._cached(key, ttl_s, fn)
+    except Exception:
+        try:
+            (news.CACHE / (hashlib.sha1(key.encode()).hexdigest() + ".json")).unlink(missing_ok=True)
+        except OSError:   # Windows: another thread holds it open; it is retried on the next failure
+            pass
+        raise
+
+
 def _facilities(lat, lon, radius_km):
     """Schools, hospitals, clinics, care homes and fire stations within radius_km (OpenStreetMap, cached a week).
-    Asks Overpass for the bounding box (index-fast; 'around' on ways is several times slower) and cuts the circle here."""
+    Asks Overpass for the bounding box (index-fast; 'around' on ways is several times slower) and cuts the circle here.
+    The public Overpass servers queue requests (measured 20-60 s, often 429 or a timeout), so every mirror is asked at
+    once and the first good answer wins; after OVERPASS_DEADLINE_S it gives up and says so."""
     r = int(radius_km * 1000)
     d_lat = radius_km / 111.32
     d_lon = d_lat / max(0.05, math.cos(math.radians(lat)))
     box = f"{lat - d_lat:.4f},{lon - d_lon:.4f},{lat + d_lat:.4f},{lon + d_lon:.4f}"
-    q = (f'[out:json][timeout:40][bbox:{box}];(nwr["amenity"~"^({"|".join(PLACE_KINDS)})$"];'
-         f'nwr["healthcare"~"^(hospital|clinic)$"];nwr["social_facility"="nursing_home"];);out center tags {FACILITY_CAP};')
+    q = (f'[out:json][timeout:25][bbox:{box}];(nwr["amenity"~"^({"|".join(PLACE_KINDS)})$"];'
+         f'nwr["healthcare"~"^(hospital|clinic)$"];nwr["social_facility"="nursing_home"];);out center tags qt {FACILITY_CAP};')
+
+    def one(url):
+        d = json.loads(news._get(url, timeout=OVERPASS_DEADLINE_S, data=urllib.parse.urlencode({"data": q}).encode()))
+        if d.get("remark") and "error" in d["remark"].lower():
+            raise RuntimeError(d["remark"][:100])
+        return d.get("elements", [])
 
     def fetch():
         errs = []
-        for url in OVERPASS:
-            try:
-                d = json.loads(news._get(url, timeout=50, data=urllib.parse.urlencode({"data": q}).encode()))
-            except Exception as ex:  # noqa: BLE001 - try the next mirror, then report; never a silent empty list
-                errs.append(f"{url.split('/')[2]}: {str(ex)[:100]}")
-                continue
-            if d.get("remark") and "error" in d["remark"].lower():
-                errs.append(f"{url.split('/')[2]}: {d['remark'][:100]}")
-                continue
-            return d.get("elements", [])
+        pool = ThreadPoolExecutor(len(OVERPASS))
+        jobs = {pool.submit(one, u): u.split("/")[2] for u in OVERPASS}
+        try:
+            for f in as_completed(jobs, timeout=OVERPASS_DEADLINE_S):
+                try:
+                    return f.result()
+                except Exception as ex:  # noqa: BLE001 - wait for the other mirror, then report; never a silent empty list
+                    errs.append(f"{jobs[f]}: {str(ex)[:100]}")
+        except TimeoutError:
+            errs.append(f"no answer within {OVERPASS_DEADLINE_S} s")
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         raise RuntimeError("OpenStreetMap (Overpass) did not answer: " + "; ".join(errs))
-    els = news._cached(f"fac2:{lat:.3f},{lon:.3f},{r}", 7 * 86400, fetch)
+    els = _cached_ok(f"fac2:{lat:.3f},{lon:.3f},{r}", 7 * 86400, fetch)
     out = []
     for el in els:
         t = el.get("tags", {})
@@ -1121,18 +1147,37 @@ def _facilities(lat, lon, radius_km):
     return out, len(els) >= FACILITY_CAP
 
 
+_live, _live_lock = None, threading.Lock()
+
+
+def _live_cursor():
+    """One DuckDB per process for the live FIRMS reads: the extensions load once, and the current-year file's footer
+    (517 row groups, measured ~5 s to fetch) is cached between requests (re-read when the mirror's file changes).
+    Few, short retries: a live answer should fail in seconds, not wait out the build-time backoff (measured: the same
+    query takes 3 s or 50 s depending on how busy the mirror is)."""
+    global _live
+    with _live_lock:
+        if _live is None:
+            con = connect()
+            con.execute("SET GLOBAL parquet_metadata_cache = true; SET GLOBAL http_retries = 2; SET GLOBAL http_retry_wait_ms = 500; "
+                        "SET GLOBAL http_timeout = 15")   # a stalled ~1 MB range read is retried after 15 s, not the default 30
+            _live = con
+        cur = _live.cursor()
+    cur.execute("SET enable_progress_bar = false")   # a session-only option
+    return cur
+
+
 def _firms_through():
     """Newest acquisition date in the mirror's current-year file (read from the Parquet footer, cached an hour)."""
     f = f"{FIRMS_BASE}/year={dt.datetime.now(dt.timezone.utc).year}/detections.parquet"
 
     def fetch():
-        con = connect()
-        con.execute("SET enable_progress_bar = false")
+        cur = _live_cursor()
         try:
-            return con.execute(f"SELECT max(stats_max) FROM parquet_metadata('{f}') WHERE path_in_schema = 'acq_date'").fetchone()[0]
+            return cur.execute(f"SELECT max(stats_max) FROM parquet_metadata('{f}') WHERE path_in_schema = 'acq_date'").fetchone()[0]
         finally:
-            con.close()
-    return news._cached(f"firms-through:{int(time.time() // 3600)}", 3600, fetch)
+            cur.close()
+    return _cached_ok(f"firms-through:{int(time.time() // 3600)}", 3600, fetch)
 
 
 def _recent_fires(lat, lon, radius_km, days=RECENT_DAYS):
@@ -1144,8 +1189,7 @@ def _recent_fires(lat, lon, radius_km, days=RECENT_DAYS):
         d_lat = radius_km / 111.32
         d_lon = d_lat / max(0.05, math.cos(math.radians(lat)))
         files = [f"{FIRMS_BASE}/year={y}/detections.parquet" for y in sorted({a.year, b.year})]
-        con = connect()
-        con.execute("SET enable_progress_bar = false")
+        con = _live_cursor()
         try:
             # Narrow inner read, filters after: with the confidence ORs in the same WHERE, DuckDB stops pruning row
             # groups by the box and scans the whole year (minutes instead of seconds).
@@ -1162,7 +1206,7 @@ def _recent_fires(lat, lon, radius_km, days=RECENT_DAYS):
                 for t, s, la, lo, f in rows]
         return {"start": str(a), "end": str(b),
                 "detections": sorted((d for d in dets if d["km"] <= radius_km), key=lambda d: d["km"])}
-    return news._cached(f"recent:{lat:.2f},{lon:.2f},{radius_km}:{int(time.time() // 3600)}", 3600, fetch)
+    return _cached_ok(f"recent:{lat:.2f},{lon:.2f},{radius_km}:{int(time.time() // 3600)}", 3600, fetch)
 
 
 @functools.lru_cache(maxsize=2)
@@ -1235,6 +1279,13 @@ def _place_text(name, level, radius_km, dets, season, ocls, rec_ok):
     return headline, reasons
 
 
+def _named(cands, q):
+    """The candidate called exactly what was typed, else Nominatim's first. Nominatim ranks the state 'Sylhet Division'
+    above the city 'Sylhet', whose centre is 25 km away: 'Sylhet, Bangladesh' must mean the city."""
+    want = q.split(",")[0].strip().lower()
+    return next((c for c in cands if (c.get("name") or "").split(",")[0].strip().lower() == want), cands[0])
+
+
 def place_risk(query=None, lat=None, lon=None, radius_km=10.0, facilities=True, label=None):
     """Fire near any place on Earth, in plain words: what satellites saw within radius_km in the last 7 days, how
     often fire happens there at this time of year (2003-2025), its 30-day outlook, and the schools, hospitals,
@@ -1256,17 +1307,20 @@ def place_risk(query=None, lat=None, lon=None, radius_km=10.0, facilities=True, 
             g = news_more.geocode(q)
             if not g:
                 raise NotFound(f"no place called '{q}' was found; try a nearby town, or add the country")
+            cands = g.get("candidates") or [g]
+            g = _named(cands, q)
             lat, lon = g["lat"], g["lon"]
             place = {k: g.get(k) for k in ("name", "display_name", "country")}
-            candidates = [{k: c.get(k) for k in ("name", "display_name", "country", "lat", "lon")} for c in g.get("candidates", [])[1:6]]
+            candidates = [{k: c.get(k) for k in ("name", "display_name", "country", "lat", "lon")} for c in cands if c is not g][:5]
     lat, lon = float(lat), float(lon)
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise ValueError("lat must be -90 to 90 and lon -180 to 180")
     place = place or {"name": (label or "").strip()[:80] or "this place", "display_name": f"{lat:.4f}, {lon:.4f}", "country": None}
 
     errors, got = {}, {}
-    with ThreadPoolExecutor(3) as pool:
-        jobs = {"recent": pool.submit(_recent_fires, lat, lon, radius_km), "through": pool.submit(_firms_through)}
+    with ThreadPoolExecutor(5) as pool:   # all side by side: the answer takes as long as the slowest source
+        jobs = {"recent": pool.submit(_recent_fires, lat, lon, radius_km), "through": pool.submit(_firms_through),
+                "season": pool.submit(_season, lat, lon, max(1, round(radius_km / 11))), "outlook": pool.submit(outlook.at, lat, lon)}
         if facilities:   # the slow one (Overpass, 20-45 s uncached): the web page asks for it second
             jobs["facilities"] = pool.submit(_facilities, lat, lon, radius_km)
         for k, f in jobs.items():
@@ -1274,14 +1328,7 @@ def place_risk(query=None, lat=None, lon=None, radius_km=10.0, facilities=True, 
                 got[k] = f.result()
             except Exception as ex:  # noqa: BLE001 - a witness that could not look says so
                 errors[k] = str(ex)[:200]
-    try:
-        season = _season(lat, lon, max(1, round(radius_km / 11)))
-    except Exception as ex:  # noqa: BLE001
-        season, errors["season"] = None, str(ex)[:200]
-    try:
-        ol = outlook.at(lat, lon)
-    except Exception as ex:  # noqa: BLE001
-        ol, errors["outlook"] = None, str(ex)[:200]
+    season, ol = got.get("season"), got.get("outlook")
 
     rec = got.get("recent")
     dets = rec["detections"] if rec else []

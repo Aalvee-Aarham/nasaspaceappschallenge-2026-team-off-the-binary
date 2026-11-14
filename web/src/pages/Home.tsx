@@ -6,7 +6,7 @@ import { AskScreen, CasesData, CasesScreen, ConsoleData, PastAlert, Phone, WarnS
 import { JumpChart, PixelCard, ValidateChart } from "./StoryCharts";
 import { BEATS, mountScene, SceneHandle } from "./scene";
 import { mountStory, Story } from "./story";
-import { Page, PageProps } from "./shared";
+import { PAGES, Page, PageProps } from "./shared";
 import "./home.css";
 
 // Cinematic landing page: a deck of beats (story.ts) over one 3D scene (scene.ts). Beat i shows keyframe i of
@@ -45,7 +45,21 @@ function summarize(ms: Meta[]) {
   };
 }
 
-const firstYear = (ms: Meta[], k: string) => ms.map((m) => m.sensors[k]?.first).filter(Boolean).sort()[0]?.slice(0, 4);
+/** "since 2012", or "2012–2026" once the sensor's last detection is more than 3 days before the record's end (the
+ *  ended rule of scripts/readme_figures.mjs). Measured from the data, never a typed end date. */
+function span(ms: Meta[], k: string) {
+  const firsts = ms.map((m) => m.sensors[k]?.first).filter(Boolean).sort(), lasts = ms.map((m) => m.sensors[k]?.last).filter(Boolean).sort();
+  if (!firsts.length) return "";
+  const last = lasts[lasts.length - 1], through = ms.map((m) => m.data_through).sort().pop()!;
+  return Date.parse(through) - Date.parse(last) > 3 * 864e5 ? ` · ${firsts[0].slice(0, 4)}–${last.slice(0, 4)}, ended` : ` · since ${firsts[0].slice(0, 4)}`;
+}
+
+// home menu: the in-app top bar's pages (shared.tsx PAGES; the Explorer has its own button) plus News and Data
+const NAV: (readonly [Page, string])[] = [...PAGES.filter(([k]) => k !== "explore"), ["news", "News"], ["download", "Data"]];
+
+// the MCP server's size: 40 @mcp.tool functions in server/kw/mcp_server.py, 5 of them PUBLIC_WRITE_TOOLS that the public
+// HTTP connector drops (35 left). No endpoint reports it, so it is a constant: recount when tools are added.
+const MCP_TOOLS = 40, MCP_HTTP_TOOLS = 35;
 
 /** Big numbers count up the first time they scroll into view. */
 function countUp(root: HTMLElement, scroller: HTMLElement) {
@@ -91,24 +105,24 @@ const GROUPS: [string, number[]][][] = [
 const CHAPTERS = GROUPS.flatMap((g, gi) => g.map(([l, ks]) => ({ l, ks, gi })));
 const GROUP_FROM = GROUPS.map((g) => g[0][1][0]);
 
-const TOUR: [string, string, Page | "punjab"][] = [
-  ["The problem", "Raw counts jump in 2012 when a sharper satellite arrives. Nothing changed on the ground.", "punjab"],
-  ["The proof", "Nine areas, one scorecard.", "method"],
+const tour = (snppYear: string, areas: number | string): [string, string, Page | "punjab"][] => [
+  ["The problem", `Raw counts jump in ${snppYear} when a sharper satellite arrives. Nothing changed on the ground.`, "punjab"],
+  ["The proof", `${areas} areas, one scorecard.`, "method"],
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
   ["Early warning", "And how often it was right in past years.", "warning"],
   ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
-  ["Ask Claude", "A 40-tool MCP server over the same record, read-only over HTTP.", "mcp"],
+  ["Ask Claude", `A ${MCP_TOOLS}-tool MCP server over the same record; ${MCP_HTTP_TOOLS} read-only tools over public HTTP.`, "mcp"],
 ];
 const TILES: [string, Page][] = [
   ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],
   ["Built on NASA data, queried in place", "mcp"], ["Made for Bangladesh's kiln belt", "bangladesh"],
 ];
 
-const WHO: [string, string, Page][] = [
-  ["Fire and land managers", "Is this month burning more than usual here? Checked against every year since 2000.", "warning"],
-  ["Researchers", "A 2000-to-today record without the jump at each satellite launch, with uncertainty beside every number.", "method"],
+const who = (y0: string): [string, string, Page][] => [
+  ["Fire and land managers", `Is this month burning more than usual here? Checked against every year since ${y0}.`, "warning"],
+  ["Researchers", `A ${y0}-to-today record without the jump at each satellite launch, with uncertainty beside every number.`, "method"],
   ["Journalists and NGOs", "Reports from the ground next to what the satellites saw, month by month.", "news"],
-  ["Air-quality watchers", "Brick kilns, gas flares and industry kept apart from vegetation fires.", "explore"],
+  ["Air-quality watchers", "Gas flares, industry and other persistent heat sources kept apart from vegetation fires.", "explore"],
   ["Developers and AI agents", "The same tools over a REST API, an MCP server and n8n workflows.", "mcp"],
 ];
 
@@ -116,8 +130,8 @@ const WHO: [string, string, Page][] = [
 const SATS = [["Terra", "MODIS", "MODIS_T"], ["Aqua", "MODIS", "MODIS_A"], ["Suomi NPP", "VIIRS", "VIIRS_SNPP"], ["NOAA-20", "VIIRS", "VIIRS_NOAA20"], ["NOAA-21", "VIIRS", "VIIRS_NOAA21"]];
 
 // console stage 1: a real capture of the Explorer (web/public/shots), callouts placed in % of the screen.
-// Stages 2 to 4 are live animated screens (ConsoleScreens.tsx).
-const EXPLORE_TAGS: [string, number, number][] = [["Every hotspot, every day", 50, 49], ["Built areas, one click", 84, 34], ["Five satellites, one timeline", 46, 93]];
+// Stages 2 to 4 are live animated screens (ConsoleScreens.tsx). Keyed by position: the gsap code holds these nodes.
+const exploreTags = (sats: number | string): [string, number, number][] => [["Every hotspot, every day", 50, 49], ["Built areas, one click", 84, 34], [`${sats} satellites, one timeline`, 46, 93]];
 
 export default function Home({ regions, go, openRegion }: PageProps) {
   const scroller = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), bar = useRef<HTMLDivElement>(null);
@@ -129,6 +143,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
   const [cdata, setCdata] = useState<ConsoleData | null>(null);
   const [xdata, setXdata] = useState<CasesData | null>(null);
   const [homeErrors, setHomeErrors] = useState<Record<string, string>>({});
+  const [menu, setMenu] = useState(false); // the page menu on narrow screens
   const [area, setArea] = useState<{ meta: Meta; monthly: Block } | null>(null); // the area the story charts show
   const presets = useMemo(() => regions.filter((r) => r.preset), [regions]);
 
@@ -235,6 +250,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
       const y = el.scrollTop;
       el.classList.toggle("end", y > track.offsetTop + track.offsetHeight - innerHeight * 0.65);
       if (y > 2) el.classList.toggle("nav-up", y > last && y > innerHeight * 0.6);
+      if (Math.abs(y - last) > 4) setMenu(false); // the open page menu folds away once the story moves
       last = y;
     };
     el.addEventListener("scroll", on, { passive: true });
@@ -256,7 +272,8 @@ export default function Home({ regions, go, openRegion }: PageProps) {
     const { periods, partial, classes } = area.monthly, h = classes.veg.history;
     for (let i = periods.length - 1; i >= 0; i--) {
       const pct = h.pct[i], ratio = h.ratio[i], rank = h.rank[i], n = h.n[i], med = h.median[i];
-      if (!partial[i] && pct !== null && pct >= 90 && ratio !== null && rank !== null && n !== null && (med ?? 0) >= 5)
+      // science.warning_level: elevated at percentile ≥ 90, needs ≥ 10 earlier years (history n counts this year too) and a usual level of ≥ 5
+      if (!partial[i] && pct !== null && pct >= 90 && ratio !== null && rank !== null && n !== null && n - 1 >= 10 && (med ?? 0) >= 5)
         return { name: area.meta.name, period: periods[i], ratio, rank, n };
     }
     return null;
@@ -264,7 +281,8 @@ export default function Home({ regions, go, openRegion }: PageProps) {
 
   const s = useMemo(() => (metas.length ? summarize(metas) : null), [metas]);
   const sm = area?.meta, snppStep = sm?.steps.VIIRS_SNPP, den = sm?.denial.modis_ends_2016;
-  const y0 = s?.since?.slice(0, 4) ?? "2000", y1 = s?.snpp?.slice(0, 4) ?? "2012";
+  // first years from meta.sensors; "…" until the metas arrive (one word, so W's word count stays the same)
+  const y0 = s?.since?.slice(0, 4) ?? "…", y1 = s?.snpp?.slice(0, 4) ?? "…";
   useEffect(() => (s ? countUp(content.current!, scroller.current!) : undefined), [s]);
 
   return (
@@ -276,14 +294,13 @@ export default function Home({ regions, go, openRegion }: PageProps) {
 
       <header className="h3d-nav">
         <a className="brand" href="#" aria-label="Kiln Watch, back to the start" onClick={(e) => { e.preventDefault(); scroller.current?.scrollTo({ top: 0 }); story.current?.go(0); }}><Flame /><span>Kiln Watch</span></a>
-        <nav aria-label="Pages">
-          <button onClick={() => go("warning")}>Early warning</button>
-          <button onClick={() => go("news")}>News</button>
-          <button onClick={() => go("download")}>Data</button>
-          <button onClick={() => go("method")}>Methodology</button>
-          <button onClick={() => go("mcp")}>Connect</button>
+        <nav aria-label="Pages" id="h3d-pages" className={menu ? "open" : ""}>
+          {NAV.map(([k, l]) => <button key={k} onClick={() => go(k)}>{l}</button>)}
         </nav>
         <button className="h3d-box" onClick={() => go("explore")}>Open Explorer <Arrow /></button>
+        <button className="h3d-menu" aria-expanded={menu} aria-controls="h3d-pages" aria-label={menu ? "Close the page menu" : "Open the page menu"} onClick={() => setMenu(!menu)}>
+          <svg viewBox="0 0 24 24" aria-hidden><path d={menu ? "M6 6l12 12M18 6 6 18" : "M4 7h16M4 12h16M4 17h16"} fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+        </button>
       </header>
 
       <div className="h3d-bar" ref={bar}>
@@ -293,7 +310,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
       </div>
       <div className="h3d-tags" aria-hidden>
         {SATS.map(([n, inst, k]) => (
-          <div key={n} data-sat className={inst === "MODIS" ? "modis" : ""}><i /><b>{n}</b><span>{inst}{firstYear(metas, k) ? ` · since ${firstYear(metas, k)}` : ""}</span></div>
+          <div key={n} data-sat className={inst === "MODIS" ? "modis" : ""}><i /><b>{n}</b><span>{inst}{span(metas, k)}</span></div>
         ))}
       </div>
       {/* the ring fills while a scene is still landing (story.ts); then the cue invites the next move */}
@@ -334,7 +351,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
           <div className="h3d-beat" data-b={B.solution}>
             <div className="h3d-say">
               <p className="kicker" data-in>Our solution</p>
-              <p className="st" data-in="0.1"><W>Kiln Watch measures how differently each satellite sees the</W> <em><W>same fires</W></em><W>, then converts all five to</W> <em><W>one scale.</W></em></p>
+              <p className="st" data-in="0.1"><W>Kiln Watch measures how differently each satellite sees the</W> <em><W>same fires</W></em><W>{`, then converts all ${s?.sats ?? "…"} to`}</W> <em><W>one scale.</W></em></p>
               <ol className="h3d-flow" data-in="1" data-lit="0.1">
                 <li><b>{s?.sats ?? 5} satellites</b><span>spot the heat</span></li>
                 <li><b>NASA FIRMS</b><span>shares every hotspot</span></li>
@@ -383,7 +400,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="beat" data-b={B.fix} data-in>
               <p className="idx">04 · The fix</p>
               <p className="h3d-big"><W>Now:</W> <em><W>{`×${fx(snppStep?.harmonized_excess)}`}</W></em></p>
-              <p className="h3d-line">We measure how much more each camera sees and <em>convert</em> all five to one scale. Like converting currencies.</p>
+              <p className="h3d-line">We measure how much more each camera sees and <em>convert</em> all {s?.sats ?? "…"} to one scale. Like converting currencies.</p>
               <p className="fine">1.00 means no jump. Median of {s?.nStep ?? "…"} areas: ×{fx(s?.raw)} raw, ×{fx(s?.harm)} calibrated.</p>
             </div>
             <div className="chartwrap" data-in="0.1"><JumpChart m={area?.monthly ?? null} meta={sm ?? null} fixBeat={B.fix} /></div>
@@ -394,7 +411,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="beat" data-in>
               <p className="idx">05 · The proof</p>
               <p className="h3d-big"><W>We</W> <em><W>tested</W></em> <W>it</W></p>
-              <p className="h3d-line">We hid the older camera after 2016 and rebuilt its record from the newer one alone.</p>
+              <p className="h3d-line">We hid the older camera after {den?.train[1].slice(0, 4) ?? "…"} and rebuilt its record from the newer one alone.</p>
             </div>
             <div className="score" data-in="1.4">
               <b>{fx(den?.ours_seasonal_eb.spearman)}</b>
@@ -416,7 +433,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
                 <WarnScreen d={cdata} play={stage === 1} err={homeErrors.warning} />
                 <CasesScreen d={xdata} play={stage === 2} err={homeErrors.cases} />
                 <AskScreen d={cdata} play={stage === 3} err={homeErrors.warning} />
-                {EXPLORE_TAGS.map(([t, l, tp]) => <span key={t} className="ptag" style={{ left: `${l}%`, top: `${tp}%` }}><i />{t}</span>)}
+                {exploreTags(s?.sats ?? "…").map(([t, l, tp], i) => <span key={i} className="ptag" style={{ left: `${l}%`, top: `${tp}%` }}><i />{t}</span>)}
                 <b className="glass" />
               </div>
             </div>
@@ -509,7 +526,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <h2 className="h3d-h">Six stops,<br />one story</h2>
           </div>
           <ol className="who-grid" data-reveal>
-            {TOUR.map(([t, d, pg], i) => <li key={t}><button onClick={() => (pg === "punjab" ? openRegion("punjab") : go(pg))}><b>{i + 1}. {t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
+            {tour(y1, s?.areas ?? "…").map(([t, d, pg], i) => <li key={t}><button onClick={() => (pg === "punjab" ? openRegion("punjab") : go(pg))}><b>{i + 1}. {t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
           </ol>
           <ul className="who-grid tiles" data-reveal>
             {TILES.map(([t, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><i><Arrow /></i></button></li>)}
@@ -523,7 +540,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <h2 className="h3d-h">Whoever needs<br />a fire record<br />they can trust</h2>
           </div>
           <ul className="who-grid" data-reveal>
-            {WHO.map(([t, d, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
+            {who(y0).map(([t, d, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
           </ul>
         </section>
 
@@ -532,15 +549,15 @@ export default function Home({ regions, go, openRegion }: PageProps) {
           <div className="nums" data-reveal>
             <div><b><Count v={s?.areas} /></b><span>Fire regimes built</span></div>
             <div><b><Count v={s?.rho} dec={2} /></b><span>Rank correlation with Aqua on {s?.rhoN ?? "…"} withheld months</span></div>
-            <div><b><Count v={s ? s.statics / 1000 : null} />K</b><span>Kiln, flare and industry detections kept apart</span></div>
+            <div><b><Count v={s ? s.statics / 1000 : null} />K</b><span>Persistent heat-source detections (gas flares, industry) kept apart</span></div>
           </div>
-          <p className="fine">Middle figure: median across areas of the rehearsal “what if MODIS had ended in 2016?”, where {s?.rhoTest ? `${s.rhoTest[0]} to ${s.rhoTest[1]}` : "2017 to 2020"} is rebuilt from VIIRS alone and compared with what Aqua observed. Data through {s?.through ?? "…"}.</p>
+          <p className="fine">Middle figure: median across areas of the rehearsal “what if MODIS had ended in 2016?”, where {s?.rhoTest ? `${s.rhoTest[0]} to ${s.rhoTest[1]}` : "…"} is rebuilt from VIIRS alone and compared with what Aqua observed. Data through {s?.through ?? "…"}.</p>
         </section>
 
         <section className="h3d-flat wall">
           <div className="head" data-reveal>
             <h2 className="h3d-h">Fire regimes<br />on one scale</h2>
-            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since 2000 and takes 5 to 10 minutes.</p>
+            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes 5 to 10 minutes.</p>
           </div>
           <ul className="cells" data-reveal>
             {presets.map((r) => (
@@ -554,10 +571,10 @@ export default function Home({ regions, go, openRegion }: PageProps) {
 
         <footer className="h3d-flat h3d-foot">
           <div className="cols">
-            <div className="about"><h3>Kiln Watch</h3><p>One consistent fire record,<br />2000 to today.<br />NASA Space Apps 2026.</p></div>
-            <div><h3>Explore</h3><button onClick={() => go("explore")}>Explorer</button><button onClick={() => go("warning")}>Early warning</button><button onClick={() => go("news")}>News</button></div>
-            <div><h3>Data</h3><button onClick={() => go("download")}>Download</button><button onClick={() => go("create")}>Create an area</button><button onClick={() => go("method")}>Methodology</button></div>
-            <div><h3>Connect</h3><button onClick={() => go("mcp")}>MCP</button><button onClick={() => go("n8n")}>n8n alerts</button></div>
+            <div className="about"><h3>Kiln Watch</h3><p>One consistent fire record,<br />{y0} to today.<br />NASA Space Apps 2026.</p></div>
+            <div><h3>Explore</h3><button onClick={() => go("explore")}>Explorer</button><button onClick={() => go("warning")}>Early warning</button><button onClick={() => go("after")}>After MODIS</button><button onClick={() => go("cases")}>Cases &amp; exposure</button><button onClick={() => go("bangladesh")}>Bangladesh</button><button onClick={() => go("news")}>News</button></div>
+            <div><h3>Data</h3><button onClick={() => go("download")}>Download</button><button onClick={() => go("create")}>Create an area</button><button onClick={() => go("method")}>Proof and method</button><button onClick={() => go("questions")}>Open questions</button></div>
+            <div><h3>Connect</h3><button onClick={() => go("mcp")}>MCP</button><button onClick={() => go("n8n")}>n8n alerts</button><button onClick={() => go("contact")}>Contact</button></div>
           </div>
           <div className="legal">
             <p>Data: NASA FIRMS (MODIS C6.1, VIIRS 375 m) via the Portolan mirror. Satellite models: NASA 3D Resources. Earth: NASA Blue Marble. Not an official NASA product.</p>
