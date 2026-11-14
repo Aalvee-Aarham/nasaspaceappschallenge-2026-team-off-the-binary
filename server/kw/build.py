@@ -34,6 +34,9 @@ OUT = DATA / "regions"
 GRID_DEG = 0.1
 MIN_COVERAGE = 0.25   # an observer must see >= 25% of a period's days to contribute
 TRAIN_COVERAGE = 0.9  # calibration only uses periods both observers saw almost fully
+AQUA_FILE = DATA / "aqua_overpass.json"
+# ponytail: module global, safe because every build reads the same file; pass it explicitly if builds need different onsets
+AQUA_DRIFT_FROM = None  # "YYYY-MM" from aqua_overpass.json: from here MODIS is left out when VIIRS observes
 STEP_WINDOW = 24
 REF = "MODIS_A"
 MODIS_SATS = ["MODIS_A", "MODIS_T"]
@@ -63,16 +66,20 @@ def _r(x, nd=2):
     return None if x is None else round(x, nd)
 
 
-def _active(cov, i, allowed=None):
-    """Aqua when it observes, else Terra (only before Aqua or during an Aqua gap); plus every observing VIIRS."""
-    use = ["MODIS_A"] if cov["MODIS_A"][i] >= MIN_COVERAGE else (["MODIS_T"] if cov["MODIS_T"][i] >= MIN_COVERAGE else [])
-    use += [s for s in VIIRS if cov[s][i] >= MIN_COVERAGE]
+def _active(cov, i, allowed=None, key=None):
+    """Aqua when it observes, else Terra (only before Aqua or during an Aqua gap); plus every observing VIIRS.
+    From the measured Aqua change onset, MODIS is left out whenever a VIIRS satellite observes, so the record keeps the
+    Aqua 2002-2020 scale through the VIIRS calibration chain instead of following a drifted orbit / new algorithm."""
+    viirs = [s for s in VIIRS if cov[s][i] >= MIN_COVERAGE and (allowed is None or s in allowed)]
+    drifted = key is not None and AQUA_DRIFT_FROM is not None and key >= AQUA_DRIFT_FROM and viirs
+    use = [] if drifted else ["MODIS_A"] if cov["MODIS_A"][i] >= MIN_COVERAGE else (["MODIS_T"] if cov["MODIS_T"][i] >= MIN_COVERAGE else [])
+    use += viirs
     return [s for s in use if allowed is None or s in allowed]
 
 
 def _code_version():
     try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent,
+        return subprocess.check_output(["git", "describe", "--always", "--dirty"], cwd=Path(__file__).parent,
                                        stderr=subprocess.DEVNULL, text=True).strip()
     except Exception:
         return "unversioned"
@@ -273,7 +280,7 @@ def _series(agg, keys, cov, cls, q, to_ref, allowed=None, k_scale=1.0):
     v, var, used = [], [], []
     for i, k in enumerate(keys):
         m = sc.calendar_month(k)
-        ests, obs = [], _active(cov, i, allowed)
+        ests, obs = [], _active(cov, i, allowed, k)
         for s in obs:
             c = cov[s][i]
             x, cv = _value(agg, cls, s, k, q)
@@ -374,25 +381,32 @@ def _denial_modis(agg, keys, cov, cls, last_full):
     idx = [i for i, k in enumerate(keys) if "2017-01" <= k <= "2020-12" and cov["MODIS_A"][i] >= TRAIN_COVERAGE]
     truth = [sum(_value(agg, cls, "MODIS_A", keys[i], f"det_{dn}")[0] for dn in DN) / cov["MODIS_A"][i] for i in idx]
     result = {"train": ["2012-02", "2016-12"], "test": ["2017-01", "2020-12"], "n": len(idx)}
-    z = []
+    z, zk = [], []
     for name, key in (("ours_seasonal_eb", "beta"), ("baseline_single_ratio", "pooled"), ("uncalibrated", "none")):
         cfg = {f"det_{dn}": {"to_ref": _chain(cal[f"det_{dn}"], key)} for dn in DN}
         v, var, _, _ = _hotspots(agg, keys, cov, cls, cfg, set(VIIRS))
         pred = [v[i] or 0.0 for i in idx]
         m = sc.metrics(pred, truth)
         if key == "beta":
-            z = [abs(t - v[i]) / math.sqrt(var[i]) for t, i in zip(truth, idx) if v[i] is not None and var[i]]
+            zk = [(keys[i], abs(t - v[i]) / math.sqrt(var[i])) for t, i in zip(truth, idx) if v[i] is not None and var[i]]
+            z = [x for _, x in zk]
             m["interval_coverage_raw"] = _r(sum(x <= 1.96 for x in z) / len(z), 3) if z else None
             result["series"] = {"periods": [keys[i] for i in idx], "aqua": [_r(t) for t in truth], "predicted": [_r(p) for p in pred],
                                 **{x: _band([v[i] for i in idx], [var[i] for i in idx])[x] for x in ("lo", "hi")}}
         result[name] = m
     # Conformal-style widening: scale intervals so 95% of held-out months fall inside.
-    k = max(1.0, sorted(z)[min(len(z) - 1, math.ceil(0.95 * len(z)) - 1)] / 1.96) if len(z) >= 10 else 1.0
+    k = sc.conformal_scale(z)
     result["interval_scale"] = _r(k, 3)
     if "series" in result:
         result["series"]["lo"] = [_r(max(0.0, p - (p - lo) * k)) if lo is not None else None for p, lo in zip(result["series"]["predicted"], result["series"]["lo"])]
         result["series"]["hi"] = [_r(p + (hi - p) * k) if hi is not None else None for p, hi in zip(result["series"]["predicted"], result["series"]["hi"])]
         result["ours_seasonal_eb"]["interval_coverage"] = _r(sum(x <= 1.96 * k for x in z) / len(z), 3) if z else None
+    # the widening above is scored on the months it was fitted on; this checks it on months it never saw
+    oos = sc.split_coverage(zk)
+    if oos:
+        result["out_of_sample"] = {"fit": ["2017-01", "2018-12"], "test": ["2019-01", "2020-12"], "k_fit": _r(oos["k_fit"], 3),
+                                   "n_test": oos["n_test"], "coverage": _r(oos["coverage"], 3)}
+        result["ours_seasonal_eb"]["interval_coverage_out_of_sample"] = result["out_of_sample"]["coverage"]
     return result, k
 
 
@@ -470,19 +484,74 @@ def _trends(block, keys, partial, last_year):
     return out
 
 
-def _drift(block, keys):
-    """Yearly ratio of what one satellite sees to another, from co-observed months. A flat line that bends after
-    ~2020 is the signature of Terra/Aqua orbit drift."""
+def _drift(block, keys, min_months=6):
+    """Yearly ratio of what one satellite sees to another. Like for like: every year uses the same calendar months,
+    those both satellites observed in every year that has at least min_months co-observed months; years missing any
+    of them are left out. A flat line that bends is the signature of orbit drift or a processing change."""
     out = {}
     for a, b in (("MODIS_A", "VIIRS_SNPP"), ("MODIS_T", "MODIS_A"), ("VIIRS_NOAA20", "VIIRS_SNPP")):
-        yrs = {}
+        both = {}
         for i, k in enumerate(keys):
             ca, cb = block["coverage"][a][i], block["coverage"][b][i]
             if ca >= TRAIN_COVERAGE and cb >= TRAIN_COVERAGE:
-                d = yrs.setdefault(int(k[:4]), [0.0, 0.0])
-                d[0] += block["raw"][a]["det"][i] / ca
-                d[1] += block["raw"][b]["det"][i] / cb
-        out[f"{a}/{b}"] = [[y, _r(x / z, 4)] for y, (x, z) in sorted(yrs.items()) if z > 0]
+                both.setdefault(int(k[:4]), {})[int(k[5:7])] = (block["raw"][a]["det"][i] / ca, block["raw"][b]["det"][i] / cb)
+        full = [ms for ms in both.values() if len(ms) >= min_months]
+        common = set.intersection(*(set(ms) for ms in full)) if full else set()
+        if len(common) < 4:  # too few shared months to compare years fairly
+            out[f"{a}/{b}"] = []
+            continue
+        rows = []
+        for y, ms in sorted(both.items()):
+            if common <= set(ms):
+                x, z = sum(ms[m][0] for m in common), sum(ms[m][1] for m in common)
+                if z > 0:
+                    rows.append([y, _r(x / z, 4)])
+        out[f"{a}/{b}"] = rows
+    return out
+
+
+# ---------------- orbit drift ----------------
+
+def _load_aqua_onset():
+    """Set AQUA_DRIFT_FROM from the shared aqua_overpass.json (an orbit/archive property, same for every area)."""
+    global AQUA_DRIFT_FROM
+    AQUA_DRIFT_FROM = json.loads(AQUA_FILE.read_text(encoding="utf-8")).get("onset") if AQUA_FILE.exists() else None
+    return AQUA_DRIFT_FROM
+
+
+def aqua_overpass(region_ids):
+    """Median local solar time of Aqua's daytime detections per year, pooled over the preset areas' raw caches,
+    and the drift onset. Written to data/aqua_overpass.json so builds without raw caches use the same value."""
+    files = [f.as_posix() for rid in region_ids for f in (CACHE / rid).glob("*.parquet")]
+    if not files:
+        return json.loads(AQUA_FILE.read_text(encoding="utf-8")) if AQUA_FILE.exists() else None
+    rows = duckdb.connect().execute(f"""
+        SELECT year(acq_datetime) AS y,
+               median(((hour(acq_datetime) + minute(acq_datetime) / 60.0 + lon / 15.0) % 24 + 24) % 24) AS h,
+               count(*) AS n
+        FROM read_parquet({files}) WHERE sensor = 'MODIS' AND left(satellite, 1) = 'A' AND daynight = 'D'
+        GROUP BY 1 HAVING count(*) >= 100 ORDER BY 1""").fetchall()
+    years = {int(y): float(h) for y, h, _ in rows}
+    onset, base = sc.drift_onset(years)
+    orbit = None if onset is None else f"{onset}-01"
+    # first MODIS archive version (not NRT) that appears only after the 2002-2020 calibration years
+    ver = duckdb.connect().execute(f"""
+        SELECT version, strftime(min(acq_datetime), '%Y-%m') FROM read_parquet({files})
+        WHERE sensor = 'MODIS' AND version NOT LIKE '%NRT' GROUP BY 1
+        HAVING min(acq_datetime) >= TIMESTAMP '2021-01-01' ORDER BY 2 LIMIT 1""").fetchone()
+    version = ver and {"version": ver[0], "from": ver[1]}
+    starts = [x for x in (orbit, version and version["from"]) if x]
+    out = {"years": {str(y): round(h, 3) for y, h in years.items()},
+           "n": {str(int(y)): int(n) for y, _, n in rows},
+           "baseline_hour": None if base is None else round(base, 3),
+           "orbit_onset": orbit, "version_change": version,
+           "onset": min(starts) if starts else None,
+           "rule": f"Onset = the earlier of (a) the first year from 2021 whose median local solar time of Aqua MODIS daytime "
+                   f"detections (preset areas pooled) is more than {sc.DRIFT_TOL_H * 60:.0f} minutes from the 2003–2020 "
+                   "median, and (b) the first month of a MODIS archive version that appears only after 2020 (the "
+                   "calibration was fitted on the earlier version). From the onset the harmonized record uses the "
+                   "VIIRS satellites only (still on the Aqua 2002–2020 scale)."}
+    AQUA_FILE.write_text(json.dumps(out, indent=1), encoding="utf-8")
     return out
 
 
@@ -491,21 +560,33 @@ def _drift(block, keys):
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 
-def _window_current(con, through, cals, k_scale):
+def _daily_veg(con):
+    """Vegetation detections per day, satellite and day/night, and the days each satellite observed (one query each)."""
+    rows = con.execute("SELECT acq_date, obs, daynight, sum(n) FROM d WHERE cls = 'veg' GROUP BY ALL").fetchall()
+    days = con.execute(f"SELECT sensor, acq_date FROM read_parquet('{sensor_days().as_posix()}')").fetchall()
+    return rows, days
+
+
+def _month_to_date(daily, M, D, years, cals, k_scale):
+    """Harmonized vegetation hotspots for days 1..D of month M in each of `years`: the early-warning comparison."""
+    rows, days = daily
+    yset, keys, agg, cnt = set(years), [f"{y}-{M:02d}" for y in years], {}, {}
+    for d, obs, dn, n in rows:
+        if d.month == M and d.day <= D and d.year in yset:
+            agg.setdefault(("veg", obs, f"{d.year}-{M:02d}"), {"det_D": 0, "det_N": 0})[f"det_{dn}"] += n
+    for s, d in days:
+        if d.month == M and d.day <= D and d.year in yset:
+            cnt[(s, d.year)] = cnt.get((s, d.year), 0) + 1
+    cov = {s: [min(1.0, cnt.get((s, y), 0) / D) for y in years] for s in OBSERVERS}
+    v, var, _, _ = _hotspots(agg, keys, cov, "veg", cals["veg"], None, k_scale)
+    return keys, v, var
+
+
+def _window_current(con, through, cals, k_scale, daily=None):
     """Month-to-date compared fairly: the same days of the same month in every earlier year."""
     M, D = through.month, through.day
-    rows = con.execute(f"""SELECT year(acq_date), obs, daynight, sum(n) FROM d WHERE cls = 'veg'
-                           AND month(acq_date) = {M} AND day(acq_date) <= {D} GROUP BY ALL""").fetchall()
-    days = con.execute(f"""SELECT sensor, year(acq_date), count(*) FROM read_parquet('{sensor_days().as_posix()}')
-                           WHERE month(acq_date) = {M} AND day(acq_date) <= {D} GROUP BY ALL""").fetchall()
     years = list(range(2001 if M < 11 else 2000, through.year + 1))
-    keys = [f"{y}-{M:02d}" for y in years]
-    agg = {}
-    for y, obs, dn, n in rows:
-        agg.setdefault(("veg", obs, f"{y}-{M:02d}"), {"det_D": 0, "det_N": 0})[f"det_{dn}"] += n
-    dmap = {(s, y): n for s, y, n in days}
-    cov = {s: [min(1.0, dmap.get((s, y), 0) / D) for y in years] for s in OBSERVERS}
-    v, var, _, _ = _hotspots(agg, keys, cov, "veg", cals["veg"], None, k_scale)
+    keys, v, var = _month_to_date(daily or _daily_veg(con), M, D, years, cals, k_scale)
     cur, prior = v[-1], [(y, x) for y, x in zip(years[:-1], v[:-1]) if x is not None]
     if cur is None or len(prior) < 5:
         return None
@@ -521,6 +602,40 @@ def _window_current(con, through, cals, k_scale):
     return {"period": keys[-1], "days": D, "partial": partial, "value": _r(cur), "lo": _r(max(0, cur - 1.96 * sd)),
             "hi": _r(cur + 1.96 * sd), "median": _r(med), "higher_than": higher, "n_prior": len(prior),
             "rank": 1 + sum(x > cur for _, x in prior), "prior": [[y, _r(x)] for y, x in prior], "sentence": sentence}
+
+
+def _warning_backtest(daily, monthly, cals, k_scale, last_year, check_days=(10, 15), first=2006):
+    """Run the month-to-date rule as if it were day D of every past month, then score it against how that month ended
+    (full-month percentile against earlier full months). Calibration uses all years, so this tests the rule, not the
+    calibration. Weekly part of the rule not included."""
+    keys, vals, part = monthly["periods"], monthly["classes"]["veg"]["hotspots"]["v"], monthly["partial"]
+    full = {k: x for k, x, p in zip(keys, vals, part) if x is not None and not p}
+    totals = {}
+    for k, x in full.items():
+        totals.setdefault(int(k[:4]), []).append(x)
+    typical = statistics.median([sum(x) for x in totals.values() if len(x) == 12] or [0])
+    if typical < 100:
+        return {"scored": False, "reason": "a typical year has fewer than 100 hotspots (the rule does not score here)"}
+    out = {"scored": True, "first_year": first, "last_year": last_year, "by_day": {}}
+    for D in check_days:
+        cases = []
+        for M in range(1, 13):
+            years = list(range(2001 if M < 11 else 2000, last_year + 1))
+            _, v, _ = _month_to_date(daily, M, D, years, cals, k_scale)
+            for j, y in enumerate(years):
+                key = f"{y}-{M:02d}"
+                prior_mtd = [v[i] for i in range(j) if v[i] is not None]
+                prior_full = [full[f"{years[i]}-{M:02d}"] for i in range(j) if f"{years[i]}-{M:02d}" in full]
+                if y < first or v[j] is None or key not in full or len(prior_mtd) < 10 or len(prior_full) < 10:
+                    continue
+                if max(v[j], statistics.median(prior_mtd)) < 5:
+                    continue  # same floor as science.warning_level
+                cases.append((sc.percentile_rank(v[j], prior_mtd), sc.percentile_rank(full[key], prior_full)))
+        out["by_day"][str(D)] = {
+            "elevated": sc.contingency([(a >= 90, b >= 90) for a, b in cases]),
+            "watch_or_above": sc.contingency([(a >= 75, b >= 75) for a, b in cases]),
+        }
+    return out
 
 
 def _season(weekly, last_week):
@@ -632,9 +747,15 @@ def _grid(con, keys, cov, cals):
         if i is None:
             continue
         m = sc.calendar_month(p)
-        ests = [sum(cals["veg"][f"det_{dn}"]["to_ref"][s][0][m - 1] * per.get(s, {}).get(dn, 0) for dn in DN) / cov[s][i]
-                for s in _active(cov, i)]
-        val = statistics.fmean(ests) if ests else 0.0
+        val = 0.0  # same rule as the area total (_series): inverse-variance per day/night, then added
+        for dn in DN:
+            to_ref = cals["veg"][f"det_{dn}"]["to_ref"]
+            ests = []
+            for s in _active(cov, i, key=p):
+                b, s2, c, x = to_ref[s][0][m - 1], to_ref[s][1], cov[s][i], per.get(s, {}).get(dn, 0)
+                ests.append((b * x / c, s2, b * b * max(x, 1) / (c * c)))
+            res = sc.combine(ests)
+            val += res[0] if res else 0.0
         if val <= 0:
             continue
         ci = cell_idx.setdefault((gy, gx), len(cells))
@@ -709,6 +830,7 @@ def _versions(con):
 def build_region(region_id, info, progress=None, source=None):
     """source: 'detections' (per-area download, used for the presets) or 'global' (kw.globe aggregate)."""
     t0 = time.time()
+    _load_aqua_onset()  # background rebuilds never run main()
     source = source or ("detections" if region_id in PRESETS or not globe.ready() else "global")
     glob = source == "global"
     con = duckdb.connect()
@@ -740,7 +862,8 @@ def build_region(region_id, info, progress=None, source=None):
     last_year = through.year if (through.month, through.day) == (12, 31) else through.year - 1
     full_weeks = [k for k, p in zip(wkeys, wpartial) if not p]
     season = _season(weekly, full_weeks[-1] if full_weeks else None)
-    current = _window_current(con, through, cals, k_scale)
+    daily = _daily_veg(con)
+    current = _window_current(con, through, cals, k_scale, daily)
     totals = con.execute("SELECT sum(n), coalesce(sum(n) FILTER (WHERE cls='static'), 0), coalesce(sum(n) FILTER (WHERE quality='nrt'), 0) FROM d").fetchone()
 
     meta = {
@@ -762,6 +885,10 @@ def build_region(region_id, info, progress=None, source=None):
             "not": "Not burned area and not a count of fires: a detection is one hot pixel in one overpass.",
         },
         "method": {
+            "aqua_drift": "From the Aqua change onset (measured: overpass time and archive version, see aqua_overpass) "
+                          "MODIS is left out when any VIIRS satellite observes.",
+            "drift": "Yearly satellite-to-satellite ratios use the same calendar months in every year, so a changing "
+                     "month mix cannot look like drift.",
             "confidence_filter": "drop VIIRS 'l' and MODIS confidence < 30 (no crosswalk between the two scales); "
                                  "sensitivity reported",
             "static_mask": ("0.01° cells where science-quality FIRMS `type` is 1–3 for ≥50% of ≥3 detections" + (
@@ -793,10 +920,12 @@ def build_region(region_id, info, progress=None, source=None):
         "interval_scale": _r(k_scale, 3),
         "steps": steps, "placebo": placebo, "trend": _trends(monthly, mkeys, mpartial, last_year),
         "drift": _drift(monthly, mkeys), "season": season, "current": current,
+        "warning_backtest": _warning_backtest(daily, monthly, cals, k_scale, last_year),
         "answers": _answers(monthly, current, season),
         "frp_distribution": _frp_distribution(con, glob),
         "filter_sensitivity": _filter_sensitivity(con, mkeys, mcov, mpartial, cals, k_scale),
         "versions": _versions(con),
+        "aqua_overpass": json.loads(AQUA_FILE.read_text(encoding="utf-8")) if AQUA_FILE.exists() else None,
         "transfer_validation": None,
         "sensors": sensors,
         "totals": {"detections": totals[0], "static_detections": totals[1], "nrt_detections": totals[2]},
@@ -808,11 +937,14 @@ def build_region(region_id, info, progress=None, source=None):
                                "Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of "
                                "NASA's Earth Observing System Data and Information System (EOSDIS).",
             "code_version": _code_version(), "reproduce": f"python -m kw.build {region_id}",
-            "build_seconds": round(time.time() - t0, 1), "source": source,
+            "build_seconds": round(time.time() - t0, 1), "build_source": source,
         },
     }
     folder = OUT / region_id
     folder.mkdir(parents=True, exist_ok=True)
+    old = folder / "meta.json"
+    if old.exists():  # computed across all presets in main(); a single-area rebuild must not erase it
+        meta["transfer_validation"] = json.loads(old.read_text(encoding="utf-8")).get("transfer_validation")
     con.execute(f"COPY mask TO '{(folder / 'mask.parquet').as_posix()}' (FORMAT parquet)")
     for name, obj in (("meta", meta), ("monthly", monthly), ("weekly", weekly),
                       ("grid", _grid(con, mkeys, mcov, cals)), ("static", _static_points(con, glob))):
@@ -872,12 +1004,16 @@ def write_ratio_table(region_ids):
 
 
 def main(ids):
-    ids = ids or list(PRESETS)
-    for rid in ids:
+    skip_build = ids == ["--transfer-only"]  # recompute the cross-area hold-out from the files on disk, no download
+    if not skip_build:
+        aqua_overpass(list(PRESETS))  # rewrites aqua_overpass.json from the raw caches (kept as is when none exist)
+        print(f"Aqua change onset: {_load_aqua_onset()}", flush=True)
+    for rid in [] if skip_build else ids or list(PRESETS):
         build_region(rid, PRESETS[rid], lambda y, d, t: print(f"{rid}: {y} ({d}/{t})", flush=True))
         print(f"built {rid}", flush=True)
-    built = [p.parent.name for p in OUT.glob("*/meta.json") if p.parent.name in PRESETS]
+    built = sorted(p.parent.name for p in OUT.glob("*/meta.json") if p.parent.name in PRESETS)  # stable file order
     tv = transfer_validation(built)
+    print(f"transfer validation: {len(tv)} areas", flush=True)
     for rid in built:
         f = OUT / rid / "meta.json"
         m = json.loads(f.read_text(encoding="utf-8"))

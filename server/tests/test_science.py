@@ -51,6 +51,8 @@ def test_combine():
     assert 10.0 < y < 12.0
     y, _ = sc.combine([(0.0, 0.0, 1.0), (0.0, 0.05, 0.1)])  # all-zero cell stays zero, no division error
     assert y == 0.0
+    y, _ = sc.combine([(0.0, 0.0, 1.0), (10.0, 0.0, 10.0)])  # a zero reading weighs the same as one at the mean
+    assert abs(y - 5.0) < 1e-9, y
 
 
 def test_versus_history_and_partial_exclusion():
@@ -180,6 +182,38 @@ def test_outlook_cell():
     assert outlook_cell([0] * 20, [0] * 19 + [1], 3)[0] is None  # 3 hotspots never count as unusual
     assert outlook_cell([30] * 20, [3] * 20, 3)[4] is True       # usual next 30 days 10x the last 30: rising
     assert outlook_cell([], [], 0)[0] is None
+
+
+def test_solar_hour_and_drift_onset():
+    assert abs(sc.solar_hour(12.0, 90.0) - 18.0) < 1e-9
+    assert abs(sc.solar_hour(1.0, -45.0) - 22.0) < 1e-9          # wraps below zero
+    flat = {y: 13.5 for y in range(2003, 2021)}
+    assert sc.drift_onset({**flat, 2021: 13.55, 2022: 13.6, 2023: 13.9})[0] == 2023
+    assert sc.drift_onset({**flat, 2021: 13.6})[0] is None       # within tolerance
+    assert sc.drift_onset({2021: 15.0}) == (None, None)          # no baseline
+
+
+def test_conformal_scale():
+    assert sc.conformal_scale([0.5] * 20) == 1.0                 # already inside: never shrink
+    z = [i / 10 for i in range(1, 101)]                          # 0.1 ... 10.0
+    k = sc.conformal_scale(z)
+    assert abs(k - 9.5 / 1.96) < 1e-9 and sum(x <= 1.96 * k + 1e-9 for x in z) / len(z) >= 0.95
+    assert sc.conformal_scale([5.0] * 9) == 1.0                  # too few values
+
+
+def test_split_coverage_fits_on_early_tests_on_late():
+    zk = [(f"2017-{m:02d}", 1.0) for m in range(1, 13)] + [(f"2018-{m:02d}", 1.0) for m in range(1, 13)]
+    zk += [("2019-01", 1.0), ("2019-02", 3.0), ("2020-01", 1.0), ("2020-02", 1.0)]
+    r = sc.split_coverage(zk)
+    assert r["k_fit"] == 1.0 and r["n_test"] == 4 and r["coverage"] == 0.75   # 3.0 > 1.96: the late miss is counted
+    assert sc.split_coverage(zk[:5] + zk[-4:]) is None                          # fewer than 10 fit months
+
+
+def test_contingency():
+    r = sc.contingency([(True, True)] * 6 + [(False, True)] * 2 + [(True, False)] * 2 + [(False, False)] * 90)
+    assert (r["hits"], r["misses"], r["false_alarms"], r["correct_negatives"]) == (6, 2, 2, 90)
+    assert r["pod"] == 0.75 and r["far"] == 0.25 and abs(r["pss"] - (0.75 - 2 / 92)) < 1e-3
+    assert sc.contingency([])["pod"] is None
 
 
 if __name__ == "__main__":
