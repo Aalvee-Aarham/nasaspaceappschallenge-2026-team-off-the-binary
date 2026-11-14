@@ -545,7 +545,8 @@ mark.hn { background: none; color: var(--gold); font-weight: 650; }
 .alegend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0; margin: 6px 0 2px; font-size: 11px; color: var(--muted); }
 .alegend i.line { height: 2px; vertical-align: 3px; width: 12px; }
 .alegend i.band { opacity: .35; }
-.afoot { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: var(--dim); }
+.afoot { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 10.5px; color: var(--dim); }
+.afoot > span:last-child { flex: none; white-space: nowrap; }
 .afoot code { font-size: 10px; margin-right: 6px; }
 
 /* ---------- loader ---------- */
