@@ -8,7 +8,7 @@ import Loader from "./Loader";
 // "Is fire near you?": any place on Earth, in plain words and pictures, for families, students, fire managers and
 // safety officers. Every number comes from /api/place-risk. The answer comes in two steps: the fire check first
 // (measured 5-20 s: a live read of NASA's newest FIRMS file; up to a minute when that server is slow), then the
-// schools and hospitals from OpenStreetMap (measured 20-45 s on its shared public servers; instant once cached).
+// schools and hospitals from OpenStreetMap (measured 27-46 s on its shared public servers; instant once cached).
 
 export const LEVEL: Record<PlaceLevel, { word: string; icon: string; color: string; say: string }> = {
   near: { word: "Fire close by", icon: "🔥", color: "#FF5A4F", say: "Satellites saw fire within 5 km this week." },
@@ -173,8 +173,8 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
 
       <section className="pr-sec" aria-labelledby="pr-b-h">
         <h3 id="pr-b-h">Schools, hospitals and care homes nearby</h3>
-        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={45}
-          eta="usually 20 to 45 s: OpenStreetMap's free servers are shared and busy; it stops and says so after about a minute" />
+        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={50}
+          eta="usually 30 s to 1 minute: OpenStreetMap's free servers are shared and busy; it stops and says so after about a minute" />
           : facErr ? <p className="pr-err" title={facErr}><b>The map service is busy. Please try again.</b> OpenStreetMap's free servers are shared and often queue requests; a second try usually works (about 30 s). This is not "no buildings". <button className="link" onClick={retryFac}>Try again</button></p>
           : fac ? <Buildings f={fac} r={d.radius_km} anyFire={(r?.count ?? 0) > 0} /> : null}
       </section>

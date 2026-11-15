@@ -99,7 +99,7 @@ export default function Detail(p: Props) {
         <h3>Day by day</h3>
         {!p.online && <p className="muted small">Day-level detections need the Kiln Watch API. The calendar values above are complete.</p>}
         {evErr && <p className="error">Couldn't load detections: {evErr}</p>}
-        {p.online && !ev && !evErr && <Loader steps={STEPS.evidence} expected={4} compact />}
+        {p.online && !ev && !evErr && <Loader steps={STEPS.evidence} expected={10} compact eta="usually 5 to 15 s" />}
         {ev && <Daily ev={ev} cls={p.cls} onDate={p.onDate} />}
       </section>
 
@@ -214,7 +214,7 @@ export function RangeNews({ r, bounds, onOpen, onAsk, onClose }: {
         : err ? <p className="error">{err}</p> : !rep ? <>
         <Loader title={`News for ${r.meta.places?.slice(0, 2).join(", ") || r.meta.name}, ${start.slice(0, 4)}–${end.slice(0, 4)}`}
           steps={[...STEPS.news.slice(0, 6), "Gemini is reading every headline to drop off-topic stories", ...STEPS.news.slice(6)]}
-          expected={Math.min(120, 45 + 10 * (+end.slice(0, 4) - +start.slice(0, 4)))} eta="usually 20 s to 1 minute, longer for many years: news services limit how fast we may ask" />
+          expected={Math.min(180, 70 + 15 * (+end.slice(0, 4) - +start.slice(0, 4)))} eta="usually 30 s to 1½ minutes, longer for many years: news services limit how fast we may ask" />
         <p className="muted small">The first search for a range takes a while (news services limit how fast we may ask); repeats are instant.</p>
       </> : <>
         <div className={`assess ${v!.tone}`}><b>{v!.label}</b><span>{rep.items.length} item{rep.items.length === 1 ? "" : "s"} listed</span></div>

@@ -65,7 +65,7 @@ function Latest({ online }: { online: boolean }) {
         </div>
       </div>
       {err && <p className="error">{err}</p>}
-      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={12} eta="usually 5 to 15 s" />}
+      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={15} eta="usually 10 to 30 s" />}
       {res && <>
         <div className="srcchips">
           {res.sources.map((s) => <span key={s.name} className={s.error ? "bad" : ""} title={s.error ?? ""}>{s.name} <b>{s.count}</b></span>)}
