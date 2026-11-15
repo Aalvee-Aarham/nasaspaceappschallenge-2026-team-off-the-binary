@@ -620,6 +620,22 @@ Detections are not fires and not burned area. Kiln Watch is an independent proje
 
 ## Use of AI
 
+Kiln Watch was built with AI at every stage, and checked by people and by tests at every stage.
+
+<table>
+<tr>
+<td width="25%" valign="top"><b>1 · Plan</b><br><sub>Gemini Argon · Claude Fable</sub><br><br>Read the challenge, the papers and NASA's documentation, and wrote the master prompt: a technical specification for the whole site. Then two rounds of corrections to it.</td>
+<td width="25%" valign="top"><b>2 · Build</b><br><sub>Claude Opus, in Claude Code</sub><br><br>Carried out that specification: the FIRMS reader, the harmonization statistics, the validation tests, the API, the MCP server and the web app.</td>
+<td width="25%" valign="top"><b>3 · Improve</b><br><sub>many tools</sub><br><br>Bug fixes, scientific corrections and new features came from several AIs along the way: Claude Opus, MiniMax M3, Gemini Flash, and Claude Fable for a review of the finished site.</td>
+<td width="25%" valign="top"><b>4 · Check</b><br><sub>the team, the tests, the data</sub><br><br>No AI writes a number on the site. Every value comes from the pipeline run on NASA data, and the test suites run on every push.</td>
+</tr>
+</table>
+
+The planning prompts were a starting point, not a blueprint followed blindly. The two rounds of corrections threw out ideas that
+did not survive scrutiny: a "14-stage physics" correction gave way to a simple ratio method that is tested on years it
+never saw; active-fire detections are never called burned area; and the end of each satellite is read from the data,
+never typed in. What the site does today is what the tests support (see [The proof](#the-proof)).
+
 | Tool | Used for | Data it worked on |
 |---|---|---|
 | Claude Fable 5.2 (Anthropic) | Planning: brief, literature and rules review, method design; a pre-submission review of the site | Public challenge page, papers, NASA/NOAA docs; our site and code |
