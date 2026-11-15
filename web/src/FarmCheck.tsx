@@ -31,7 +31,7 @@ const T = {
     kilns: "ইটভাটা", in1: "১ কিমির মধ্যে", in3: "৩ কিমির মধ্যে", nearest: "সবচেয়ে কাছে", piece: "টি",
     outside: "বাংলাদেশের বাইরে। তথ্য নেই।", noData: "এই এলাকার ইটভাটার তথ্য নেই।",
     fire: "এই সপ্তাহে আগুন", fire5: (n: string) => `৫ কিমির মধ্যে ${n}টি`, fire0: "৫ কিমির মধ্যে নেই", fireNear: (d: string) => `সবচেয়ে কাছে ${d}`,
-    fireNo: "উত্তর আসেনি", fireWait: ["নাসার স্যাটেলাইটে গত ৭ দিন দেখা হচ্ছে"], fireEta: "৫–২০ সেকেন্ড",
+    fireNo: "উত্তর আসেনি", fireWait: ["নাসার স্যাটেলাইটে গত ৭ দিন দেখা হচ্ছে"], fireEta: "সাধারণত ১ মিনিটের কম; ব্যস্ত থাকলে ২–৩ মিনিট",
     boro: "বোরো মৌসুম", rBoro: "বোরো", rFire: "আগুন", rKiln: "ইটভাটা",
     stage: { seed: "বীজ", plant: "রোপণ", grow: "বৃদ্ধি", flower: "ফুল", harvest: "কাটা" },
     harvestFire: (a: string, b: string, n: string) => `কাটার মাসে আগুন: এপ্রিলে ${a}, মে-তে ${b} বছর (গত ${n} বছরে)।`,
@@ -62,7 +62,7 @@ const T = {
     kilns: "Brick kilns", in1: "within 1 km", in3: "within 3 km", nearest: "nearest", piece: "",
     outside: "Outside Bangladesh. No data.", noData: "No kiln data for this area.",
     fire: "Fire this week", fire5: (n: string) => `${n} within 5 km`, fire0: "None within 5 km", fireNear: (d: string) => `closest ${d}`,
-    fireNo: "No answer", fireWait: ["Asking NASA satellites about the last 7 days"], fireEta: "5–20 s",
+    fireNo: "No answer", fireWait: ["Asking NASA satellites about the last 7 days"], fireEta: "usually under a minute; up to 2 to 3 minutes when busy",
     boro: "Boro season", rBoro: "Boro", rFire: "Fire", rKiln: "Kilns",
     stage: { seed: "Seedbed", plant: "Plant", grow: "Grow", flower: "Flower", harvest: "Harvest" },
     harvestFire: (a: string, b: string, n: string) => `Fire in harvest months: April ${a}, May ${b} of the last ${n} years.`,
@@ -231,7 +231,7 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
       <div className="fk-pair">
         <section className="pr-sec fk-fire" aria-label={t.fire}>
           <h3><span aria-hidden>🔥</span> {t.fire}</h3>
-          {fireBusy ? <Loader compact steps={t.fireWait} expected={20} eta={t.fireEta} />
+          {fireBusy ? <Loader compact steps={t.fireWait} expected={30} eta={t.fireEta} />
             : fireErr || !fire || r == null ? <p className="pr-err">{t.fireNo}</p>
             : <>
               <p className="fk-lvl" data-l={fire.level}>{LEVEL_WORD[lang][fire.level]}</p>

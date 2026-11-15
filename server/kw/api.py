@@ -367,14 +367,13 @@ def alert_confirm(token: str, code: str = ""):
     try:
         sub = alerts.confirm(token, code)
     except tools.NotFound:
-        return _note("This sign-up was forgotten", "Kiln Watch runs on a free server that goes to sleep when nobody is "
-                     "using it, and waking up forgets sign-ups. Sorry: please sign up again and click the new link "
-                     "within the hour.", False)
+        return _note("Sign-up not found", "This sign-up is no longer on the server: it was removed, or the free server "
+                     "could not read its list just now. Sorry: please try the link again in a minute, or sign up again.", False)
     except ValueError as ex:
         return _note("Link not valid", str(ex), False)
     first = alerts.notify_first(token)  # a hot area gets its first message now, not at the next 3-hourly pass
-    sleepy = (" Kiln Watch runs on a free server that sleeps when nobody is using it, so later alerts can be late or "
-              "missed: do not rely on it for safety.")
+    sleepy = (" Kiln Watch runs on a free server that sleeps when nobody is using it; a scheduled job wakes it every 3 "
+              "hours to check, so later alerts can come a few hours late or be missed: do not rely on it for safety.")
     if first.get("status_only"):
         text = (f"Your alert for {sub.get('name')} is active. Nothing is above your thresholds right now; we have emailed "
                 "you the current status so you can see it works." + sleepy)

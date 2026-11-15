@@ -655,9 +655,19 @@ def _warning_backtest(daily, monthly, cals, k_scale, last_year, check_days=(10, 
     typical = statistics.median([sum(x) for x in totals.values() if len(x) == 12] or [0])
     if typical < 100:
         return {"scored": False, "reason": "a typical year has fewer than 100 hotspots (the rule does not score here)"}
-    out = {"scored": True, "first_year": first, "last_year": last_year, "by_day": {}}
+    out = {"scored": True, "first_year": first, "last_year": last_year, "by_day": {},
+           "notes": {"elevated": "month-to-date rule against the full month (which contains the days the rule saw)",
+                     "elevated_rest_of_month": "the same rule scored only on days D+1 to the month's end: no overlap",
+                     "persistence": "reference forecast: last month's full-month level, known on day 1; the rule should beat it"}}
+
+    def prev_pct(y, M):   # last month's full-month percentile against the same month in earlier years
+        py, pm = (y, M - 1) if M > 1 else (y - 1, 12)
+        k = f"{py}-{pm:02d}"
+        hist = [full[f"{yy}-{pm:02d}"] for yy in range(2000, py) if f"{yy}-{pm:02d}" in full]
+        return sc.percentile_rank(full[k], hist) if k in full and len(hist) >= 10 else None
+
     for D in check_days:
-        cases = []
+        cases, rest, pers = [], [], []
         for M in range(1, 13):
             years = list(range(2001 if M < 11 else 2000, last_year + 1))
             _, v, _ = _month_to_date(daily, M, D, years, cals, k_scale)
@@ -669,10 +679,20 @@ def _warning_backtest(daily, monthly, cals, k_scale, last_year, check_days=(10, 
                     continue
                 if max(v[j], statistics.median(prior_mtd)) < 5:
                     continue  # same floor as science.warning_level
-                cases.append((sc.percentile_rank(v[j], prior_mtd), sc.percentile_rank(full[key], prior_full)))
+                a, b = sc.percentile_rank(v[j], prior_mtd), sc.percentile_rank(full[key], prior_full)
+                cases.append((a, b))
+                prior_rest = [full[f"{years[i]}-{M:02d}"] - v[i] for i in range(j)
+                              if v[i] is not None and f"{years[i]}-{M:02d}" in full]
+                if len(prior_rest) >= 10:
+                    rest.append((a, sc.percentile_rank(full[key] - v[j], prior_rest)))
+                p = prev_pct(y, M)
+                if p is not None:
+                    pers.append((p, b))
         out["by_day"][str(D)] = {
             "elevated": sc.contingency([(a >= 90, b >= 90) for a, b in cases]),
             "watch_or_above": sc.contingency([(a >= 75, b >= 75) for a, b in cases]),
+            "elevated_rest_of_month": sc.contingency([(a >= 90, b >= 90) for a, b in rest]),
+            "elevated_persistence": sc.contingency([(a >= 90, b >= 90) for a, b in pers]),
         }
     return out
 

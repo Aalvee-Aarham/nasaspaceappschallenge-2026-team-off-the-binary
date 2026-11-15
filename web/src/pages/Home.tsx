@@ -312,6 +312,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               <p className="kicker" data-in>NASA Space Apps 2026 · Harmonization of MODIS and VIIRS Hot Spots</p>
               <H tag="h1" cls="xl" lines={["Every fire.", "One record."]} at={0.1} />
               <p className="h3d-lead big" data-in="0.6">NASA satellites have watched Earth's fires from space <em>since {y0}</em>. We turn their mismatched counts into <em>one record you can trust</em>.</p>
+              <p className="h3d-proof" data-in="0.8">When a sharper satellite joined in {y1}, raw counts jumped <b>×{fx(s?.raw, 1)}</b>. Our record moves <b>×{fx(s?.harm)}</b> (1.00 = no jump; median of {s?.nStep ?? "…"} areas). <button className="linkish" onClick={() => go("method")}>See the proof ›</button></p>
               <p className="firechip" data-in="0.9"><i /><b>{events?.count ?? "…"}</b> wildfires reported to NASA in the last 30 days</p>
             </div>
           </div>

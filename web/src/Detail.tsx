@@ -99,7 +99,7 @@ export default function Detail(p: Props) {
         <h3>Day by day</h3>
         {!p.online && <p className="muted small">Day-level detections need the Kiln Watch API. The calendar values above are complete.</p>}
         {evErr && <p className="error">Couldn't load detections: {evErr}</p>}
-        {p.online && !ev && !evErr && <Loader steps={STEPS.evidence} expected={10} compact eta="usually 5 to 15 s" />}
+        {p.online && !ev && !evErr && <Loader steps={STEPS.evidence} expected={15} compact eta="usually under 30 s; up to 2 minutes when busy" />}
         {ev && <Daily ev={ev} cls={p.cls} onDate={p.onDate} />}
       </section>
 
@@ -135,7 +135,7 @@ export default function Detail(p: Props) {
             <p className="muted small">Searches NASA EONET and GDELT news (2017 onward) for {p.r.meta.places?.slice(0, 3).join(", ") || p.r.meta.name}, in local languages.</p>
             <button className="btn" onClick={loadReports}>Search reports</button>
           </>
-        ) : repState === "loading" ? <Loader steps={STEPS.news.slice(0, 6)} expected={20} compact eta="usually 15 to 30 s" /> : repState === "error" ? <p className="error">{repErr} <button className="link" onClick={loadReports}>Try again</button></p> : rep && <ReportList rep={rep} />}
+        ) : repState === "loading" ? <Loader steps={STEPS.news.slice(0, 6)} expected={60} compact eta="usually 1 to 2 minutes; up to about 5 minutes: news services limit how fast we may ask. Please keep this page open" /> : repState === "error" ? <p className="error">{repErr} <button className="link" onClick={loadReports}>Try again</button></p> : rep && <ReportList rep={rep} />}
       </section>
 
       <button className="btn ask" onClick={() => p.onAsk(`Explain ${periodLabel(p.period)} in ${p.r.meta.name}: how does it compare with other years, which satellites contributed, and what is the evidence?`)}>
@@ -211,10 +211,10 @@ export function RangeNews({ r, bounds, onOpen, onAsk, onClose }: {
       </form>
       {yrs[1] < 2017 && <p className="muted small">Before 2017 only NASA EONET is searched (GDELT news starts in 2017), so expect few reports.</p>}
       {!query ? <p className="muted small">Pick any years, then Search. Each month is matched against the record, both against all years and against recent years.</p>
-        : err ? <p className="error">{err}</p> : !rep ? <>
+        : err ? <p className="error">{err} Press Search again: what was already gathered is kept, so a second try is quicker.</p> : !rep ? <>
         <Loader title={`News for ${r.meta.places?.slice(0, 2).join(", ") || r.meta.name}, ${start.slice(0, 4)}–${end.slice(0, 4)}`}
           steps={[...STEPS.news.slice(0, 6), "Gemini is reading every headline to drop off-topic stories", ...STEPS.news.slice(6)]}
-          expected={Math.min(180, 70 + 15 * (+end.slice(0, 4) - +start.slice(0, 4)))} eta="usually 30 s to 1½ minutes, longer for many years: news services limit how fast we may ask" />
+          expected={Math.min(300, 90 + 20 * (+end.slice(0, 4) - +start.slice(0, 4)))} eta="usually 1 to 2 minutes; up to about 5 minutes: news services limit how fast we may ask. Please keep this page open" />
         <p className="muted small">The first search for a range takes a while (news services limit how fast we may ask); repeats are instant.</p>
       </> : <>
         <div className={`assess ${v!.tone}`}><b>{v!.label}</b><span>{rep.items.length} item{rep.items.length === 1 ? "" : "s"} listed</span></div>

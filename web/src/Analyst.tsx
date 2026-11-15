@@ -218,7 +218,7 @@ export default function Analyst(p: {
             </div>
           </div>
         ))}
-        {busy && <div className="msg model"><AiAvatar label="AI analyst is thinking" /><div className="msg-body"><Loader steps={STEPS.analyst} expected={12} compact /></div></div>}
+        {busy && <div className="msg model"><AiAvatar label="AI analyst is thinking" /><div className="msg-body"><Loader steps={STEPS.analyst} expected={15} compact eta="usually under 30 s; up to 2 minutes when the AI service is busy" /></div></div>}
         <div ref={end} />
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(text); }}>

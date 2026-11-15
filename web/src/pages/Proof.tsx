@@ -41,10 +41,10 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
             <th scope="col">Chain closure</th>
             <th scope="col">Borrowed calibration error</th>
             <th scope="col">Fire-size term, log error (ours → with term)</th>
-            <th scope="col">Early-warning skill, day 15</th>
+            <th scope="col">Early-warning skill, day 15 (rest of month only / last-month reference)</th>
           </tr></thead>
           <tbody>{rows.map((m) => {
-            const s = m.steps.VIIRS_SNPP, d = m.denial.modis_ends_2016, bt = m.warning_backtest?.by_day?.["15"]?.elevated, fz = m.transfer_validation?.fire_size_term;
+            const s = m.steps.VIIRS_SNPP, d = m.denial.modis_ends_2016, bt = m.warning_backtest?.by_day?.["15"]?.elevated, bd = m.warning_backtest?.by_day?.["15"], fz = m.transfer_validation?.fire_size_term;
             return (
               <tr key={m.id}>
                 <th scope="row">{m.name}</th>
@@ -55,7 +55,7 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
                 <td className="num">{sgn(m.closure.veg_det_D?.[0]?.mismatch_pct)}</td>
                 <td className="num">{sgn(m.transfer_validation?.transferred_from_other_regions.bias_pct)}</td>
                 <td className="num">{fz ? `${fmt(fz.ours.log_mae, 3)} → ${fmt(fz.with_size_term.log_mae, 3)}` : "–"}</td>
-                <td className="num">{bt?.pss != null ? fmt(bt.pss, 2) : "not scored"}</td>
+                <td className="num">{bt?.pss != null ? <>{fmt(bt.pss, 2)}{bd?.elevated_rest_of_month && <span className="muted small"> ({fmt(bd.elevated_rest_of_month.pss, 2)} / {fmt(bd.elevated_persistence?.pss, 2)})</span>}</> : "not scored"}</td>
               </tr>
             );
           })}</tbody>

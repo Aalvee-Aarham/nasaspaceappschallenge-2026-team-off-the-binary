@@ -1,0 +1,20 @@
+# The hosted server (Azure Container Apps, scale to zero) sleeps when nobody uses the site. Every 3 hours this wakes
+# it and keeps it up for 5 minutes: a waking server runs its alert pass 60 s after start (kw.alerts.start_loop), and
+# the alert list survives sleep in Azure Blob (KW_STATE_URL). GitHub may start a scheduled run some minutes late.
+name: wake
+on:
+  schedule:
+    - cron: "7 */3 * * *"
+  workflow_dispatch:
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      API: ${{ vars.KW_API || 'https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io' }}
+    steps:
+      - name: wake and keep awake through the alert pass
+        run: |
+          for i in $(seq 1 12); do curl -fsS -m 60 "$API/api/health" && break; sleep 10; done
+          for i in $(seq 1 10); do sleep 30; curl -fsS -m 60 -o /dev/null -w "%{http_code} " "$API/api/health" || true; done
+          echo

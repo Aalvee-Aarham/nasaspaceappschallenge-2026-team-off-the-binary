@@ -25,6 +25,8 @@ import smtplib
 import ssl
 import threading
 import time
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 
 from . import tools
@@ -48,11 +50,40 @@ if not log.handlers:  # uvicorn only configures its own loggers; without this ou
     log.propagate = False
 
 
+# KW_STATE_URL: an Azure Blob container SAS URL. The hosted server sleeps when idle and its disk is wiped, so the
+# alert list lives in one blob there (read once per process, written through on every change). Unset: a local file.
+STATE_URL = os.environ.get("KW_STATE_URL", "").strip()
+_mem = None
+
+
+def _blob(method, body=None):
+    base, _, sas = STATE_URL.partition("?")
+    req = urllib.request.Request(f"{base.rstrip('/')}/alerts.json?{sas}", data=body, method=method,
+                                 headers={"x-ms-blob-type": "BlockBlob", "Content-Type": "application/json"} if body else {})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.read()
+
+
 def _load():
-    return json.loads(FILE.read_text(encoding="utf-8")) if FILE.exists() else {}
+    global _mem
+    if not STATE_URL:
+        return json.loads(FILE.read_text(encoding="utf-8")) if FILE.exists() else {}
+    if _mem is None:
+        try:
+            _mem = json.loads(_blob("GET"))
+        except urllib.error.HTTPError as ex:
+            if ex.code != 404:   # any other failure must not start an empty list that would overwrite the stored one
+                raise
+            _mem = {}
+    return json.loads(json.dumps(_mem))   # a copy: callers change it and save
 
 
 def _save(d):
+    global _mem
+    if STATE_URL:   # raises if the store cannot be written: the caller's request fails visibly, nothing is lost silently
+        _blob("PUT", json.dumps(d, ensure_ascii=False).encode("utf-8"))
+        _mem = json.loads(json.dumps(d))
+        return
     FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
@@ -119,8 +150,8 @@ def send_email(to, subject, text, html_body=None):
 
 
 FREE_SERVER = ("Please note: Kiln Watch runs on a free student server that goes to sleep when nobody is using the "
-               "website. While it sleeps it cannot check for fire, so later alerts can arrive late or not at all, and a "
-               "restart can forget your sign-up. Do not rely on it for safety: for fire you can see or smell, call your "
+               "website. A scheduled job wakes it every 3 hours to check your alert, so an email can come a few hours "
+               "after satellites see fire, or be missed if a check fails. Do not rely on it for safety: for fire you can see or smell, call your "
                "local emergency number, and for dependable satellite fire alerts use NASA FIRMS (firms.modaps.eosdis.nasa.gov).")
 
 
@@ -148,12 +179,12 @@ def _send_confirm(token, sub):
     name = html.escape(sub.get("name") or sub["region_id"])
     send_email(sub["email"], f"Confirm your Kiln Watch alert for {sub.get('name') or sub['region_id']}",
                f"Confirm your fire alert for {sub.get('name')}: {url}\nAfter you confirm, we email you the fire status there "
-               f"straight away. Please confirm within the hour, while the server is awake.\n"
+               f"straight away.\n"
                f"If you did not ask for this, ignore this email.\n\n{FREE_SERVER}",
                _html("Confirm your fire alert", [f"Someone (hopefully you) asked Kiln Watch to email this address about "
                      f"fire activity in <b>{name}</b>.", f"<a href='{url}' style='color:#00a1ff'>Confirm the alert</a>. "
-                     "After you confirm, we email you the fire status there straight away. Please confirm within the hour, "
-                     "while the server is awake. If you did not ask for this, ignore this email and nothing will be sent.",
+                     "After you confirm, we email you the fire status there straight away. "
+                     "If you did not ask for this, ignore this email and nothing will be sent.",
                      f"<span style='color:#8892a0;font-size:13px'>{FREE_SERVER}</span>"], sub, token, False))
 
 

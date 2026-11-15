@@ -208,6 +208,12 @@ We publish these, not hide them.
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
 - No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
   scored months lean toward active ones, so its skill numbers there are not yet comparable across areas.
+- **The early-warning backtest flattered itself, and we now say by how much.** On day 15 the rule's skill was scored
+  against the whole month, which contains the 15 days it had already seen. Scored only on the 16th to the month's end,
+  the skill falls (Punjab 0.77 → 0.38, Alberta 0.82 → 0.59, Niger Delta 0.54 → 0.06). Against a simple reference,
+  "last month was in the top tenth", the rule wins in Alberta, Punjab and south-east Australia, ties in Northern
+  California, and loses in the Paraná Delta, Rondônia and the Niger Delta. It is a climatological outlook, not a
+  forecast (`warning_backtest.by_day` in `meta.json`: `elevated_rest_of_month`, `elevated_persistence`).
 - The 30-day outlook now runs on NOAA-20 VIIRS put on the Aqua scale, so it does not stop with Aqua. Held out on 2022 the
   total is off by +0.9% and the cell ranking agrees at ρ = 0.84, but its "above normal" flag agrees with Aqua's own on only
   41% of cells (NOAA-20 finds 681 of Aqua's 1,325 and adds 318): the two satellites sample different small fires. A single
@@ -262,7 +268,7 @@ groups and asks you which you want). Files start with `#` comment lines (unit, s
 JSON carries the same provenance in a block. Raw per-satellite counts are optional and labelled: they rise whenever a satellite is added.
 
 ```bash
-BASE=https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io
+BASE=https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io
 curl "$BASE/api/export/options"                      # formats, column groups, limits
 curl -o punjab.csv "$BASE/api/regions/punjab/export?columns=hotspots,history&start=2015&end=2025"
 curl -o hot.json  "$BASE/api/regions/punjab/export?kind=detections&format=json&columns=where,strength&start=2025-04-01&end=2025-04-30&used_only=true"
@@ -342,8 +348,8 @@ town takes up to a few minutes the first time, and the map stays usable meanwhil
 **For developers and AI assistants.** The same answer is a public API with no key, and an MCP tool for Claude:
 
 ```bash
-curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
-curl "https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io/api/facilities?west=85.25&south=27.65&east=85.5&north=27.75"
+curl "https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
+curl "https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io/api/facilities?west=85.25&south=27.65&east=85.5&north=27.75"
 ```
 
 MCP: `check_place_fire_risk`. Every endpoint is listed at `/docs` on the API.
@@ -502,9 +508,15 @@ Azure the file lasts only as long as the replica, so set the emails before relyi
 
 **Two hosts, one site.** Vercel serves the site and a read-only API (its functions stop after a minute, too short for a
 build). The full app (`Dockerfile`, site + API on port 7860, live builds on) runs on Azure Container Apps:
-<https://kiln-watch.purplegrass-ce2aa2d8.eastasia.azurecontainerapps.io>. The Vercel project sets
+<https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io>. The Vercel project sets
 `VITE_API_BASE` to that address, so the site sends every request to Azure and falls back to Vercel's own read-only API
 when Azure does not answer `/api/health` within 15 s.
+
+The Azure app is free-tier and **sleeps when nobody is using it**: the first request after a quiet spell takes a few extra
+seconds, and its disk is wiped while it sleeps. So the alert list is kept in one Azure Blob (`KW_STATE_URL`), and a free
+GitHub job (`.github/workflows/wake.yml`) wakes the server every 3 hours so it checks every alert and sends the emails.
+An alert email can therefore come a few hours after the satellites see fire; every email says so. Every push runs the six
+test suites and the type check (`.github/workflows/tests.yml`).
 
 | Piece | Where | Notes |
 |---|---|---|

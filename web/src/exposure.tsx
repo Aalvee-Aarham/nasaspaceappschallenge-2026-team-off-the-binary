@@ -3,7 +3,7 @@ import { ExposureResponse, Facility, Farmland, MONTH_SHORT, MONTHS, PlaceExposur
 import { compact } from "./casebook";
 import { saveAlerts, savedAlerts } from "./pages/shared";
 
-export const EMAIL_NOTE = "It usually arrives within a minute (check spam too). Click it within the hour: we then email you the fire status there straight away. Kiln Watch runs on a free server that sleeps when nobody uses the site, so later alerts can be late or missed; do not rely on it for safety.";
+export const EMAIL_NOTE = "It usually arrives within a minute (check spam too). Click it, and we email you the fire status there straight away. Kiln Watch runs on a free server that sleeps when nobody uses the site; a scheduled job wakes it every 3 hours to check alerts, so later alerts can come a few hours late. Do not rely on it for safety.";
 // The exposure sections of the Cases & exposure page: which schools and hospitals sit where fire is detected, what
 // farmland sees, and a lookup for one place. Every number comes from /exposure and /exposure/place. Context, never
 // impact: a cell counts when one detection fell anywhere in its 11 km, so nothing here says a place was hit.

@@ -73,7 +73,7 @@ export type Meta = {
   features?: { cases?: { available: boolean; built_at?: string; count?: number; reason?: string }; exposure?: { available: boolean; built_at?: string; reason?: string } };
   external_sources?: { name: string; role: string; url: string; vintage: string; license: string }[];
   drift: Record<string, [number, number][]>;
-  warning_backtest?: { scored: boolean; by_day?: Record<string, { elevated?: { pss: Num; pod: Num; far: Num; hits: number; base_rate: Num } }> } | null;
+  warning_backtest?: { scored: boolean; by_day?: Record<string, Partial<Record<"elevated" | "watch_or_above" | "elevated_rest_of_month" | "elevated_persistence", Skill>>> } | null;
   aqua_overpass?: { years: Record<string, number>; n: Record<string, number>; baseline_hour: Num; orbit_onset?: string | null; version_change?: { version: string; from: string } | null; onset: string | null; rule: string } | null;
   season: Season | null;
   current: { period: string; days: number; partial: boolean; value: number; lo: number; hi: number; median: number; higher_than: number; n_prior: number; rank: number; prior: [number, number][]; sentence: string } | null;
@@ -218,8 +218,10 @@ export type Warning = {
   next_4_weeks: { weeks: string[]; years_used: number; p10: Num; median: Num; p90: Num; usual_share_of_year_pct: Num };
   year_to_date: { value: number; weeks: number; rank: number; n: number; median: number } | null;
   backtest?: { scored: boolean; reason?: string; first_year?: number; last_year?: number;
-    by_day?: Record<string, Record<"elevated" | "watch_or_above", { n: number; hits: number; misses: number; false_alarms: number; correct_negatives: number; base_rate: Num; pod: Num; far: Num; pss: Num }>> } | null;
+    by_day?: Record<string, Record<"elevated" | "watch_or_above", Skill> & Partial<Record<"elevated_rest_of_month" | "elevated_persistence", Skill>>> } | null;
 };
+/** Yes/no warning skill (science.contingency). */
+export type Skill = { n: number; hits: number; misses: number; false_alarms: number; correct_negatives: number; base_rate: Num; pod: Num; far: Num; pss: Num };
 export type Trigger = "anomaly" | "outlook" | "events" | "nearby" | "season";
 export type AlertPlace = { lat: number; lon: number; radius_km: number; label: string };
 export type AlertSub = {

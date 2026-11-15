@@ -365,12 +365,14 @@ function Detail({ id, go, openRegion, onAlert }: { id: string } & DetailProps) {
           sub={n.median === null ? "not enough earlier years" : `middle of earlier years; 10th to 90th percentile ${fmt(n.p10)} to ${fmt(n.p90)}${n.usual_share_of_year_pct !== null ? `; about ${fmt(n.usual_share_of_year_pct)}% of a year` : ""}`} />
       </div>
       <Weeks w={w} />
-      {w.backtest?.scored && w.backtest.by_day?.["15"] && (() => { const e = w.backtest!.by_day!["15"].elevated; return (
+      {w.backtest?.scored && w.backtest.by_day?.["15"] && (() => { const b = w.backtest!.by_day!["15"], e = b.elevated, r = b.elevated_rest_of_month, p = b.elevated_persistence; return (
         <section>
           <h3>Has this rule worked here before?</h3>
           <p className="small">Run on the 15th of every month from {w.backtest!.first_year} to {w.backtest!.last_year}: of the {e.hits + e.misses} months that
             ended in the top tenth, the rule had already flagged {e.hits} ({fmt((e.pod ?? 0) * 100, 0)}%). Of its {e.hits + e.false_alarms} "elevated" flags,
             {" "}{e.false_alarms} were false alarms. Skill score {e.pss ?? "–"} (0 = chance, 1 = perfect). The weekly part of the rule is not backtested.</p>
+          {r && p && <p className="small muted">That score is generous: a month's total includes the 15 days the rule already saw. Scored only on
+            the 16th to the month's end, the skill is <b>{r.pss ?? "–"}</b>. A simple reference, "last month was in the top tenth", scores <b>{p.pss ?? "–"}</b>.</p>}
         </section>); })()}
       <AlertForm regionId={id} name={w.name} median={m?.median_same_days ?? null} onAlert={onAlert} go={go} />
       <div className="row">

@@ -115,6 +115,28 @@ def test_quiet_area_still_gets_a_status_email_on_confirm():
         alerts.send_email, alerts.smtp_ready = real_send, real_ready
 
 
+def test_alerts_survive_a_restart_through_the_blob_store():
+    """KW_STATE_URL: the list is written through to one blob and read back by a fresh process."""
+    store = {}
+
+    def fake_blob(method, body=None):
+        if method == "PUT":
+            store["b"] = body
+            return b""
+        if "b" not in store:
+            raise alerts.urllib.error.HTTPError("u", 404, "not found", {}, None)
+        return store["b"]
+    real = alerts._blob, alerts.STATE_URL, alerts._mem
+    alerts._blob, alerts.STATE_URL, alerts._mem = fake_blob, "https://x.blob.core.windows.net/state?sig=1", None
+    try:
+        assert alerts._load() == {}                      # first run: no blob yet
+        a = alerts.create(region_id="punjab", name="blob test")
+        alerts._mem = None                               # the server slept: memory is gone, the blob is not
+        assert alerts.get(a["token"])["name"] == "blob test"
+    finally:
+        alerts._blob, alerts.STATE_URL, alerts._mem = real
+
+
 def test_first_alert_failure_never_breaks_confirm():
     alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
     real_send, real_ready = alerts.send_email, alerts.smtp_ready

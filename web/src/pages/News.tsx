@@ -65,7 +65,7 @@ function Latest({ online }: { online: boolean }) {
         </div>
       </div>
       {err && <p className="error">{err}</p>}
-      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={15} eta="usually 10 to 30 s" />}
+      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={30} eta="usually under a minute; up to 2 to 3 minutes when the news services are busy" />}
       {res && <>
         <div className="srcchips">
           {res.sources.map((s) => <span key={s.name} className={s.error ? "bad" : ""} title={s.error ?? ""}>{s.name} <b>{s.count}</b></span>)}
@@ -109,7 +109,7 @@ function PlaceSearch({ online, go }: { online: boolean; go: PageProps["go"] }) {
         <label className="small">to <input type="date" value={b} min={a} max={iso(today)} onChange={(e) => setB(e.target.value)} /></label>
         <button className="btn" disabled={!online || busy || !q.trim()}>{busy ? "Searching…" : "Search"}</button>
       </form>
-      {busy && <div style={{ marginTop: 12 }}><Loader title={`Searching reports for ${q.trim()}`} steps={STEPS.news} expected={long ? 40 : 20} eta={long ? "usually 30 s to 1 minute" : "usually 15 to 30 s"} /></div>}
+      {busy && <div style={{ marginTop: 12 }}><Loader title={`Searching reports for ${q.trim()}`} steps={STEPS.news} expected={long ? 90 : 60} eta="usually 1 to 2 minutes; up to about 5 minutes: news services limit how fast we may ask. Please keep this page open" /></div>}
       {err && <p className="error">{err}</p>}
       {res && (
         <div className="placeres">
@@ -192,7 +192,7 @@ function Search({ regions, online }: Pick<PageProps, "regions" | "online">) {
         <select value={pick ?? ""} onChange={(e) => setMonth(e.target.value)} aria-label="Month">{months.map((m) => <option key={m}>{m}</option>)}</select>
         <button className="btn" onClick={run} disabled={!online || !area || state === "loading"}>{state === "loading" ? "Searching…" : "Search reports"}</button>
       </div>
-      {state === "loading" && <div style={{ marginTop: 12 }}><Loader steps={STEPS.news} expected={18} compact /></div>}
+      {state === "loading" && <div style={{ marginTop: 12 }}><Loader steps={STEPS.news} expected={60} compact eta="usually 1 to 2 minutes; up to about 5 minutes: news services limit how fast we may ask. Please keep this page open" /></div>}
       {state === "error" && <p className="error">{err}</p>}
       {rep && <div style={{ marginTop: 12 }}><ReportList rep={rep} /></div>}
     </section>

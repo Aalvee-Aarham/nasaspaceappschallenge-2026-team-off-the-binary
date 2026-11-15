@@ -107,7 +107,7 @@ export default function PlaceRiskCheck({ online, onArea }: { online: boolean; on
 
       <div ref={out} className="pr-out" aria-live="polite">
         {err && <p className="pr-err" role="alert">{err}{target && !busy && <> <button className="link" onClick={() => run(target)}>Try again</button></>}</p>}
-        {busy && <Loader steps={STEPS} expected={20} title="Checking for fire" eta="usually 5 to 20 s; up to a minute when NASA's data server is slow" />}
+        {busy && <Loader steps={STEPS} expected={30} title="Checking for fire" eta="usually under a minute; it can take 2 to 3 minutes when NASA's data server is busy" />}
         {data && <Result d={data} fac={fac} facBusy={facBusy} facErr={facErr} retryFac={() => loadFac(data)}
           onPick={(c) => { setQ(c.display_name); run({ lat: c.lat, lon: c.lon, label: c.name }); }} onArea={onArea} />}
       </div>
@@ -173,8 +173,8 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
 
       <section className="pr-sec" aria-labelledby="pr-b-h">
         <h3 id="pr-b-h">Schools, hospitals and care homes nearby</h3>
-        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={50}
-          eta="usually 30 s to 1 minute: OpenStreetMap's free servers are shared and busy; it stops and says so after about a minute" />
+        {facBusy ? <Loader compact steps={["Asking OpenStreetMap for schools and hospitals", "Measuring how far each one is from the fire"]} expected={60}
+          eta="usually about 1 minute; it can take 2 to 3 minutes: OpenStreetMap's free servers are shared and often busy" />
           : facErr ? <p className="pr-err" title={facErr}><b>The map service is busy. Please try again.</b> OpenStreetMap's free servers are shared and often queue requests; a second try usually works (about 30 s). This is not "no buildings". <button className="link" onClick={retryFac}>Try again</button></p>
           : fac ? <Buildings f={fac} r={d.radius_km} anyFire={(r?.count ?? 0) > 0} /> : null}
       </section>

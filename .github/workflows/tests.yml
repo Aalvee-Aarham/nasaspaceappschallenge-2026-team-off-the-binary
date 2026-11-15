@@ -1,0 +1,43 @@
+# Every push: the six test suites and the web type check. A red run means do not roll Azure to that commit.
+# The suites read the shipped data in data/regions and a few call public services (Nominatim, FIRMS mirror), so a
+# rare red run can be an outside outage: the log says which.
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # test_build_rules checks the code version from git
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r server/requirements.txt httpx==0.28.1 python-dotenv==1.2.4
+      - name: test suites
+        working-directory: server
+        run: |
+          fail=0
+          for t in tests/test_*.py; do
+            echo "::group::$t"
+            python "$t" || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --no-audit --no-fund
+        working-directory: web
+      - run: npx tsc --noEmit
+        working-directory: web
