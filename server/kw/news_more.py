@@ -175,6 +175,20 @@ def geocode(q, limit=8):
     return _cached(f"geo3:{q.strip().lower()}:{limit}", 365 * 86400, fetch)
 
 
+def country_box(country):
+    """A country's full extent [w, s, e, n] from Nominatim (geocode clips every place to 4 degrees). Cached a year."""
+    def fetch():
+        with _nominatim_lock:
+            time.sleep(1.1)
+            qs = urllib.parse.urlencode({"country": country, "format": "jsonv2", "limit": 1, "featureType": "country", "accept-language": "en"})
+            res = json.loads(_get(f"https://nominatim.openstreetmap.org/search?{qs}"))
+        if not res:
+            return None
+        s, n, w, e = map(float, res[0]["boundingbox"])
+        return [round(w, 2), round(s, 2), round(e, 2), round(n, 2)]
+    return _cached(f"countrybox:{country.strip().lower()}", 365 * 86400, fetch)
+
+
 def search_place(place, start, end):
     """Reports for ANY place name (no built area needed): geocode, then every source."""
     from .news import _search

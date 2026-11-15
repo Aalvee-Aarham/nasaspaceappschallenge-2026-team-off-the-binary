@@ -137,6 +137,33 @@ def test_alerts_survive_a_restart_through_the_blob_store():
         alerts._blob, alerts.STATE_URL, alerts._mem = real
 
 
+def test_welcome_sends_local_then_country_and_names_what_could_not_be_read():
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    sent = []
+
+    def down(*a, **k):
+        raise RuntimeError("mirror down")
+    saved = {n: getattr(tools, n) for n in ("global_hotspots", "country_fires")}
+    real = alerts.send_email, alerts._outlook, alerts._events, alerts._country_of
+    alerts.send_email = lambda to, subject, text, html_body=None: sent.append((subject, text))
+    tools.global_hotspots = down                                       # this week's detections fail
+    tools.country_fires = lambda c: {"box": [88, 20, 93, 27], "start": "a", "end": "b", "by_satellite": {"VIIRS_NOAA20": 7},
+                                     "top_cells": [], "note": "box"}
+    alerts._outlook = lambda box: None
+    alerts._events, alerts._country_of = (lambda box: []), (lambda sub: "Bangladesh")
+    try:
+        a = alerts.create(region_id="punjab", name="welcome test")
+        alerts._update(a["token"], email="test@example.com")
+        alerts.welcome(a["token"])
+        assert [s for s, _ in sent] == ["Fire around welcome test right now", "Fire across Bangladesh this week"], sent
+        assert "could not be read" in sent[0][1] and "Fire this week: 0" not in sent[0][1]   # failed, never zero
+        assert "NOAA-20 VIIRS: 7" in sent[1][1] and "outlook could not be read" in sent[1][1]
+    finally:
+        alerts.send_email, alerts._outlook, alerts._events, alerts._country_of = real
+        for n, f in saved.items():
+            setattr(tools, n, f)
+
+
 def test_first_alert_failure_never_breaks_confirm():
     alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
     real_send, real_ready = alerts.send_email, alerts.smtp_ready

@@ -190,9 +190,192 @@ def _send_confirm(token, sub):
                f"If you did not ask for this, ignore this email.\n\n{FREE_SERVER}",
                _html("Confirm your fire alert", [f"Someone (hopefully you) asked Kiln Watch to email this address about "
                      f"fire activity in <b>{name}</b>.", f"<a href='{url}' style='color:#00a1ff'>Confirm the alert</a>. "
-                     "After you confirm, we email you the fire status there straight away. "
-                     "If you did not ask for this, ignore this email and nothing will be sent.",
+                     "After you confirm, we email you the fire status there straight away. Two more emails are on "
+                     "their way now: the fire picture around this place (in a few minutes), then fire across the whole "
+                     "country (in about 5 to 10 minutes). If you did not ask for this, ignore this email and nothing will be sent.",
                      f"<span style='color:#8892a0;font-size:13px'>{FREE_SERVER}</span>"], sub, token, False))
+
+
+# ---------- welcome emails: the fire picture right after a sign-up ----------
+
+WELCOME = True   # tests switch it off; serverless hosts never start it (no background threads there)
+_MONTH = calendar.month_name
+
+
+def _tile(label, value, note=""):
+    return (f"<td style='width:33%;vertical-align:top;padding:12px;background:#0d1420;border:1px solid #1d2a3a'>"
+            f"<div style='color:#8892a0;font-size:11px;letter-spacing:.08em;text-transform:uppercase'>{html.escape(label)}</div>"
+            f"<div style='font-size:22px;font-weight:700;color:#ffb070;margin:6px 0 4px'>{html.escape(str(value))}</div>"
+            f"<div style='color:#c5ccd6;font-size:12px;line-height:1.4'>{html.escape(note)}</div></td>")
+
+
+def _tiles(cells):
+    rows = [cells[i:i + 3] for i in range(0, len(cells), 3)]
+    return "".join(f"<table role='presentation' width='100%' cellspacing='6' style='border-collapse:separate'><tr>"
+                   f"{''.join(_tile(*c) for c in r)}</tr></table>" for r in rows)
+
+
+def _try(fn, what):
+    """(value, None) or (None, why): a source that could not be read is said so, never shown as zero."""
+    try:
+        return fn(), None
+    except Exception as ex:  # noqa: BLE001
+        return None, f"{what} could not be read just now ({str(ex)[:90]})"
+
+
+def _fmt(n):
+    return f"{n:,.0f}"
+
+
+def _local_picture(sub):
+    """(title, paragraphs, plain text) for the place or area of a new alert, from data that answers in seconds to minutes."""
+    p, rid, cells, paras, gaps = sub.get("place"), sub["region_id"], [], [], []
+    if p:
+        pr, why = _try(lambda: tools.place_risk(lat=p["lat"], lon=p["lon"], radius_km=min(25, p["radius_km"]),
+                                                facilities=True, label=p["label"]), "The satellite check")
+        if pr:
+            r, se, fac = pr.get("recent"), pr.get("season"), pr.get("facilities")
+            paras.append(f"<b>{html.escape(pr['headline'])}</b>")
+            if r:
+                cells.append(("Fire this week", f"{_fmt(r['count'])} spots" if r["count"] else "None seen",
+                              f"closest {r['nearest_km']:.1f} km away" if r["count"] else f"within {pr['radius_km']:g} km, last {r['days']} days"))
+            if se:
+                top = sorted(se["by_month"], key=lambda m: -m["years_with_fire"])[:3]
+                cells.append(("Usual fire months", ", ".join(_MONTH[m["month"]][:3] for m in top if m["years_with_fire"]) or "Rare here",
+                              f"years with fire within {se['within_km']:g} km, {se['first_year']}-{se['last_year']}"))
+            if pr.get("outlook"):
+                cells.append(("Next 30 days", {"watch": "Watch", "above": "Above normal", "season": "Fire season"}.get(pr["outlook"]["class"], "Usually quiet"),
+                              "what this time of year usually brings"))
+            if fac:
+                c, near = fac["counts"], fac["counts_near_fire"]
+                cells.append(("Schools nearby", _fmt(c.get("school", 0)), f"{_fmt(near.get('school', 0))} within 5 km of a fire"))
+                cells.append(("Hospitals, clinics", _fmt(c.get("hospital", 0) + c.get("clinic", 0)),
+                              f"{_fmt(near.get('hospital', 0) + near.get('clinic', 0))} within 5 km of a fire"))
+                closest = [x for x in fac["list"] if x.get("fire_km") is not None][:3]
+                if closest:
+                    paras.append("Closest to this week's fire: " + "; ".join(
+                        f"{html.escape(x['name'] or x['kind'])} ({x['fire_km']:.1f} km from fire)" for x in closest) + ".")
+            gaps += [f"{k}: {v}" for k, v in (pr.get("errors") or {}).items()]
+        else:
+            gaps.append(why)
+    w, why = _try(lambda: tools.early_warning(rid), "The area's early-warning level")
+    if w:
+        cells.append(("Early warning", w["level"].title(), w["headline"][:110]))
+    elif not p:
+        gaps.append(why if "not found" not in (why or "").lower() else "The area's record is still being built (5 to 10 minutes)")
+    if not p:
+        b = dt.date.today()
+        hs, why = _try(lambda: tools.global_hotspots(sub["bbox"], b - dt.timedelta(days=7), b), "This week's detections")
+        if hs:
+            n20 = hs["totals_by_satellite"].get("VIIRS_NOAA20", {}).get("vegetation")
+            cells.append(("Fire this week", _fmt(n20) if n20 is not None else "–", "NOAA-20 VIIRS detections in the area, last 7 days"))
+        else:
+            gaps.append(why)
+        ex, why = _try(lambda: tools.exposure(rid), "Who lives where fire is seen")
+        if ex:
+            cells.append(("People in fire cells", f"{ex['population'] / 1e6:.1f} M" if ex["population"] >= 1e6 else _fmt(ex["population"]),
+                          f"in {_fmt(ex['fire_cells'])} cells of 11 km with fire since 2000"))
+            cells.append(("Hospitals, clinics", _fmt((ex.get("hospitals") or 0) + (ex.get("clinics") or 0)), "inside those fire cells"))
+        else:
+            gaps.append(why)
+    elif tools.is_built(rid):
+        ep, _ = _try(lambda: tools.exposure_place(rid, p["lat"], p["lon"]), "")
+        if ep and ep.get("in_record"):
+            cells.append(("People in its 11 km cell", _fmt(ep.get("population") or 0),
+                          f"fire seen in {ep.get('months_with_fire', 0)} of {ep.get('months_in_record', 0)} months since 2000"))
+    name = (p or {}).get("label") or sub.get("name") or rid
+    if gaps:
+        paras.append("<span style='color:#8892a0'>Could not look: " + html.escape("; ".join(g for g in gaps if g)) + ". That is not the same as no fire.</span>")
+    text = "\n".join([f"Fire around {name} right now"] + [f"- {a}: {b} ({c})" for a, b, c in cells] + gaps)
+    return f"Fire around {name} right now", [_tiles(cells)] + paras, text
+
+
+def _country_of(sub):
+    if tools.is_built(sub["region_id"]):
+        c = tools._read(sub["region_id"], "meta").get("country")
+        if c:
+            return c
+    p = sub.get("place") or {}
+    w, s, e, n = sub["bbox"]
+    return tools.news.reverse_geocode(p.get("lat", (s + n) / 2), p.get("lon", (w + e) / 2)).get("country")
+
+
+def _named_in(cells, country, limit=5):
+    """(cell, place name) for cells that fall inside the country (the box spills into neighbours), one per name."""
+    out, seen = [], set()
+    for c in cells:
+        g = tools.news.reverse_geocode(c["lat"], c["lon"])
+        if (g.get("country") or "").lower() != country.lower() or not g.get("name") or g["name"] in seen:
+            continue
+        seen.add(g["name"])
+        out.append((c, g["name"]))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _country_picture(country):
+    """(title, paragraphs, text) for the whole country: this week's detections read live, the outlook's hot regions,
+    open NASA EONET wildfire events. The live read takes minutes for a large country."""
+    cells, paras, gaps = [], [], []
+    cf, why = _try(lambda: tools.country_fires(country), f"This week's detections across {country}")
+    if cf:
+        bs = cf["by_satellite"]
+        for sat, label in (("VIIRS_NOAA20", "NOAA-20 VIIRS"), ("VIIRS_NOAA21", "NOAA-21 VIIRS"), ("MODIS_Aqua", "Aqua MODIS")):
+            if sat in bs:
+                cells.append((label, _fmt(bs[sat]), f"fire detections, {cf['start']} to {cf['end']}"))
+        names = [f"{html.escape(n)} ({_fmt(c['noaa20_detections'])})" for c, n in _named_in(cf["top_cells"], country)]
+        if names:
+            paras.append("<b>Busiest places this week</b> (NOAA-20 detections per half-degree cell): " + "; ".join(names) + ".")
+        paras.append(f"<span style='color:#8892a0'>{html.escape(cf['note'])}</span>")
+    else:
+        gaps.append(why)
+    if cf:
+        ol = _outlook(cf["box"])
+        if ol is None:
+            gaps.append("The 30-day outlook could not be read")
+        else:
+            c = ol["counts"]
+            cells.append(("Fire-season watch", _fmt(c["watch"]), f"half-degree cells entering their fire season while already above normal; {_fmt(c['above'])} more above normal"))
+            cells.append(("Usual fire season now", _fmt(c["season"] + c["watch"]), f"cells where the next 30 days usually bring fire ({ol['next_30_days'][0]} to {ol['next_30_days'][1]})"))
+            watch = _named_in([x for x in ol["cells"] if x["class"] == "watch"][:10], country, 3)
+            if watch:
+                paras.append("<b>On watch now in " + html.escape(country) + ":</b> " + "; ".join(html.escape(n) for _, n in watch)
+                             + ". A climatological outlook, not a forecast.")
+    if cf:
+        evs = _events(cf["box"])
+        if evs is None:
+            gaps.append("NASA EONET could not be reached")
+        else:
+            cells.append(("Open wildfire events", _fmt(len(evs)), "reported to NASA EONET in the last 30 days"))
+            if evs:
+                paras.append("<b>Reported wildfires:</b> " + "; ".join(f"{html.escape(e['title'])} ({e['date']})" for e in evs[:5]) + ".")
+    if gaps:
+        paras.append("<span style='color:#8892a0'>Could not look: " + html.escape("; ".join(gaps)) + ". That is not the same as no fire.</span>")
+    text = "\n".join([f"Fire across {country} this week"] + [f"- {a}: {b} ({c})" for a, b, c in cells] + gaps)
+    return f"Fire across {country} this week", [_tiles(cells)] + paras, text
+
+
+def welcome(token):
+    """After a sign-up with email: the local picture first (seconds to a few minutes), then the whole country (minutes).
+    Each is sent as soon as it is ready; a failure is logged and never blocks the alert."""
+    for build in ("local", "country"):
+        try:
+            sub = get(token)
+            if build == "local":
+                title, paras, text = _local_picture(sub)
+            else:
+                country = _country_of(sub)
+                if not country:
+                    log.info("welcome for %s...: no country found, country email skipped", token[:3])
+                    return
+                title, paras, text = _country_picture(country)
+            paras.append(f"<span style='color:#8892a0;font-size:13px'>Your alert starts once you click the confirmation link "
+                         f"we sent first. Satellite detections are heat seen from space, not confirmed fires.</span>")
+            send_email(sub["email"], title, text + f"\n\n{FREE_SERVER}", _html(title, paras, sub, token))
+            log.info("welcome email (%s) for %s... sent", build, token[:3])
+        except Exception as ex:  # noqa: BLE001 - a welcome email never breaks the sign-up
+            log.error("welcome email (%s) for %s... failed: %s", build, token[:3], ex)
 
 
 # ---------- CRUD ----------
@@ -277,6 +460,8 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
         try:
             _send_confirm(token, sub)
             email_status = "confirmation_sent"
+            if WELCOME and not tools.SERVERLESS:   # the fire picture follows in two emails, local first, then the country
+                threading.Thread(target=welcome, args=(token,), daemon=True, name="alert-welcome").start()
         except Exception as ex:  # surfaced, never swallowed: the UI tells the user to use n8n instead
             email_status = f"not_sent: {str(ex)[:160]}"
             log.error("confirmation email for alert %s... failed: %s", token[:3], ex)

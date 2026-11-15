@@ -703,6 +703,49 @@ def _live_hotspots(w, s, e, n, a, b):
     return _cached_ok(f"live-hotspots:{w},{s},{e},{n},{a},{b}:{int(time.time() // 3600)}", 3600, fetch)
 
 
+COUNTRY_MAX_DEG2 = 3000   # larger boxes (Russia, Canada, the US with Alaska) are not read live: minutes, mostly ocean
+
+
+def country_fires(country, days=7):
+    """Vegetation-fire detections of every satellite in the last `days` days inside the box around a country, read live
+    from the public FIRMS mirror (slow: minutes for a large country; cached 3 hours). The box also covers parts of the
+    neighbours; raw counts per satellite, not harmonized."""
+    from . import news_more
+    box = news_more.country_box(country)
+    if not box:
+        raise NotFound(f"no country called '{country}'")
+    w, s, e, n = box
+    if w > e or (e - w) * (n - s) > COUNTRY_MAX_DEG2:
+        raise ValueError(f"{country} is too large to read live ({(e - w) * (n - s):.0f} square degrees)")
+
+    def fetch():
+        b = dt.date.today()
+        a = b - dt.timedelta(days=days)
+        files = [f"{FIRMS_BASE}/year={y}/detections.parquet" for y in sorted({a.year, b.year})]
+        con = _live_cursor()
+        try:
+            rows = con.execute(f"""WITH t AS MATERIALIZED (
+                                       SELECT acq_date, satellite, sensor, confidence, confidence_pct, type, geometry
+                                       FROM read_parquet({files}) WHERE acq_date >= DATE '{a}'
+                                       AND ST_Intersects(geometry, ST_MakeEnvelope({w}, {s}, {e}, {n})))
+                                   SELECT CASE WHEN sensor = 'MODIS' THEN 'MODIS_' || satellite ELSE sensor END,
+                                          floor(ST_Y(geometry) * 2)::INT, floor(ST_X(geometry) * 2)::INT, count(*)::INT
+                                   FROM t WHERE {CONF_SQL} AND (type IS NULL OR type = 0) GROUP BY ALL""").fetchall()
+        finally:
+            con.close()
+        by_sat, cells = {}, {}
+        for sat, gy, gx, k in rows:
+            by_sat[sat] = by_sat.get(sat, 0) + k
+            if sat == "VIIRS_NOAA20":   # one satellite for the ranking, so a cell is not counted once per satellite
+                cells[(gy, gx)] = cells.get((gy, gx), 0) + k
+        top = sorted(cells.items(), key=lambda kv: -kv[1])[:5]
+        return {"country": country, "box": box, "start": str(a), "end": str(b), "by_satellite": by_sat,
+                "top_cells": [{"lat": (gy + 0.5) / 2, "lon": (gx + 0.5) / 2, "noaa20_detections": k} for (gy, gx), k in top],
+                "note": "Raw detections inside the box around the country (it also covers parts of its neighbours). "
+                        "Each satellite counts differently, so compare one satellite with itself, not the totals."}
+    return _cached_ok(f"country:{country.lower()}:{days}:{int(time.time() // 10800)}", 10800, fetch)
+
+
 def annual(region_id):
     """Per complete year: harmonized hotspots (Aqua scale) next to raw detections of all satellites, the series that
     shows why harmonization matters (raw jumps at each VIIRS launch)."""
