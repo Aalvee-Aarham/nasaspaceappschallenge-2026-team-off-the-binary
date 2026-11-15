@@ -135,7 +135,7 @@ export default function Detail(p: Props) {
             <p className="muted small">Searches NASA EONET and GDELT news (2017 onward) for {p.r.meta.places?.slice(0, 3).join(", ") || p.r.meta.name}, in local languages.</p>
             <button className="btn" onClick={loadReports}>Search reports</button>
           </>
-        ) : repState === "loading" ? <Loader steps={STEPS.news.slice(0, 6)} expected={16} compact /> : repState === "error" ? <p className="error">{repErr} <button className="link" onClick={loadReports}>Try again</button></p> : rep && <ReportList rep={rep} />}
+        ) : repState === "loading" ? <Loader steps={STEPS.news.slice(0, 6)} expected={20} compact eta="usually 15 to 30 s" /> : repState === "error" ? <p className="error">{repErr} <button className="link" onClick={loadReports}>Try again</button></p> : rep && <ReportList rep={rep} />}
       </section>
 
       <button className="btn ask" onClick={() => p.onAsk(`Explain ${periodLabel(p.period)} in ${p.r.meta.name}: how does it compare with other years, which satellites contributed, and what is the evidence?`)}>
@@ -214,7 +214,7 @@ export function RangeNews({ r, bounds, onOpen, onAsk, onClose }: {
         : err ? <p className="error">{err}</p> : !rep ? <>
         <Loader title={`News for ${r.meta.places?.slice(0, 2).join(", ") || r.meta.name}, ${start.slice(0, 4)}–${end.slice(0, 4)}`}
           steps={[...STEPS.news.slice(0, 6), "Gemini is reading every headline to drop off-topic stories", ...STEPS.news.slice(6)]}
-          expected={Math.min(90, 22 + 6 * (+end.slice(0, 4) - +start.slice(0, 4)))} />
+          expected={Math.min(120, 45 + 10 * (+end.slice(0, 4) - +start.slice(0, 4)))} eta="usually 20 s to 1 minute, longer for many years: news services limit how fast we may ask" />
         <p className="muted small">The first search for a range takes a while (news services limit how fast we may ask); repeats are instant.</p>
       </> : <>
         <div className={`assess ${v!.tone}`}><b>{v!.label}</b><span>{rep.items.length} item{rep.items.length === 1 ? "" : "s"} listed</span></div>

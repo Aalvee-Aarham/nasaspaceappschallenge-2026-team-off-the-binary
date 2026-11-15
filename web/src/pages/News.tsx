@@ -65,7 +65,7 @@ function Latest({ online }: { online: boolean }) {
         </div>
       </div>
       {err && <p className="error">{err}</p>}
-      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={10} />}
+      {online && !res && !err && <Loader title="Gathering the world's fire news" steps={["Asking Google News in English, Spanish and Portuguese", "Adding French, Indonesian, Hindi and Bangla", "Reading GDACS disaster alerts", "Reading NASA EONET wildfire events", "Removing duplicates and sorting by date"]} expected={12} eta="usually 5 to 15 s" />}
       {res && <>
         <div className="srcchips">
           {res.sources.map((s) => <span key={s.name} className={s.error ? "bad" : ""} title={s.error ?? ""}>{s.name} <b>{s.count}</b></span>)}
@@ -109,7 +109,7 @@ function PlaceSearch({ online, go }: { online: boolean; go: PageProps["go"] }) {
         <label className="small">to <input type="date" value={b} min={a} max={iso(today)} onChange={(e) => setB(e.target.value)} /></label>
         <button className="btn" disabled={!online || busy || !q.trim()}>{busy ? "Searching…" : "Search"}</button>
       </form>
-      {busy && <div style={{ marginTop: 12 }}><Loader title={`Searching reports for ${q.trim()}`} steps={STEPS.news} expected={long ? 30 : 18} /></div>}
+      {busy && <div style={{ marginTop: 12 }}><Loader title={`Searching reports for ${q.trim()}`} steps={STEPS.news} expected={long ? 40 : 20} eta={long ? "usually 30 s to 1 minute" : "usually 15 to 30 s"} /></div>}
       {err && <p className="error">{err}</p>}
       {res && (
         <div className="placeres">

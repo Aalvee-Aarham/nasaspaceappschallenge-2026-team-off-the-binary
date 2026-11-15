@@ -6,6 +6,8 @@ import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+for _k in ("SMTP_HOST", "SMTP_FROM", "PUBLIC_URL"):   # hermetic: a developer's .env must not turn email on (load_dotenv
+    os.environ[_k] = ""                              # never overrides a variable that is already set)
 from fastapi import HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 

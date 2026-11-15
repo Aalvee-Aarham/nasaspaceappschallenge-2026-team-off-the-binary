@@ -98,6 +98,49 @@ export function Download({ regions, online }: PageProps) {
 }
 
 type Job = { id: string; status: string; done?: number; total?: number; stage?: string; error?: string };
+export const BUILD_ETA = "plan on 5 to 10 minutes; longer when NASA's data server is slow. You can keep using the site meanwhile";
+
+function BuildStatus({ job }: { job: Job }) {
+  return <>
+    <h2>{job.status === "error" ? "The build failed" : "Building"}</h2>
+    {job.status === "error" ? <p className="error">{job.error}</p> : <>
+      <Loader title="Building the 26-year record" steps={STEPS.build} expected={420} eta={BUILD_ETA} done={job.total ? job.done : undefined} total={job.total || undefined} />
+      <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. The area opens in the Explorer when ready, and appears in the download list below.</p>
+    </>}
+  </>;
+}
+
+/** For researchers on the Connect page: download any area's dataset, or build a new one, without leaving the page. */
+export function DatasetTools({ regions, online, job, build, goDraw }: PageProps & {
+  job: Job | null; build: (box: number[], name?: string) => void; goDraw: () => void;
+}) {
+  const [rid, setRid] = useState("");
+  const area = regions.find((r) => r.id === rid) ?? regions[0];
+  const end = area?.data_through ?? "";
+  return (
+    <section id="dataset">
+      <h2>Get a dataset</h2>
+      <p className="muted small">For researchers: the harmonized 2000-to-today record of any area as CSV, TSV or JSON, with the columns you choose, or the individual detections behind it. No key, no sign-up.</p>
+      {!online && <Offline what="Downloads and new areas" />}
+      <div className="connect-grid ds-grid">
+        <div className="ccard">
+          <h3>Download an area</h3>
+          <p className="muted small">The calendar is ready at once. Detections: up to 366 days per file, a few seconds.</p>
+          {area && <>
+            <AreaSelect regions={regions} value={area.id} onChange={setRid} />
+            <ExportPanel key={area.id} id={area.id} name={area.name} years={[2000, +end.slice(0, 4) || new Date().getFullYear()]} dataThrough={end} online={online} />
+          </>}
+        </div>
+        <div className="ccard">
+          <h3>Create a dataset for a new area</h3>
+          <p className="muted small">Any box up to 4° × 4°. Kiln Watch reads every MODIS and VIIRS detection there since 2000 and harmonizes them: plan on 5 to 10 minutes.</p>
+          <AreaPicker online={online} cta="Build the dataset" busy={job?.status === "running"} onPick={(box, name) => build(box, name)} onDraw={goDraw} />
+          {job && <BuildStatus job={job} />}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function Create({ regions, online, job, build, openRegion, goDraw }: PageProps & {
   job: Job | null; build: (box: number[], name?: string) => void; goDraw: () => void;
@@ -114,15 +157,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
         <AreaPicker online={online} cta="Build the dataset" busy={busy} onPick={(box, name) => build(box, name)} onDraw={goDraw} />
       </section>
 
-      {job && (
-        <section>
-          <h2>{job.status === "error" ? "The build failed" : "Building"}</h2>
-          {job.status === "error" ? <p className="error">{job.error}</p> : <>
-            <Loader title="Building the 26-year record" steps={STEPS.build} expected={360} eta="plan on 3 to 6 minutes; longer when NASA's data server is slow" done={job.total ? job.done : undefined} total={job.total || undefined} />
-            <p className="small muted" style={{ marginTop: 8 }}>{job.stage ?? "starting"}. The area opens in the Explorer when ready.</p>
-          </>}
-        </section>
-      )}
+      {job && <section><BuildStatus job={job} /></section>}
 
       {mine.length > 0 && (
         <section>

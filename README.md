@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
   <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
-  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-40%20tools-3DDC97?style=for-the-badge" alt="MCP server, 40 tools"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-35%20tools%20online%20%C2%B7%2040%20local-3DDC97?style=for-the-badge" alt="MCP server, 35 read-only tools online, 40 locally"></a>
 </p>
 
 <p align="center">
@@ -80,7 +80,7 @@ Seven things to know:
 - **Farmers in Bangladesh can show the kilns next to their fields.** One tap gives a dated, satellite-checked record of
   nearby kilns and their estimated smoke, and the months fire usually comes before the Boro harvest
   ([For farmers](#for-farmers-what-is-near-your-field)).
-- **One answer, four ways to reach it:** the website, an open API with no key, a 40-tool MCP server for AI assistants,
+- **One answer, four ways to reach it:** the website, an open API with no key, an MCP server for AI assistants (35 read-only tools online, 40 locally),
   and alerts by email or n8n.
 
 ---
@@ -188,6 +188,21 @@ not used. An area-specific version is an open next step.
 
 We publish these, not hide them.
 
+- **The ratio per calendar month is not yet better than one ratio per area on totals.** In the MODIS-denial test it
+  lowers the monthly error in 5 of 9 areas (Punjab: mean absolute error 146 against 271 hotspots a month), but its
+  bias on the 2017–2020 total is larger in 5 of 9 (La Rioja −9.7% against −1.8%, Dhaka +13.1% against +8.5%).
+  `denial.modis_ends_2016` in each `meta.json` holds both. We tested three fixes on months they never saw (training
+  cut-offs 2015, 2016 and 2017): choosing between the two per link from a split inside the training years, and
+  weighting recent years more. Neither wins at all three cut-offs, so the method is unchanged
+  (`data/validation/calibration_variants.json`, from `scripts/validation/calibration_variants.py`).
+- **After MODIS, the chain does not fully close.** From 2023 the record runs NOAA-20 → Suomi-NPP → Aqua. The direct
+  NOAA-20 → Aqua ratio and that chain disagree by +18% (day) and +28% (night) in Punjab, +48% at night in Northern
+  California, +90% at night in south-east Australia and −34% / −63% in Dhaka (`closure` in `meta.json`). The mismatch is
+  added to the interval, not removed. Held out on 2021–2022, when Aqua still flew its old orbit, NOAA-20 alone through
+  the chain predicts Aqua with a mean monthly log error of 0.345, against 0.373 for the direct link and 0.373 for one
+  ratio per area (mean total bias 9.3%, 9.4% and 13.0%), so the chain is kept (same file).
+- **NOAA-21 steps are wider than Suomi-NPP's**: 0.63 (Rondônia) to 1.34 (La Rioja), against 0.93–1.18. NOAA-21 arrived in
+  2024, when Aqua was already drifting, so its step mixes the new satellite with Aqua's change.
 - Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 6%.
 - Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
@@ -227,7 +242,7 @@ numbers: `data/validation/burned_area.json`, `data/validation/kilns_dhaka-kilns.
 </tr>
 <tr>
 <td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
-<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 40 tools, 4 characters, 5 resources"><br><b>Ask it anything.</b> An in-app analyst and a 40-tool MCP server for Claude, Cursor and n8n. The AI model only picks which algorithm answers the question; the algorithm writes the answer, so every number comes from the pipeline.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 35 read-only tools online, 40 locally, 4 characters, 5 resources"><br><b>Ask it anything.</b> An in-app analyst and an MCP server (35 read-only tools online, 40 locally) for Claude, Cursor and n8n. The AI model only picks which algorithm answers the question; the algorithm writes the answer, so every number comes from the pipeline.</td>
 </tr>
 </table>
 
@@ -566,7 +581,7 @@ NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
 | DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
 | FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
-| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | 40-tool MCP server for Claude, Cursor and n8n |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | MCP server for Claude, Cursor and n8n (35 read-only tools online, 40 locally) |
 | Google Earth Engine | [earthengine.google.com](https://earthengine.google.com) | Build time only: reads MCD64A1 and Black Marble for the committed witness files; the live demo needs no Earth Engine |
 | Groq API | [groq.com](https://groq.com) | Optional in-app analyst: picks which algorithm answers a question |
 | Google Gemini API | [ai.google.dev](https://ai.google.dev) | Fallback for the in-app analyst |

@@ -321,11 +321,17 @@ export type KilnCheck = {
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   await ready;
-  const r = await fetch(API + url, init);
+  let r: Response;
+  try { r = await fetch(API + url, init); } catch (e) {
+    if ((e as Error).name === "AbortError") throw e;
+    throw new Error("The server did not answer (it may be busy or waking up). Please try again in a moment.");
+  }
   if (!r.ok) {
-    let msg = `${r.status} ${r.statusText}`;
-    try { msg = (await r.json()).detail ?? msg; } catch { /* not JSON */ }
-    throw new Error(msg);
+    let detail: string | undefined;
+    try { detail = (await r.json()).detail; } catch { /* not JSON: a proxy timeout page */ }
+    throw new Error(detail ?? ([502, 503, 504].includes(r.status)
+      ? "The server is busy right now. Please try again in a moment."
+      : `${r.status} ${r.statusText}`));
   }
   if (!(r.headers.get("content-type") ?? "").includes("json")) {
     throw new Error("The API answered with a web page, not data. It is probably an older Kiln Watch server: restart it (uvicorn kw.api:app --port 8000, in server/).");

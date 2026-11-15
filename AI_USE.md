@@ -9,7 +9,7 @@ The 2026 Space Apps rules ask every submission to describe how AI tools were use
 | **Claude Opus via Claude Code** (Anthropic) | Development: wrote the data pipeline, harmonization statistics, API, MCP server and web UI; ran builds and tests | Our source code; public NASA FIRMS detections and the region files built from them |
 | **MiniMax M3 via OpenCode** | Development of this release: the audit triage, the scientific corrections, the two independent validation scripts and the submission text | Our source code; public NASA FIRMS detections, NASA MCD64A1 burned area and the public APAD kiln inventory |
 | **Gemini Flash** (Google) | Development: writing and reviewing code | Our source code |
-| **Gemini 2.5 Flash** (Google, free tier, optional at run time) | In-app analyst: puts the results of deterministic tool calls into words | Pipeline output only (region JSON built from NASA FIRMS). Every tool call is shown to the user |
+| **Groq `openai/gpt-oss-120b`** (then `gpt-oss-20b`, `qwen/qwen3.8-27b`), **Gemini Flash** as last fallback (free tiers, optional at run time) | In-app analyst, as a router only: reads the question and picks which deterministic algorithms answer it. The algorithms write the answer and every number; the model never sees pipeline data | The user's question, the area and period on screen, and a one-line catalogue of algorithms. Every algorithm call is shown to the user |
 
 **What AI did not do.** No AI system produces any number shown in the calendar, charts or downloads. Those come from
 `server/kw/build.py` run on NASA FIRMS data, and the two independent checks come from `scripts/validation/`. No

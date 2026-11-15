@@ -891,6 +891,11 @@ def _versions(con):
 
 # ---------------- build ----------------
 
+def _hits(casebook):
+    """Outside reports the casebook's witnesses found (EONET, GDACS, news); -1 when the build itself failed."""
+    return -1 if casebook.get("error") else sum(s.get("count") or 0 for s in casebook.get("sources") or [])
+
+
 def build_region(region_id, info, progress=None, source=None):
     """source: 'detections' (per-area download, used for the presets) or 'global' (kw.globe aggregate)."""
     t0 = time.time()
@@ -1033,6 +1038,10 @@ def build_region(region_id, info, progress=None, source=None):
     except Exception as ex:
         cases = {"built_at": meta["built_at"], "area": region_id, "data_through": meta["data_through"],
                  "counts": {}, "sources": [], "caveat": "", "cases": [], "error": str(ex)[:200]}
+    if (folder / "cases.json").exists():
+        prev = json.loads((folder / "cases.json").read_text(encoding="utf-8"))
+        if _hits(prev) > _hits(cases):   # a witness that failed or came back empty today (rate limit, outage) must not
+            cases = prev                 # replace a casebook that heard more; the record itself is still rebuilt
     cases_mod.write_cases(folder, cases)
     for name, obj in (("monthly", monthly), ("weekly", weekly), ("grid", grid), ("static", _static_points(con, glob))):
         tmp = folder / f"{name}.json.tmp"

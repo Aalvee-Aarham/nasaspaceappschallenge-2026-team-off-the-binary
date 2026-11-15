@@ -366,10 +366,19 @@ try {{
 def alert_confirm(token: str, code: str = ""):
     try:
         sub = alerts.confirm(token, code)
-    except (ValueError, tools.NotFound) as ex:
+    except tools.NotFound:
+        return _note("This sign-up was forgotten", "Kiln Watch runs on a free server that goes to sleep when nobody is "
+                     "using it, and waking up forgets sign-ups. Sorry: please sign up again and click the new link "
+                     "within the hour.", False)
+    except ValueError as ex:
         return _note("Link not valid", str(ex), False)
     first = alerts.notify_first(token)  # a hot area gets its first message now, not at the next 3-hourly pass
-    if first.get("sent"):
+    sleepy = (" Kiln Watch runs on a free server that sleeps when nobody is using it, so later alerts can be late or "
+              "missed: do not rely on it for safety.")
+    if first.get("status_only"):
+        text = (f"Your alert for {sub.get('name')} is active. Nothing is above your thresholds right now; we have emailed "
+                "you the current status so you can see it works." + sleepy)
+    elif first.get("sent"):
         text = (f"Fire activity around {sub.get('name')} is already above your thresholds: the alert email is on its way "
                 "to your inbox now. After that you will only hear from us when something new happens. Every email has a "
                 "one-click unsubscribe link.")
@@ -386,7 +395,11 @@ def alert_confirm(token: str, code: str = ""):
         p = sub["place"]
         what = " and ".join(x for x, t in (("fire detected within %g km" % p["radius_km"], "nearby"),
                                           ("the start of its usual fire month", "season")) if t in (sub.get("triggers") or []))
-        if first.get("sent"):
+        if first.get("status_only"):
+            text = (f"Your alert for {p['label']} is active, and we have emailed you the current status. We will try to "
+                    f"email you when there is {what}." + sleepy + " Satellites miss small fires: an early hint, not an "
+                    "official warning.")
+        elif first.get("sent"):
             text = (f"Fire has already been detected near {p['label']}: the alert email is on its way. After that you will only "
                     "hear from us about new detections. Every email has a one-click unsubscribe link.")
         elif first.get("error"):

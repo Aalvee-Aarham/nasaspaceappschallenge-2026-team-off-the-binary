@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Persona, api, apiOrigin } from "../api";
+import { DatasetTools } from "./Data";
 import { Code, PageHead, PageProps } from "./shared";
 
 const TOOLS: [string, [string, string][]][] = [
@@ -12,7 +13,7 @@ const TOOLS: [string, [string, string][]][] = [
     ["check_place_fire_risk", "Any town, address or school on Earth: fire seen within 1-25 km this week, the usual fire months, the outlook, and the schools, hospitals, clinics, care homes and fire stations near that fire. No built area needed."],
     ["get_fire_outlook", "Worldwide or in-box 30-day outlook: watch, above normal, season ahead, named regions."],
     ["get_outlook_at", "The outlook for the half-degree cell at a point."],
-    ["query_hotspots", "Raw detections per day and satellite for any box and dates, instantly."],
+    ["query_hotspots", "Raw detections per day and satellite for any box and dates (hosted server: read live from NASA FIRMS, 10-40 s, up to 25 square degrees and 31 days)."],
     ["get_situation_brief", "Ready-to-share markdown brief: level, month, next 30 days, events, trend."],
     ["get_early_warning / check_watchlist", "Level per area and the areas at or above a level."],
     ["get_active_wildfire_events", "Open NASA EONET wildfire events, tagged with the area they fall in."],
@@ -64,7 +65,8 @@ const STDIO = `{
   }
 }`;
 
-export function Mcp({ go }: PageProps) {
+export function Mcp(props: PageProps & Parameters<typeof DatasetTools>[0]) {
+  const { go } = props;
   const url = `${apiOrigin()}/mcp`;
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
@@ -81,8 +83,8 @@ export function Mcp({ go }: PageProps) {
       <PageHead kicker="Kiln Watch for Claude" title="MCP and characters" lead={`Connect Claude to ${nPublic} deterministic read-only fire tools and four ready-made characters: a fire operations officer, a remote-sensing scientist, a fact-checker and a community liaison. A local server also keeps the ${nTools - nPublic} tools that change state. Claude asks Kiln Watch for every number; it never makes one up.`} />
 
       <p className="row">
-        <button className="btn ghost" onClick={() => go("download")}>Download the data</button>
-        <button className="btn ghost" onClick={() => go("create")}>Build your own area</button>
+        <a className="btn" href="#dataset" onClick={(e) => { e.preventDefault(); document.getElementById("dataset")?.scrollIntoView({ behavior: "smooth" }); }}>Get a dataset</a>
+        <button className="btn ghost" onClick={() => go("download")}>All downloads</button>
         <button className="btn ghost" onClick={() => go("n8n")}>Automate with n8n</button>
         <button className="btn ghost" onClick={() => go("news")}>News beside the data</button>
       </p>
@@ -99,6 +101,8 @@ export function Mcp({ go }: PageProps) {
           <button className="btn" onClick={() => copy("url", url)}>{copied === "url" ? "Copied" : "Copy URL"}</button>
         </div>
       </section>
+
+      <DatasetTools {...props} />
 
       <section>
         <h2>1. Connect</h2>
@@ -174,10 +178,12 @@ curl "${apiOrigin()}/api/place-risk?q=Ludhiana,%20India&radius_km=10"
 curl "${apiOrigin()}/api/place-risk?lat=39.76&lon=-121.62&radius_km=5"
 # Faster first answer without the schools and hospitals (OpenStreetMap is the slow part)
 curl "${apiOrigin()}/api/place-risk?q=Sylhet&facilities=false"
-# 30-day outlook at a point, raw detections for any box, the study areas
+# 30-day outlook at a point, the study areas
 curl "${apiOrigin()}/api/outlook/at?lat=30.9&lon=75.85"
-curl "${apiOrigin()}/api/hotspots?west=75&south=30&east=77&north=32&start=2026-11-01&end=2026-11-13"
-curl "${apiOrigin()}/api/regions"`} />
+curl "${apiOrigin()}/api/regions"
+# An area's harmonized monthly record, and its detections for a window (CSV)
+curl -o punjab.csv "${apiOrigin()}/api/regions/punjab/export?kind=calendar&format=csv"
+curl -o punjab-nov.csv "${apiOrigin()}/api/regions/punjab/export?kind=detections&start=2025-11-01&end=2025-11-30"`} />
         <p className="muted small"><code>/api/place-risk</code> returns <code>level</code> (near, watch, season, low, unknown), a plain-language <code>headline</code> and <code>reasons</code>, <code>recent</code> detections, <code>season</code> (years with fire per calendar month), <code>outlook</code>, <code>facilities</code> (each with its distance to the nearest fire) and <code>errors</code> for any source that could not be read. Detections are not confirmed fires; history is not a forecast.</p>
       </section>
 

@@ -96,6 +96,25 @@ def test_first_alert_goes_out_on_confirm():
         alerts.send_email, alerts.smtp_ready = real_send, real_ready
 
 
+def test_quiet_area_still_gets_a_status_email_on_confirm():
+    """Nothing above threshold: confirming still mails the current status once (with the free-server note)."""
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    real_send, real_ready, sent = alerts.send_email, alerts.smtp_ready, []
+    alerts.send_email = lambda to, subject, text, html_body=None: sent.append((subject, text))
+    alerts.smtp_ready = lambda: True
+    try:
+        a = alerts.create(region_id="punjab", ratio=20, min_hotspots=1000, email="test@example.com", base_url="http://x")
+        assert alerts.FREE_SERVER in sent[0][1]   # the confirmation says the server sleeps
+        sent.clear()
+        alerts.confirm(a["token"], alerts._load()[a["token"]]["code"])
+        first = alerts.notify_first(a["token"])
+        assert first.get("status_only") and len(sent) == 1 and "active" in sent[0][0], (first, sent)
+        again = alerts.notify_first(a["token"])
+        assert again["sent"] is False and "error" not in again and len(sent) == 1, again   # a second click: no error, no mail
+    finally:
+        alerts.send_email, alerts.smtp_ready = real_send, real_ready
+
+
 def test_first_alert_failure_never_breaks_confirm():
     alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
     real_send, real_ready = alerts.send_email, alerts.smtp_ready

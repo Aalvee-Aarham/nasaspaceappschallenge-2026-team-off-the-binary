@@ -638,6 +638,7 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .mcp-url code { font-size: 15px; padding: 8px 10px; background: var(--night); }
 .mcp-url .btn { align-self: flex-start; }
 .connect-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.connect-grid.ds-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .ccard { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 16px; min-width: 0; }
 .ccard .steps { padding-left: 18px; margin: 6px 0 10px; }
 .personas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -655,7 +656,7 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
 .starters .link { color: var(--text); text-decoration: none; text-align: left; font-size: 13px; }
 .starters .link:hover { color: var(--pc); }
 .toolgroup h3 { margin: 16px 0 6px; color: var(--focus); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-@media (max-width: 900px) { .mcp-hero, .connect-grid, .personas { grid-template-columns: 1fr; } .mcp-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .mcp-hero, .connect-grid, .connect-grid.ds-grid, .personas { grid-template-columns: 1fr; } .mcp-stats { grid-template-columns: repeat(2, 1fr); } }
 .page-in > section.ow, .page-in > section.mcp-hero { column-gap: 16px; padding: 0; margin: 0 0 40px; border-top: 0; }
 .page-in > section.ow { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); column-gap: 0; border-top: 1px solid var(--line); }
 .page-in > section.mcp-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -1042,16 +1043,6 @@ section h2 .live { margin-right: 8px; vertical-align: 2px; }
   .pr-go { flex: 1 1 100%; }
 }
 
-/* explorer facilities layer */
-.check i.sw-fac { background: conic-gradient(#4F8BFF 0 25%, #FFFFFF 0 50%, #FF8FB1 0 75%, #E63946 0); }
-.fac-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); padding: 2px 0 4px 18px; }
-.fac-key span { display: inline-flex; align-items: center; gap: 5px; }
-.fac-key i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #0A0E15; display: inline-block; }
-.fac-key p { margin: 4px 0 0; flex-basis: 100%; }
-.fac-st { margin: 4px 0 0; flex-basis: 100%; font-size: 12.5px; color: var(--text); }
-.fac-st.err { color: #ff8a6a; }
-.fac-float { position: absolute; top: 12px; left: 96px; z-index: 3; max-width: 360px; background: rgba(3, 5, 8, .92); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 6px 10px; }
-.fac-float .fac-st { margin: 0; }
 
 /* analyst */
 /* Chart marks must be visible at rest: the global reduced-motion rule removes every animation, and these used to

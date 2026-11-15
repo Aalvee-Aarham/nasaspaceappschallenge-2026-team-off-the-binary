@@ -28,7 +28,8 @@ def test_presets_have_transfer_validation():
 def test_map_cells_reconcile_with_the_calendar():
     """The map cells of a month must add up to that month's calendar value.
 
-    The cells use the area's sensor weights, so the two agree by construction; what is left is rounding.
+    The cells use the area's sensor weights, so the two agree by construction; what is left is rounding (each
+    cell is stored to 0.01, so n cells can drift by up to n x 0.005).
     """
     for d in sorted(p for p in REGIONS.iterdir() if (p / "grid.json").exists()):
         monthly, grid = (json.loads((d / f"{n}.json").read_text(encoding="utf-8")) for n in ("monthly", "grid"))
@@ -38,7 +39,7 @@ def test_map_cells_reconcile_with_the_calendar():
             if not rows or values[i] is None:
                 continue
             total = sum(v for _, v in rows)
-            assert abs(total - values[i]) <= 0.01 + 0.001 * abs(values[i]), f"{d.name} {period}: {total} vs {values[i]}"
+            assert abs(total - values[i]) <= 0.005 * len(rows) + 0.001 * abs(values[i]), f"{d.name} {period}: {total} vs {values[i]}"
 
 
 if __name__ == "__main__":

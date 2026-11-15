@@ -93,7 +93,9 @@ def get_outlook_at(lat: float, lon: float) -> dict:
 @mcp.tool(title="Hotspots in any box", annotations=RO)
 def query_hotspots(west: float, south: float, east: float, north: float, start: str = "", end: str = "") -> dict:
     """Raw NASA FIRMS detections per day and satellite for ANY box (up to 400 square degrees) and date range
-    (up to 366 days; default the last 14 days), plus the 10 busiest 0.1-degree cells. Instant, no build needed.
+    (up to 366 days; default the last 14 days), plus the 10 busiest 0.1-degree cells. No build needed. Instant where
+    the global aggregate is installed; the hosted server reads NASA FIRMS live instead (10-40 s, at most 25 square
+    degrees and 31 days).
     Raw counts: compare one satellite across days; use a built area for the harmonized long-term record."""
     b = _date(end, dt.date.today())
     a = _date(start, b - dt.timedelta(days=13))

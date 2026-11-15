@@ -3,6 +3,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { AlertState, LEVEL_LABEL, Level, Outlook, Trigger, Warning, Warnings, api, fmt, ordinal, periodLabel } from "../api";
 import Loader, { STEPS } from "../Loader";
+import { EMAIL_NOTE } from "../exposure";
 import { NIGHT, OUTLOOK_COLOR, OUTLOOK_LABEL, SKY, addOutlookLayers, outlookPopup, pulseOutlook, setOutlook, spinGlobe } from "../Map";
 import { AreaPicker, LevelChip, Offline, PageHead, PageProps, Saved, saveAlerts, savedAlerts } from "./shared";
 
@@ -242,7 +243,7 @@ function EmailAlert({ online, emailOn, serverless, preset, onAlert, go }: { onli
         <div className="check-anim" aria-hidden><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg></div>
         <div>
           <h3>{sent ? "Check your inbox" : "Alert created"}</h3>
-          {sent ? <p>We sent a confirmation link to <b>{email}</b>. Click it to start the alerts; nothing is sent before that, and every email has a one-click unsubscribe.</p>
+          {sent ? <p>We sent a confirmation link to <b>{email}</b>. {EMAIL_NOTE}</p>
             : email ? <p className="warn small">The confirmation email could not be sent ({res.status?.replace("not_sent: ", "")}). The alert works; get it through n8n instead, or ask the server's operator to set SMTP.</p>
               : <p>Get it through n8n (download below) or check it any time under My alerts.</p>}
           <div className="row">
@@ -399,7 +400,7 @@ function AlertForm({ regionId, name, median, onAlert, go }: { regionId: string; 
       <h3>Alert me about this area</h3>
       {state === "done" ? (
         <>
-          <p>{status === "confirmation_sent" ? <>Confirmation sent to <b>{email}</b>: click the link in it to start the emails.</> : "Alert created."} You can also get it through n8n: import the workflow and add your email or chat credentials.</p>
+          <p>{status === "confirmation_sent" ? <>Confirmation sent to <b>{email}</b>. {EMAIL_NOTE}</> : "Alert created."} You can also get it through n8n: import the workflow and add your email or chat credentials.</p>
           {status && status !== "confirmation_sent" && <p className="warn small">Email not sent: {status.replace("not_sent: ", "")}</p>}
           <div className="row">
             <a className="btn" href={api.workflowUrl(token)} download>Download n8n workflow</a>

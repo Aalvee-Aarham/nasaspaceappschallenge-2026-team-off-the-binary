@@ -118,6 +118,12 @@ def send_email(to, subject, text, html_body=None):
             s.send_message(msg)
 
 
+FREE_SERVER = ("Please note: Kiln Watch runs on a free student server that goes to sleep when nobody is using the "
+               "website. While it sleeps it cannot check for fire, so later alerts can arrive late or not at all, and a "
+               "restart can forget your sign-up. Do not rely on it for safety: for fire you can see or smell, call your "
+               "local emergency number, and for dependable satellite fire alerts use NASA FIRMS (firms.modaps.eosdis.nasa.gov).")
+
+
 def _page_url(sub):
     return f"{sub.get('base_url', '').rstrip('/')}/#pg=explore&r={sub['region_id']}"
 
@@ -127,7 +133,7 @@ def _html(title, paras, sub, token, footer_link=True):
     base = sub.get("base_url", "").rstrip("/")
     unsub = f"{base}/api/alerts/{token}/unsubscribe?code={sub.get('code', '')}"
     foot = (f"<p style='color:#8892a0;font-size:12px'>A climatological outlook from NASA FIRMS satellite detections "
-            f"(MODIS, VIIRS), harmonized by Kiln Watch. Not a forecast and not an official alert. "
+            f"(MODIS, VIIRS), harmonized by Kiln Watch. Not a forecast and not an official alert. {FREE_SERVER} "
             f"<a href='{unsub}' style='color:#8892a0'>Unsubscribe</a></p>") if footer_link else ""
     return (f"<div style='font-family:Inter,Arial,sans-serif;background:#05080d;color:#f1f4f8;padding:24px'>"
             f"<div style='max-width:560px;margin:auto'><p style='color:#ff7a6e;font-size:11px;letter-spacing:.12em;"
@@ -141,10 +147,14 @@ def _send_confirm(token, sub):
     url = f"{sub.get('base_url', '').rstrip('/')}/api/alerts/{token}/confirm?code={sub['code']}"
     name = html.escape(sub.get("name") or sub["region_id"])
     send_email(sub["email"], f"Confirm your Kiln Watch alert for {sub.get('name') or sub['region_id']}",
-               f"Confirm your fire alert for {sub.get('name')}: {url}\nIf you did not ask for this, ignore this email.",
+               f"Confirm your fire alert for {sub.get('name')}: {url}\nAfter you confirm, we email you the fire status there "
+               f"straight away. Please confirm within the hour, while the server is awake.\n"
+               f"If you did not ask for this, ignore this email.\n\n{FREE_SERVER}",
                _html("Confirm your fire alert", [f"Someone (hopefully you) asked Kiln Watch to email this address about "
                      f"fire activity in <b>{name}</b>.", f"<a href='{url}' style='color:#00a1ff'>Confirm the alert</a>. "
-                     "If you did not ask for this, ignore this email and nothing will be sent."], sub, token, False))
+                     "After you confirm, we email you the fire status there straight away. Please confirm within the hour, "
+                     "while the server is awake. If you did not ask for this, ignore this email and nothing will be sent.",
+                     f"<span style='color:#8892a0;font-size:13px'>{FREE_SERVER}</span>"], sub, token, False))
 
 
 # ---------- CRUD ----------
@@ -473,8 +483,9 @@ def send_now(token, force=False):
         para = (f"Status of <b>{html.escape(st.get('name') or '')}</b>: early-warning level <b>{st.get('level', 'pending')}</b>."
                 + (f" {_label(m['period'])} so far: {m['value']:.0f} hotspots, median of earlier years "
                    f"{m['median_same_days']:.0f}." if m else ""))
-        dg = (f"Kiln Watch test: {st.get('name')}", st.get("message") or "Alert is set up; nothing has fired yet.", [para,
-              "Nothing has crossed your thresholds yet. You will get a message like this when it does."])
+        dg = (f"Your Kiln Watch alert is active: {st.get('name')}",
+              (st.get("message") or "Alert is set up; nothing has fired yet.") + f"\n\n{FREE_SERVER}",
+              [para, "Nothing has crossed your thresholds yet. We will try to email you when it does."])
     if not dg:
         return {"sent": False, "reason": "nothing new fired"}
     subject, text, paras = dg
@@ -502,6 +513,12 @@ def notify_first(token):
     except Exception as ex:  # noqa: BLE001 - confirming must succeed even when the first mail cannot go out
         log.error("first alert for %s... failed: %s", token[:3], ex)
         return {"sent": False, "error": str(ex)[:160]}
+    if not res.get("sent") and res.get("reason") == "nothing new fired" and not get(token).get("sent"):
+        try:   # nothing fired: still mail the status now, so the subscriber sees it works and reads the server note
+            res = {**send_now(token, force=True), "status_only": True}
+        except Exception as ex:  # noqa: BLE001
+            log.error("status email for %s... failed: %s", token[:3], ex)
+            return {"sent": False, "error": str(ex)[:160]}
     if not res.get("sent"):
         log.info("first alert for %s... not sent: %s", token[:3], res.get("reason"))
     return res

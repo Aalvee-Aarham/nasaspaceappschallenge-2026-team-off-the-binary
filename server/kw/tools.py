@@ -624,7 +624,7 @@ def global_hotspots(bbox, start, end):
         raise ValueError("date range must be 1-366 days")
     files = [f.as_posix() for y in range(a.year, b.year + 1) if (f := GLOBAL / f"agg-{y}.parquet").exists()]
     if not files:
-        raise NotFound("the global aggregate is not on this server (python -m kw.globe); use a built area instead")
+        return _live_hotspots(w, s, e, n, a, b)
     con = duckdb.connect()
     con.execute("SET enable_progress_bar = false")
     src = f"""(SELECT *, CASE WHEN sensor = 'MODIS' THEN 'MODIS_' || sat ELSE sensor END AS satellite
@@ -650,6 +650,57 @@ def global_hotspots(bbox, start, end):
                 "one satellite across days or build the area for the harmonized 2000-present record. Static sources are "
                 "only removed where FIRMS typed them (recent near-real-time rows are untyped).",
     }
+
+
+LIVE_MAX_DEG2, LIVE_MAX_DAYS = 25, 31   # live mirror reads: measured ~10-40 s at this size; wider is minutes
+
+
+def _live_hotspots(w, s, e, n, a, b):
+    """global_hotspots without the 2 GB aggregate (the hosted servers): the same summary read straight from the public
+    FIRMS mirror, for a smaller box and window so it answers within about a minute."""
+    if w > e or (e - w) * (n - s) > LIVE_MAX_DEG2 or (b - a).days > LIVE_MAX_DAYS:
+        raise ValueError(f"this server reads NASA FIRMS live: ask for at most {LIVE_MAX_DEG2} square degrees and "
+                         f"{LIVE_MAX_DAYS} days (or build the area for the full record)")
+
+    def fetch():
+        files = [f"{FIRMS_BASE}/year={y}/detections.parquet" for y in range(a.year, b.year + 1)]
+        con = _live_cursor()
+        try:   # narrow inner read first, filters after (see _recent_fires: keeps row-group pruning by the box)
+            rows = con.execute(f"""WITH t AS MATERIALIZED (
+                                       SELECT acq_date, satellite, sensor, confidence, confidence_pct, type, frp, geometry
+                                       FROM read_parquet({files}) WHERE acq_date BETWEEN DATE '{a}' AND DATE '{b}'
+                                       AND ST_Intersects(geometry, ST_MakeEnvelope({w}, {s}, {e}, {n})))
+                                   SELECT acq_date::VARCHAR, CASE WHEN sensor = 'MODIS' THEN 'MODIS_' || satellite ELSE sensor END, (type IS NOT NULL AND type <> 0),
+                                          floor(ST_Y(geometry) * 10)::INT, floor(ST_X(geometry) * 10)::INT, frp
+                                   FROM t WHERE {CONF_SQL}""").fetchall()
+        finally:
+            con.close()
+        daily, cells, tot = {}, {}, {}
+        for d, sat, static, gy, gx, frp in rows:
+            r = daily.setdefault((d, sat), [0, 0, 0.0])
+            t = tot.setdefault(sat, {"vegetation": 0, "static_typed": 0})
+            r[2] += frp or 0
+            if static:
+                r[1] += 1
+                t["static_typed"] += 1
+            else:
+                r[0] += 1
+                t["vegetation"] += 1
+                c = cells.setdefault((gy, gx), [0, 0.0])
+                c[0] += 1
+                c[1] += frp or 0
+        top = sorted(cells.items(), key=lambda kv: -kv[1][0])[:10]
+        return {
+            "bbox": [w, s, e, n], "start": str(a), "end": str(b), "source": "NASA FIRMS, read live from the public mirror",
+            "totals_by_satellite": tot,
+            "daily": [{"date": d, "satellite": sat, "detections": v, "static_typed": st, "frp_mw": round(f, 1)}
+                      for (d, sat), (v, st, f) in sorted(daily.items())],
+            "top_cells": [{"lat": round((gy + 0.5) / 10, 2), "lon": round((gx + 0.5) / 10, 2), "detections": k, "frp_mw": round(f, 1)}
+                          for (gy, gx), (k, f) in top],
+            "note": "Raw detections (confidence-filtered), not harmonized: each satellite sees different numbers, so "
+                    "compare one satellite across days or build the area for the harmonized 2000-present record.",
+        }
+    return _cached_ok(f"live-hotspots:{w},{s},{e},{n},{a},{b}:{int(time.time() // 3600)}", 3600, fetch)
 
 
 def annual(region_id):
