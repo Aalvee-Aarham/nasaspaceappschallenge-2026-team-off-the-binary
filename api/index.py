@@ -15,8 +15,9 @@ if not (TMP / "regions" / "index.json").exists():
     shutil.copytree(ROOT / "data" / "regions", TMP / "regions", dirs_exist_ok=True)
     (TMP / "global").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "data" / "global" / "outlook.json", TMP / "global" / "outlook.json")
-    if (ROOT / "data" / "global" / "fire_season.parquet").exists():   # "Is fire near you?" anywhere on Earth
-        shutil.copy2(ROOT / "data" / "global" / "fire_season.parquet", TMP / "global" / "fire_season.parquet")
+    for name in ("fire_season.parquet", "kilns_bd.json"):   # "Is fire near you?" anywhere; the Bangladesh farmer check
+        if (ROOT / "data" / "global" / name).exists():
+            shutil.copy2(ROOT / "data" / "global" / name, TMP / "global" / name)
     if (ROOT / "data" / "sensor_days.parquet").exists():
         shutil.copy2(ROOT / "data" / "sensor_days.parquet", TMP / "sensor_days.parquet")
     if (ROOT / "data" / "validation").exists():

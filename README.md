@@ -516,7 +516,14 @@ when Azure does not answer `/api/health` within 15 s.
 The Azure app is free-tier and **sleeps when nobody is using it**: the first request after a quiet spell takes a few extra
 seconds, and its disk is wiped while it sleeps. So the alert list is kept in one Azure Blob (`KW_STATE_URL`), and a free
 GitHub job (`.github/workflows/wake.yml`) wakes the server every 3 hours so it checks every alert and sends the emails.
-An alert email can therefore come a few hours after the satellites see fire; every email says so. Every push runs the six
+An alert email can therefore come a few hours after the satellites see fire; every email says so.
+
+**Signing up for an alert with an email** starts it at once (no confirmation step: the audience is small and known).
+Two emails follow on their own: the fire picture around the place (fire this week and how far, the usual fire months,
+the 30-day outlook, the early-warning level, and the people, schools and hospitals near fire), usually within about a
+minute; then fire across the whole country this week, read live from NASA FIRMS (detections per satellite, the busiest
+places, the cells on fire-season watch, open NASA EONET wildfires), within a few minutes. A source that cannot be read
+is named in the email ("Could not look: …"), never shown as zero. Every push runs the six
 test suites and the type check (`.github/workflows/tests.yml`).
 
 | Piece | Where | Notes |
