@@ -55,7 +55,8 @@ def _fresh(path: Path, year: int) -> bool:
     return year < current_year() or (time.time() - path.stat().st_mtime) < LIVE_TTL_S
 
 
-def fetch_year(con, bbox, year: int, out: Path):
+def fetch_year(con, bbox, year: int, out: Path, start=None, end=None):
+    """One year of an area's detections to `out`; with start/end (dates) only that window (the live backup reads)."""
     pred = " OR ".join(
         f"ST_Intersects(geometry, ST_MakeEnvelope({w}, {s}, {e}, {n}))" for w, s, e, n in envelopes(bbox)
     )
@@ -67,7 +68,7 @@ def fetch_year(con, bbox, year: int, out: Path):
           SELECT acq_datetime, acq_date, sensor, satellite, daynight, quality, version, type, confidence,
                  confidence_pct, round(ST_Y(geometry), 4) AS lat, round(ST_X(geometry), 4) AS lon, frp, scan, track
           FROM read_parquet('{BASE}/year={year}/detections.parquet')
-          WHERE {pred}
+          WHERE ({pred}){f" AND acq_date BETWEEN DATE '{start}' AND DATE '{end}'" if start else ""}
         ) TO '{tmp.as_posix()}' (FORMAT parquet, COMPRESSION zstd)
     """)
     os.replace(tmp, out)

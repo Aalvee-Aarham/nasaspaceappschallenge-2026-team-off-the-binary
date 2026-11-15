@@ -4,13 +4,16 @@
 // VITE_API_BASE can point the site at another Kiln Watch server, e.g. the Azure Container App that can build new areas
 // (Vercel's own function cannot: builds take minutes). If that server does not answer, the site falls back to its own
 // read-only API, so the prebuilt areas always work.
-// ponytail: one probe at load; a sleeping free Space that wakes later is not retried until the page reloads.
+// A sleeping server that answers late is asked again every 20 s, and the site switches back to it as soon as it does.
 const REMOTE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").trim().replace(/\/$/, "");
 let API = REMOTE;
+const probe = () => fetch(`${REMOTE}/api/health`, { signal: AbortSignal.timeout(15000) })
+  .then((r) => { if (!r.ok) throw new Error(String(r.status)); API = REMOTE; });
 const ready: Promise<void> = REMOTE
-  ? fetch(`${REMOTE}/api/health`, { signal: AbortSignal.timeout(15000) })
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
-      .catch(() => { API = ""; })
+  ? probe().catch(() => {
+      API = "";
+      const retry = window.setInterval(() => probe().then(() => window.clearInterval(retry)).catch(() => undefined), 20000);
+    })
   : Promise.resolve();
 /** Where the API (and so builds, alerts, MCP and n8n) actually lives: the remote server, or this site. */
 export const apiOrigin = () => API || location.origin;

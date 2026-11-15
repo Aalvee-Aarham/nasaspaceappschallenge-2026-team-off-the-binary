@@ -150,8 +150,16 @@ def _cache_files(region_id, bbox, a, b):
     for y in range(a.year, b.year + 1):
         f = CACHE / region_id / f"{y}.parquet"
         if not f.exists():
-            if SERVERLESS:  # a serverless read must not download a year of FIRMS rows inside the request
-                raise Unavailable("the raw detection cache is not on this server; run the API where data/cache is present")
+            if SERVERLESS:  # no raw cache here: read just this window from the FIRMS mirror (a whole year would not
+                if (b - a).days > LIVE_MAX_DAYS:   # finish inside the function's time limit)
+                    raise Unavailable(f"this backup copy reads NASA FIRMS live, so it serves at most {LIVE_MAX_DAYS} days "
+                                      "at a time; the main server serves up to 366")
+                f = CACHE / region_id / f"live-{a}-{b}-{y}.parquet"
+                if not f.exists():
+                    f.parent.mkdir(parents=True, exist_ok=True)
+                    fetch_year(connect(), bbox, y, f, max(a, dt.date(y, 1, 1)), min(b, dt.date(y, 12, 31)))
+                files.append(f.as_posix())
+                continue
             f.parent.mkdir(parents=True, exist_ok=True)
             fetch_year(connect(), bbox, y, f)
         files.append(f.as_posix())
