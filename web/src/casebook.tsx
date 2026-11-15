@@ -146,7 +146,8 @@ export function CellMap({ bbox, cells, cases, sel, onSel, onCell, reveal = 1, la
       {background}
       {hi && <rect x={x(hi[1]) - 2} y={y(hi[0] + 0.1) - 2} width={cw + 4} height={ch + 4} fill="none" stroke="#F1F4F8" strokeWidth={2.5} pointerEvents="none" />}
       {order.map((c) => (
-        <g key={c.id} className={onSel ? "cb-pt" : undefined} onClick={onSel ? () => onSel(c.id) : undefined}>
+        <g key={c.id} className={onSel ? "cb-pt" : undefined} onClick={onSel ? () => onSel(c.id) : undefined}
+          {...(onSel ? { role: "button", tabIndex: 0, "aria-label": `${c.date} · ${c.title}`, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSel(c.id); } } } : {})}>
           {onSel && <circle cx={x(c.lon)} cy={y(c.lat)} r={12} fill="transparent" />}
           <Mark v={c.verdict} x={x(c.lon)} y={y(c.lat)} sel={c.id === sel} />
           <title>{`${c.date} · ${c.title} · ${LABEL[c.verdict]}`}</title>

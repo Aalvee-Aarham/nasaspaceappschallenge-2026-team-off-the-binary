@@ -11,7 +11,9 @@
  "stats": {
   "span_years": 26,
   "first": "2000-11-01",
-  "last": "2026-11-13",
+  "last": "2026-11-14",
+  "raw_step_median": 5.608,
+  "harmonized_step_median": 1.01,
   "raw_step": [
    3.466,
    10.578
@@ -24,7 +26,7 @@
    93.8,
    95.8
   ],
-  "detections": 7346549,
+  "detections": 7347578,
   "regions": 9
  },
  "steps": [
@@ -137,12 +139,12 @@
  "sensors": {
   "MODIS_T": {
    "first": "2000-11-01",
-   "last": "2026-11-13",
+   "last": "2026-11-14",
    "ended": false
   },
   "MODIS_A": {
    "first": "2002-07-04",
-   "last": "2026-11-13",
+   "last": "2026-11-14",
    "ended": false
   },
   "VIIRS_SNPP": {
@@ -152,12 +154,12 @@
   },
   "VIIRS_NOAA20": {
    "first": "2018-04-01",
-   "last": "2026-11-13",
+   "last": "2026-11-14",
    "ended": false
   },
   "VIIRS_NOAA21": {
    "first": "2024-01-17",
-   "last": "2026-11-13",
+   "last": "2026-11-14",
    "ended": false
   }
  },

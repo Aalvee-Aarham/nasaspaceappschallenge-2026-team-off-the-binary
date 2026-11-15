@@ -187,6 +187,21 @@ def farm_check(lat: float | None = None, lon: float | None = None):
     return _guard(tools.farm_check, lat, lon)
 
 
+@app.post("/api/tts")
+def tts(text: str = Body(..., embed=True), lang: str = Body("bn", embed=True)):
+    """MP3 of a short text (at most 1200 characters) in a neural voice: the farmer check's Listen button on browsers
+    with no Bangla voice. edge-tts, an unofficial free service: 503 when it does not answer."""
+    from fastapi import Response
+    from . import tts as voice
+    try:
+        audio = voice.speak(text, lang)
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    except Exception as ex:   # the voice service is outside our control: say so, the page falls back to the browser
+        raise HTTPException(503, f"voice service unavailable: {ex}")
+    return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/api/facilities")
 def facilities_in_box(west: float, south: float, east: float, north: float):
     """Schools, hospitals, clinics, care homes and fire stations in a box of at most 1° x 1° (OpenStreetMap, cached).
@@ -485,7 +500,8 @@ def ask(body: dict = Body(...)):
                                                                                           ("early_warning", {"region_id": rid})])}
 
 
-app.router.routes.insert(0, Route("/mcp", endpoint=_McpEndpoint(), methods=["GET", "POST", "DELETE"]))  # before the SPA catch-all
+for _p in ("/mcp", "/mcp/"):   # both spellings: Starlette would redirect "/mcp/", and some MCP clients do not follow a POST redirect
+    app.router.routes.insert(0, Route(_p, endpoint=_McpEndpoint(), methods=["GET", "POST", "DELETE"]))  # before the SPA catch-all
 
 OUT.mkdir(parents=True, exist_ok=True)
 app.mount("/data/regions", StaticFiles(directory=OUT), name="regions")

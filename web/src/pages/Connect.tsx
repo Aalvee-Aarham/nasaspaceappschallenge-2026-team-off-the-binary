@@ -66,7 +66,6 @@ const STDIO = `{
 }`;
 
 export function Mcp(props: PageProps & Parameters<typeof DatasetTools>[0]) {
-  const { go } = props;
   const url = `${apiOrigin()}/mcp`;
   const [ps, setPs] = useState<Persona[]>([]);
   const [copied, setCopied] = useState("");
@@ -80,14 +79,10 @@ export function Mcp(props: PageProps & Parameters<typeof DatasetTools>[0]) {
   const nPublic = names.filter((n) => !WRITE_TOOLS.has(n)).length;  // what the public HTTP endpoint serves
   return (
     <>
-      <PageHead kicker="Kiln Watch for Claude" title="MCP and characters" lead={`Connect Claude to ${nPublic} deterministic read-only fire tools and four ready-made characters: a fire operations officer, a remote-sensing scientist, a fact-checker and a community liaison. A local server also keeps the ${nTools - nPublic} tools that change state. Claude asks Kiln Watch for every number; it never makes one up.`} />
+      <PageHead kicker="Kiln Watch for Claude" title="MCP and API" lead={`One line gives Claude ${nPublic} read-only fire tools over the same record. Claude asks Kiln Watch for every number; the tools compute it. MCP is the standard way an AI assistant calls outside tools.`} />
 
-      <p className="row">
-        <a className="btn" href="#dataset" onClick={(e) => { e.preventDefault(); document.getElementById("dataset")?.scrollIntoView({ behavior: "smooth" }); }}>Get a dataset</a>
-        <button className="btn ghost" onClick={() => go("download")}>All downloads</button>
-        <button className="btn ghost" onClick={() => go("n8n")}>Automate with n8n</button>
-        <button className="btn ghost" onClick={() => go("news")}>News beside the data</button>
-      </p>
+      <Code text={`claude mcp add --transport http kiln-watch ${url}`} />
+      <p className="muted small">Claude Code. For Claude on the web or desktop, add the URL below as a custom connector (steps under Connect).</p>
 
       <section className="mcp-hero">
         <div className="mcp-stats">
@@ -102,8 +97,8 @@ export function Mcp(props: PageProps & Parameters<typeof DatasetTools>[0]) {
         </div>
       </section>
 
-      <DatasetTools {...props} />
-
+      <details className="proof-more">
+        <summary>Step by step: connect, pick a character, ask, the REST API and every tool</summary>
       <section>
         <h2>1. Connect</h2>
         <div className="connect-grid">
@@ -200,6 +195,9 @@ curl -o punjab-nov.csv "${apiOrigin()}/api/regions/punjab/export?kind=detections
           area, creating or deleting an alert, and alerts and email for one place are state-changing, so they stay in a
           trusted local or stdio server, where {nTools} tools are available.</p>
       </section>
+      </details>
+
+      <DatasetTools {...props} />
     </>
   );
 }
@@ -213,7 +211,7 @@ export function N8n({ go }: PageProps) {
       <section>
         <h2>How it works</h2>
         <ol className="flow">
-          <li><b>You</b><span>pick a place and triggers on the Early warning page</span></li>
+          <li><b>You</b><span>pick a place and triggers on the Fire outlook page</span></li>
           <li><b>Kiln Watch</b><span>builds that place's record and keeps it fresh</span></li>
           <li><b>n8n</b><span>asks every morning: <code>POST /api/alerts/&lt;token&gt;/poll</code></span></li>
           <li><b>IF</b><span><code>triggered</code>, <code>outlook_triggered</code> or new events</span></li>
@@ -225,7 +223,7 @@ export function N8n({ go }: PageProps) {
       <section>
         <h2>Set it up</h2>
         <ol className="steps long">
-          <li>On <button className="link" onClick={() => go("warning")}>Early warning</button>, choose an area and triggers and create the alert (the email is optional).</li>
+          <li>On <button className="link" onClick={() => go("warning")}>Fire outlook</button>, choose an area and triggers and create the alert (the email is optional).</li>
           <li>Press <b>n8n workflow</b>. The file already contains your alert's URL, so there is nothing to type in.</li>
           <li>In n8n choose <b>Workflows, Import from file</b>. Open <b>Send email</b>, pick your SMTP credentials and recipient; or replace it with a Slack, Telegram or Teams node. The text to send is <code>{"{{ $json.message }}"}</code>.</li>
           <li>The URL points at <code>{base}</code>. n8n must be able to reach it: use a deployed Kiln Watch, or <code>host.docker.internal</code> when n8n runs in Docker on the same machine.</li>

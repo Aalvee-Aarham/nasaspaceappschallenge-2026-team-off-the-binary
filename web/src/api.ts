@@ -339,9 +339,17 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
       : `${r.status} ${r.statusText}`));
   }
   if (!(r.headers.get("content-type") ?? "").includes("json")) {
-    throw new Error("The API answered with a web page, not data. It is probably an older Kiln Watch server: restart it (uvicorn kw.api:app --port 8000, in server/).");
+    throw new Error("The data server answered with a web page, not data. It may be restarting: try again in a few seconds.");
   }
   return r.json();
+}
+
+/** MP3 of a short text in a neural voice (server route /api/tts), for browsers with no voice for the language. */
+export async function ttsAudio(text: string, lang: "bn" | "en", signal?: AbortSignal): Promise<Blob> {
+  await ready;
+  const r = await fetch(API + "/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, lang }), signal });
+  if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio")) throw new Error(`voice ${r.status}`);
+  return r.blob();
 }
 
 const post = (body: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -505,7 +513,8 @@ export type PlaceRisk = {
   season_share_now: number | null;
   outlook: { class: "watch" | "above" | "season" | null; usual_next_30: number; last_30: number; pct_last_30: number | null } | null;
   facilities: { counts: Record<PlaceKind, number>; counts_near_fire: Record<PlaceKind, number>; truncated: boolean; list: NearbyPlace[]; source: string } | null;
-  built_area: { id: string; name: string } | null;
+  built_area: { id: string; name: string; this_month?: string | null;
+    month?: { period: string; partial: boolean; value: number; median: number; higher_than: number; rank: number; n_prior: number } | null } | null;   // this_month: the harmonized record's month-to-date sentence
   errors: Record<string, string>; rule: string; caveat: string;
 };
 export const placeRiskPath = (p: { q?: string; lat?: number; lon?: number; radius_km: number; facilities?: boolean; label?: string }) => {

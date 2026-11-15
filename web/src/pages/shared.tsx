@@ -2,13 +2,29 @@ import { ReactNode, RefObject, useEffect, useState } from "react";
 import Lenis from "lenis";
 import { Level, LEVEL_LABEL, PlaceCandidate, Region, RegionItem, api } from "../api";
 
-export type Page = "home" | "explore" | "warning" | "after" | "cases" | "bangladesh" | "news" | "download" | "create" | "method" | "questions" | "contact" | "mcp" | "n8n";
-/** Every routable page (hash links); `PAGES` is the shorter top-bar list. */
-export const ALL_PAGES: readonly Page[] = ["home", "explore", "warning", "after", "cases", "method", "questions", "bangladesh", "mcp", "n8n", "news", "download", "create", "contact"];
-export const PAGES: readonly (readonly [Page, string])[] = [
-  ["explore", "Explorer"], ["warning", "Early warning"], ["after", "After MODIS"], ["cases", "Cases & exposure"],
-  ["method", "Proof"], ["questions", "Open questions"], ["bangladesh", "Bangladesh"], ["mcp", "Connect"], ["contact", "Contact"],
+export type Page = "home" | "explore" | "near" | "warning" | "after" | "cases" | "bangladesh" | "news" | "download" | "create" | "method" | "questions" | "contact" | "mcp" | "n8n";
+/** Every routable page (hash links); `SECTIONS` groups them into the five top-bar items. */
+export const ALL_PAGES: readonly Page[] = ["home", "explore", "near", "warning", "after", "cases", "method", "questions", "bangladesh", "mcp", "n8n", "news", "download", "create", "contact"];
+/** Top bar: five items. Each owns its pages (shown as tabs, first = where the item goes). News has no item: it sits beside each month in the Explorer (the #pg=news route stays for old links). */
+export const SECTIONS: readonly (readonly [string, readonly (readonly [Page, string])[]])[] = [
+  ["Explore", [["explore", "Map"], ["download", "Download"], ["create", "Create an area"]]],
+  ["Near you", [["near", "Is fire near you?"], ["warning", "Fire outlook"]]],
+  ["Bangladesh", [["bangladesh", "Farmer check"]]],
+  ["Proof", [["method", "Results"], ["after", "After MODIS"], ["cases", "Fire cases"], ["questions", "Open questions"]]],
+  ["Connect", [["mcp", "MCP and API"], ["n8n", "n8n alerts"], ["contact", "Contact"]]],
 ];
+export const sectionOf = (p: Page) => SECTIONS.find(([, ps]) => ps.some(([k]) => k === p));
+
+/** The tabs of the page's top-bar section, when it has more than one page. */
+export function SubNav({ pg, go }: { pg: Page; go: (p: Page) => void }) {
+  const s = sectionOf(pg);
+  if (!s || s[1].length < 2) return null;
+  return (
+    <nav className="subnav" aria-label={`${s[0]} pages`}>
+      {s[1].map(([k, l]) => <button key={k} className={pg === k ? "on" : ""} aria-current={pg === k ? "page" : undefined} onClick={() => go(k)}>{l}</button>)}
+    </nav>
+  );
+}
 
 export type PageProps = {
   regions: RegionItem[]; online: boolean; go: (p: Page) => void; openRegion: (id: string) => void; refresh: () => void;
@@ -25,11 +41,11 @@ export function saveAlerts(list: Saved[]) {
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* private mode: alert still works through n8n */ }
 }
 
-export function PageHead({ kicker, title, lead, children }: { kicker: string; title: string; lead: string; children?: ReactNode }) {
+export function PageHead({ kicker, title, lead, lang, children }: { kicker: string; title: string; lead: string; lang?: string; children?: ReactNode }) {
   return (
     <header className="page-head">
       <div><p className="kicker">{kicker}</p><h1>{title}</h1></div>
-      <div><p className="lead">{lead}</p>{children}</div>
+      <div><p className="lead" lang={lang}>{lead}</p>{children}</div>
     </header>
   );
 }
@@ -85,7 +101,7 @@ export function Code({ text }: { text: string }) {
 }
 
 export const Offline = ({ what }: { what: string }) => (
-  <p className="warn small">{what} needs the Kiln Watch API. Start it with <code>uvicorn kw.api:app --port 8000</code> in <code>server/</code>.</p>
+  <p className="warn small">{what} needs the data server. It may be waking up: try again in a few seconds.</p>
 );
 
 /** The candidate called exactly what was typed, else the first: Nominatim ranks the state "Sylhet Division" above the city "Sylhet". */

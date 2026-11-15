@@ -27,3 +27,15 @@ graphify-out/cache/
 !.env.example
 # contact form messages (names, emails)
 data/feedback.jsonl
+
+# demo video: played on GitHub from an upload (user-attachments), not from the repo
+/demo*.mp4
+
+# internal planning notes and dated graph snapshots: kept on disk, not published
+/ahnaf/
+/hh/
+/FIXES_AND_PLAN.md
+/RESEARCH_AND_BENCHMARKS.md
+/graphify-out/2026-*/
+/Fable Audit.md
+/audit-*.md

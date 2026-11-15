@@ -58,7 +58,7 @@ export default function EarlyWarning({ online, go, openRegion, refresh }: PagePr
 
   return (
     <>
-      <PageHead kicker="Climatological outlook" title="Early warning" lead="Where is fire activity running above normal, where is a fire season about to start, and is your place unusual this month? Every place on Earth, from 26 years of harmonized NASA satellite detections. Get an email when something changes.">
+      <PageHead kicker="Climatological outlook" title="Fire outlook" lead="Where is fire activity running above normal, where is a fire season about to start, and is your place unusual this month? Every place on Earth, from 26 years of harmonized NASA satellite detections. Get an email when something changes.">
         <p className="tagline"><b>A climatological outlook, not a forecast.</b> It says what the coming weeks usually bring and how unusual the present is against every earlier year. It does not predict weather or fire behaviour and is not an official alert.</p>
       </PageHead>
 
@@ -323,7 +323,7 @@ function CheckPlace({ online, onBuilt, detail }: { online: boolean; onBuilt: () 
   const busy = job?.status === "running";
   return (
     <>
-      <AreaPicker online={online} cta="Check early warning" busy={busy} onPick={start} />
+      <AreaPicker online={online} cta="Check the outlook" busy={busy} onPick={start} />
       {err && <p className="error">{err}</p>}
       {job && (job.status === "error" ? <p className="error">The build failed: {job.error}</p> : (
         <div style={{ marginTop: 12 }}>

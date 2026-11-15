@@ -2,18 +2,16 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Block, Events, Meta, api } from "../api";
-import { ConsoleData, PastAlert, Phone } from "./ConsoleScreens";
 import { JumpChart, PixelCard, ValidateChart } from "./StoryCharts";
 import { BEATS, mountScene, SceneHandle } from "./scene";
 import { mountStory, Story } from "./story";
-import { PAGES, Page, PageProps } from "./shared";
+import { Page, PageProps, SECTIONS } from "./shared";
 import "./home.css";
 
 // Cinematic landing page: a deck of beats (story.ts) over one 3D scene (scene.ts). Beat i shows keyframe i of
 // scene.ts, so the order of B below must match the KF order there.
 // Every number here is read from the pipeline's meta.json files; nothing is typed in.
-const B = { hero: 0, problem: 1, challenge: 2, solution: 3, impact: 4, old: 5, sharp: 6, jump: 7, fix: 8, proof: 9,
-  console: 10, explore: 11, warn: 12, cases: 13, ask: 14, farm: 15, news: 16, connect: 17, go: 18 };
+const B = { hero: 0, old: 1, sharp: 2, jump: 3, fix: 4, proof: 5, farm: 6, connect: 7, go: 8 };
 const LAST = BEATS - 1;
 console.assert(B.go === LAST, "Home.tsx beats and scene.ts keyframes are out of step");
 
@@ -26,8 +24,6 @@ const median = (xs: number[]) => {
   return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
 };
 const fx = (v: number | null | undefined, d = 2) => (num(v) ? v.toFixed(d) : "…");
-/** An upstream failure keeps its own words; it must never read as "no reports". */
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function summarize(ms: Meta[]) {
   const first = (k: string) => ms.map((m) => m.sensors[k]?.first).filter(Boolean).sort()[0];
@@ -54,8 +50,8 @@ function span(ms: Meta[], k: string) {
   return Date.parse(through) - Date.parse(last) > 3 * 864e5 ? ` · ${firsts[0].slice(0, 4)}–${last.slice(0, 4)}, ended` : ` · since ${firsts[0].slice(0, 4)}`;
 }
 
-// home menu: the in-app top bar's pages (shared.tsx PAGES; the Explorer has its own button) plus News and Data
-const NAV: (readonly [Page, string])[] = [...PAGES.filter(([k]) => k !== "explore"), ["news", "News"], ["download", "Data"]];
+// home menu: the in-app top bar's five items (shared.tsx SECTIONS; the Explorer also has its own button)
+const NAV = SECTIONS.map(([l, [[k]]]) => [k, l] as const);
 
 // the MCP server's size: 40 @mcp.tool functions in server/kw/mcp_server.py, 5 of them PUBLIC_WRITE_TOOLS that the public
 // HTTP connector drops (35 left). No endpoint reports it, so it is a constant: recount when tools are added.
@@ -97,87 +93,44 @@ const Arrow = () => <svg viewBox="0 0 24 24" aria-hidden><path d="M6 18 18 6M8 6
 // progress bar: groups of chapters, each chapter = label + the beats it spans. Only the active group shows its labels;
 // finished and upcoming groups shrink to squares. Click a chapter to jump there.
 const GROUPS: [string, number[]][][] = [
-  [["Problem", [B.problem]], ["Challenge", [B.challenge]], ["Solution", [B.solution]], ["Impact", [B.impact]]],
   [["Old camera", [B.old]], ["New camera", [B.sharp]], ["The jump", [B.jump]], ["The fix", [B.fix]], ["The proof", [B.proof]]],
-  [["Explore", [B.console, B.explore]], ["Warn", [B.warn]], ["Cases", [B.cases]], ["Ask", [B.ask]], ["Farmers", [B.farm]]],
-  [["News", [B.news]], ["Connect", [B.connect]]],
+  [["Farmers", [B.farm]], ["Connect", [B.connect]]],
 ];
 const CHAPTERS = GROUPS.flatMap((g, gi) => g.map(([l, ks]) => ({ l, ks, gi })));
 const GROUP_FROM = GROUPS.map((g) => g[0][1][0]);
 
-const tour = (snppYear: string, areas: number | string): [string, string, Page | "punjab"][] => [
+// the reviewer path below the story: the page's one numbered list. "farm" opens a finished farmer check (FarmCheck deep link).
+const tour = (snppYear: string, areas: number | string): [string, string, Page | "punjab" | "farm"][] => [
   ["The problem", `Raw counts jump in ${snppYear} when a sharper satellite arrives. Nothing changed on the ground.`, "punjab"],
   ["The proof", `${areas} areas, one scorecard.`, "method"],
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
-  ["Early warning", "And how often it was right in past years.", "warning"],
-  ["Bangladesh", "Farmers can now show the kilns next to their fields, and see fire before the Boro harvest.", "bangladesh"],
+  ["Is fire near you?", "Any place on Earth: fire this week, and when fire usually comes.", "near"],
+  ["Bangladesh", "A finished farmer check for Aminbazar: kilns next to the field, in Bangla.", "farm"],
   ["Ask Claude", `A ${MCP_TOOLS}-tool MCP server over the same record; ${MCP_HTTP_TOOLS} read-only tools over public HTTP.`, "mcp"],
 ];
-const TILES: [string, Page][] = [
-  ["A record that survives the end of MODIS", "after"], ["Every number tested", "method"],
-  ["Built on NASA data, queried in place", "mcp"], ["Made for Bangladesh's kiln belt", "bangladesh"],
-];
-
-const who = (y0: string): [string, string, Page][] => [
-  ["Fire and land managers", `Is this month burning more than usual here? Checked against every year since ${y0}.`, "warning"],
-  ["Researchers", `A ${y0}-to-today record without the jump at each satellite launch, with uncertainty beside every number.`, "method"],
-  ["Journalists and NGOs", "Reports from the ground next to what the satellites saw, month by month.", "news"],
-  ["Air-quality watchers", "Gas flares, industry and other persistent heat sources kept apart from vegetation fires.", "explore"],
-  ["Developers and AI agents", "The same tools over a REST API, an MCP server and n8n workflows.", "mcp"],
-];
+const FARM_LINK = "#pg=bangladesh&q=Aminbazar%2C%20Savar%2C%20Bangladesh";
+const PUBLIC_MCP = "https://kiln-watch-seven.vercel.app/mcp";   // the read-only copy: it never sleeps
 
 // the five satellites, in scene.ts ORBITS order
 const SATS = [["Terra", "MODIS", "MODIS_T"], ["Aqua", "MODIS", "MODIS_A"], ["Suomi NPP", "VIIRS", "VIIRS_SNPP"], ["NOAA-20", "VIIRS", "VIIRS_NOAA20"], ["NOAA-21", "VIIRS", "VIIRS_NOAA21"]];
 
-// console stages: real captures of the site (web/public/shots); the Explorer's callouts are placed in % of the screen.
-// Keyed by position: the gsap code holds these nodes.
 const SHOTS = `${import.meta.env.BASE_URL}shots/`;
-const exploreTags = (sats: number | string): [string, number, number][] => [["Every hotspot, every day", 50, 49], ["Built areas, one click", 84, 34], [`${sats} satellites, one timeline`, 46, 93]];
 
 export default function Home({ regions, go, openRegion }: PageProps) {
   const scroller = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), bar = useRef<HTMLDivElement>(null);
-  const consoleSec = useRef<HTMLDivElement>(null);
+  const tourSec = useRef<HTMLElement>(null);
   const scene = useRef<SceneHandle | null>(null), story = useRef<Story | null>(null);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [events, setEvents] = useState<Events | null>(null);
-  const [stage, setStage] = useState(-1); // console screen playing: 0 explore, 1 early warning, 2 cases, 3 analyst
-  const [cdata, setCdata] = useState<ConsoleData | null>(null);
-  const [homeErrors, setHomeErrors] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState(false); // the page menu on narrow screens
   const [area, setArea] = useState<{ meta: Meta; monthly: Block } | null>(null); // the area the story charts show
   const presets = useMemo(() => regions.filter((r) => r.preset), [regions]);
+  const farm = () => { history.replaceState(null, "", FARM_LINK); go("bangladesh"); };
+  const skip = () => { if (tourSec.current) story.current?.skip(tourSec.current); };
 
   useEffect(() => {
-    const root = scroller.current!, sec = consoleSec.current!;
-    // the console: one screen floats over the globe and swings between explore, warn and ask
-    const frame = sec.querySelector<HTMLElement>(".frame")!, shots = sec.querySelectorAll<HTMLElement>(".frame > .scr");
-    const tags = sec.querySelectorAll<HTMLElement>(".ptag"), phone = sec.querySelector<HTMLElement>(".phone")!;
-    const vw = (v: number) => (innerWidth < 900 ? 0 : (innerWidth * v) / 100); // phones: no sideways swing, the screen is full width
-    const pose = (b: number) => b < B.explore ? { autoAlpha: 0, rotateX: 58, rotateY: 0, x: 0, yPercent: 55, z: -500, scale: 0.8 } // waiting below
-      : b > B.farm ? { autoAlpha: 0, rotateX: -16, rotateY: 0, x: 0, yPercent: -28, z: 0, scale: 1 } // gone above
-      : { autoAlpha: 1, yPercent: 0, z: 0, scale: 1, ...[{ rotateX: 9, rotateY: -17, x: vw(14) }, { rotateX: 7, rotateY: 16, x: vw(-14) }, { rotateX: 6, rotateY: -15, x: vw(13) }, { rotateX: 4, rotateY: 12, x: vw(-12) }, { rotateX: 5, rotateY: -14, x: vw(13) }][b - B.explore] };
-    let play: gsap.core.Tween | undefined;
-    const ctx = gsap.context(() => {
-      gsap.set(frame, pose(0));
-      gsap.set(shots, { autoAlpha: (i) => (i ? 0 : 1) });
-      gsap.set(tags, { autoAlpha: 0, y: 10 });
-      gsap.set(phone, { autoAlpha: 0, yPercent: 60, rotate: 10, scale: 0.85 });
-    }, sec);
-    const d = 0.9; // seconds for the console screen to swing to its next pose
-    const onBeat = (to: number) => {
-      root.classList.toggle("fin", to === LAST);
-      const st = to - B.explore;
-      ctx.add(() => {
-        gsap.to(frame, { ...pose(to), duration: d, ease: "power3.inOut", overwrite: true });
-        shots.forEach((s, i) => i && gsap.to(s, { autoAlpha: st >= i ? 1 : 0, duration: 0.4, delay: d * 0.4, overwrite: true }));
-        gsap.to(tags, { autoAlpha: st ? 0 : 1, y: st ? 10 : 0, duration: 0.4, stagger: st ? 0 : 0.12, delay: st ? 0 : d + 0.1, overwrite: true });
-        gsap.to(phone, st === 1 ? { autoAlpha: 1, yPercent: 0, rotate: -6, scale: 1, duration: 0.7, ease: "back.out(1.4)", delay: d * 0.7, overwrite: true }
-          : { autoAlpha: 0, yPercent: 40, rotate: 4, scale: 0.85, duration: 0.3, ease: "power2.in", overwrite: true });
-      });
-      play?.kill();
-      setStage(-1); // the screens replay each time their beat arrives
-      if (st >= 0 && st <= B.farm - B.explore) play = gsap.delayedCall(d * 0.6, () => setStage(st));
-    };
+    const root = scroller.current!;
+    const onBeat = (to: number) => { root.classList.toggle("fin", to === LAST); };
     const onPlayhead = (p: number) => {
       const b = bar.current;
       if (!b) return;
@@ -194,25 +147,13 @@ export default function Home({ regions, go, openRegion }: PageProps) {
     const h = mountScene(canvas.current!, root, st.ph, () => { root.classList.add("ready"); st.start(); });
     story.current = st;
     scene.current = h;
-    return () => { h.dispose(); st.dispose(); play?.kill(); ctx.revert(); root.className = "h3d"; scene.current = story.current = null; };
-  }, []);
-
-  // the console demo area: the scored area with the most activity usually due in the next four weeks (real data, picked by rule)
-  useEffect(() => {
-    let live = true;
-    api.warnings().then(async (ws) => {
-      const row = ws.alerts.filter((a) => a.level !== "insufficient").sort((a, b) => (b.next_4_weeks_median ?? 0) - (a.next_4_weeks_median ?? 0))[0];
-      if (!row) return;
-      const [w, m] = await Promise.all([api.warning(row.region_id), api.meta(row.region_id)]);
-      if (live && w.month && m.current) setCdata({ w, prior: m.current.prior, sentence: m.current.sentence });
-    }).catch((e) => { if (live) setHomeErrors((s) => ({ ...s, warning: msg(e) })); });
-    return () => { live = false; };
+    return () => { h.dispose(); st.dispose(); root.className = "h3d"; scene.current = story.current = null; };
   }, []);
 
   useEffect(() => {
     let live = true;
     api.events().then((e) => { if (!live) return; setEvents(e); scene.current?.setEvents(e.events.filter((x) => Number.isFinite(x.lon) && Number.isFinite(x.lat))); })
-      .catch((e) => { if (live) setHomeErrors((s) => ({ ...s, news: msg(e) })); });
+      .catch(() => undefined);   // the globe pins and the count are extras: the count stays "…"
     return () => { live = false; };
   }, []);
 
@@ -249,27 +190,15 @@ export default function Home({ regions, go, openRegion }: PageProps) {
     return () => { live = false; };
   }, [metas]);
 
-  // the phone's replay: the story area's latest full month that the warning rule would rate elevated (percentile ≥ 90)
-  const past = useMemo<PastAlert | null>(() => {
-    if (!area) return null;
-    const { periods, partial, classes } = area.monthly, h = classes.veg.history;
-    for (let i = periods.length - 1; i >= 0; i--) {
-      const pct = h.pct[i], ratio = h.ratio[i], rank = h.rank[i], n = h.n[i], med = h.median[i];
-      // science.warning_level: elevated at percentile ≥ 90, needs ≥ 10 earlier years (history n counts this year too) and a usual level of ≥ 5
-      if (!partial[i] && pct !== null && pct >= 90 && ratio !== null && rank !== null && n !== null && n - 1 >= 10 && (med ?? 0) >= 5)
-        return { name: area.meta.name, period: periods[i], ratio, rank, n };
-    }
-    return null;
-  }, [area]);
-
   const s = useMemo(() => (metas.length ? summarize(metas) : null), [metas]);
-  const sm = area?.meta, snppStep = sm?.steps.VIIRS_SNPP, den = sm?.denial.modis_ends_2016;
+  const sm = area?.meta, den = sm?.denial.modis_ends_2016;
   // first years from meta.sensors; "…" until the metas arrive (one word, so W's word count stays the same)
   const y0 = s?.since?.slice(0, 4) ?? "…", y1 = s?.snpp?.slice(0, 4) ?? "…";
   useEffect(() => (s ? countUp(content.current!, scroller.current!) : undefined), [s]);
 
   return (
     <div className="h3d" ref={scroller}>{/* story.ts and the effects below toggle state classes on this node, so its className stays constant */}
+      <a className="skip-link" href="#h3d-tour" onClick={(e) => { e.preventDefault(); skip(); }}>Skip to content</a>
       <canvas className="h3d-canvas" ref={canvas} aria-hidden />
       <div className="h3d-veil" aria-hidden />
       <div className="h3d-fade" aria-hidden />
@@ -313,196 +242,100 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               <H tag="h1" cls="xl" lines={["Every fire.", "One record."]} at={0.1} />
               <p className="h3d-lead big" data-in="0.6">NASA satellites have watched Earth's fires from space <em>since {y0}</em>. We turn their mismatched counts into <em>one record you can trust</em>.</p>
               <p className="h3d-proof" data-in="0.8">When a sharper satellite joined in {y1}, raw counts jumped <b>×{fx(s?.raw, 1)}</b>. Our record moves <b>×{fx(s?.harm)}</b> (1.00 = no jump; median of {s?.nStep ?? "…"} areas). <button className="linkish" onClick={() => go("method")}>See the proof ›</button></p>
-              <p className="firechip" data-in="0.9"><i /><b>{events?.count ?? "…"}</b> wildfires reported to NASA in the last 30 days</p>
+              <p className="h3d-try" data-in="0.9">
+                <button onClick={() => go("near")}>Is fire near you?</button>
+                <button lang="bn" onClick={farm}>বাংলা: জমির কাছে ইটভাটা</button>
+                <button className="ghost" onClick={skip}>Skip the story ↓</button>
+              </p>
+              <p className="firechip" data-in="1"><i /><b>{events?.count ?? "…"}</b> wildfires reported to NASA in the last 30 days</p>
             </div>
           </div>
 
-          {/* 1-4 · the whole story in four sentences: problem, challenge, solution, impact */}
-          <div className="h3d-beat" data-b={B.problem}>
-            <div className="h3d-say">
-              <p className="kicker f" data-in>The problem</p>
-              <p className="st" data-in="0.1"><W>{`Satellites have counted Earth's fires since ${y0}. But`}</W> <em className="f"><W>newer cameras see more</W></em> <W>than older ones, so the numbers</W> <em className="f"><W>jump</W></em> <W>even when the fires don't.</W></p>
-              <p className="h3d-legend" data-in="1.1"><span className="m"><i />Older camera · MODIS</span><span><i />Newer camera · VIIRS</span></p>
-            </div>
-          </div>
-          <div className="h3d-beat" data-b={B.challenge}>
-            <div className="h3d-say">
-              <p className="kicker f" data-in>The challenge</p>
-              <p className="st" data-in="0.1"><W>NASA's challenge: make old and new satellites</W> <em><W>agree</W></em><W>{`, so fire history since ${y0} can be`}</W> <em><W>compared with today.</W></em></p>
-              <p className="note" data-in="1.1">NASA Space Apps 2026 · Harmonization of MODIS and VIIRS Hot Spots</p>
-            </div>
-          </div>
-          <div className="h3d-beat" data-b={B.solution}>
-            <div className="h3d-say">
-              <p className="kicker" data-in>Our solution</p>
-              <p className="st" data-in="0.1"><W>Kiln Watch measures how differently each satellite sees the</W> <em><W>same fires</W></em><W>{`, then converts all ${s?.sats ?? "…"} to`}</W> <em><W>one scale.</W></em></p>
-              <ol className="h3d-flow" data-in="1" data-lit="0.1">
-                <li><b>{s?.sats ?? 5} satellites</b><span>spot the heat</span></li>
-                <li><b>NASA FIRMS</b><span>shares every hotspot</span></li>
-                <li className="us"><b>Kiln Watch</b><span>one scale</span></li>
-                <li><b>You</b><span>map · alerts · AI</span></li>
-              </ol>
-            </div>
-          </div>
-          <div className="h3d-beat" data-b={B.impact}>
-            <div className="h3d-say">
-              <p className="kicker" data-in>The impact</p>
-              <p className="st" data-in="0.1"><W>One trusted record for</W> <em><W>any place on Earth.</W></em> <W>Now anyone can ask: is this fire season</W> <em className="f"><W>normal?</W></em></p>
-              <p className="note" data-in="1.1">For fire services, researchers, journalists, farmers and AI agents</p>
-            </div>
-          </div>
-
-          {/* 5 · the older camera: Terra and Aqua assemble on the blueprint */}
+          {/* 1 · the older camera: Terra and Aqua assemble on the blueprint */}
           <div className="h3d-beat" data-b={B.old}>
             <div className="h3d-col narrow" data-in>
-              <p className="idx">01 · The older camera</p>
-              <p className="kicker">MODIS · on Terra and Aqua · since {y0}</p>
+              <p className="kicker">The older camera · MODIS · on Terra and Aqua · since {y0}</p>
               <p className="h3d-title"><W>Sees the ground in</W> <em><W>1 km squares</W></em></p>
               <p className="h3d-line">A big fire lights a few squares. <em>Small fires can slip through.</em></p>
             </div>
             <PixelCard cams={["modis"]} />
           </div>
 
-          {/* 6 · the sharper camera: Suomi NPP assembles */}
+          {/* 2 · the sharper camera: Suomi NPP assembles */}
           <div className="h3d-beat" data-b={B.sharp}>
             <div className="h3d-col narrow" data-in>
-              <p className="idx">02 · The sharper camera</p>
-              <p className="kicker">VIIRS · on Suomi NPP, NOAA-20, NOAA-21 · since {y1}</p>
+              <p className="kicker">The sharper camera · VIIRS · on Suomi NPP, NOAA-20, NOAA-21 · since {y1}</p>
               <p className="h3d-title"><W>Sees</W> <em><W>375 m squares</W></em></p>
-              <p className="h3d-line">The same fires on the same day: <em>far more dots</em>.</p>
+              <p className="h3d-line">The same fires on the same day: <em>far more dots</em>. So the counts jump even when the fires don't.</p>
             </div>
             <PixelCard cams={["modis", "viirs"]} />
           </div>
 
-          {/* 7, 8 · the jump in the raw counts, then the calibrated record on the same chart */}
+          {/* 3, 4 · the jump in the raw counts, then the calibrated record on the same chart */}
           <div className="h3d-beat h3d-plot" data-b={`${B.jump}-${B.fix}`}>
             <div className="beat" data-b={B.jump} data-in>
-              <p className="idx">03 · The jump</p>
-              <p className="h3d-big"><W>Counts jumped</W> <em className="f"><W>{`×${fx(snppStep?.raw_all_sensors_excess, 1)}`}</W></em></p>
-              <p className="h3d-line">in {snppStep?.period.slice(0, 4) ?? y1}, more than the fires did. <em>A sharper camera had joined.</em></p>
+              <p className="idx">The jump</p>
+              <p className="h3d-big"><W>Counts jumped</W> <em className="f"><W>{`×${fx(s?.raw, 1)}`}</W></em></p>
+              <p className="h3d-line">in {y1}, more than the fires did. <em>A sharper camera had joined.</em></p>
             </div>
             <div className="beat" data-b={B.fix} data-in>
-              <p className="idx">04 · The fix</p>
-              <p className="h3d-big"><W>Now:</W> <em><W>{`×${fx(snppStep?.harmonized_excess)}`}</W></em></p>
+              <p className="idx">The fix</p>
+              <p className="h3d-big"><W>Now:</W> <em><W>{`×${fx(s?.harm)}`}</W></em></p>
               <p className="h3d-line">We measure how much more each camera sees and <em>convert</em> all {s?.sats ?? "…"} to one scale. Like converting currencies.</p>
-              <p className="fine">1.00 means no jump. Median of {s?.nStep ?? "…"} areas: ×{fx(s?.raw)} raw, ×{fx(s?.harm)} calibrated.</p>
+              <p className="fine">1.00 means no jump. Median of {s?.nStep ?? "…"} areas; the chart shows {sm?.name ?? "…"}.</p>
             </div>
             <div className="chartwrap" data-in="0.1"><JumpChart m={area?.monthly ?? null} meta={sm ?? null} fixBeat={B.fix} /></div>
           </div>
 
-          {/* 9 · the proof: MODIS switched off on paper, rebuilt from VIIRS */}
+          {/* 5 · the proof: MODIS switched off on paper, rebuilt from VIIRS */}
           <div className="h3d-beat h3d-plot val" data-b={B.proof}>
             <div className="beat" data-in>
-              <p className="idx">05 · The proof</p>
+              <p className="idx">The proof</p>
               <p className="h3d-big"><W>We</W> <em><W>tested</W></em> <W>it</W></p>
               <p className="h3d-line">We hid the older camera after {den?.train[1].slice(0, 4) ?? "…"} and rebuilt its record from the newer one alone.</p>
             </div>
             <div className="score" data-in="1.4">
-              <b>{fx(den?.ours_seasonal_eb.spearman)}</b>
-              <span>match<br />1.00 = perfect</span>
-              <p className="fine">Rank correlation, {den?.n ?? "…"} months {den ? `${den.test[0].slice(0, 4)}–${den.test[1].slice(0, 4)}` : ""}, {sm?.name ?? "…"}. Median of {s?.areas ?? "…"} areas: {fx(s?.rho)}.</p>
+              <b>{fx(s?.rho)}</b>
+              <span>match with the<br />camera we hid<br />1.00 = perfect</span>
+              <p className="fine">Median of {s?.areas ?? "…"} areas, {s?.rhoN ?? "…"} months each (rank correlation). The chart shows {sm?.name ?? "…"}: {fx(den?.ours_seasonal_eb.spearman)}.</p>
             </div>
             <div className="chartwrap" data-in="0.2"><ValidateChart meta={sm ?? null} /></div>
           </div>
 
-          {/* 10-15 · the console: explore, warn, cases, ask, farmers (the floating screen is driven from onBeat above) */}
-          <div className="h3d-beat console" data-b={`${B.console}-${B.farm}`} ref={consoleSec}>
-            <div className="c-head" data-b={B.console}>
-              <p className="kicker" data-in>In your browser · no login</p>
-              <H lines={["Fire record console"]} cls="xl" at={0.1} />
-            </div>
-            <div className="h3d-console" aria-hidden>
-              <div className="frame">
-                <img className="scr" src={`${SHOTS}explore.jpg`} alt="" />
-                <img className="scr" src={`${SHOTS}warning.png`} alt="" />
-                <div className="scr collage cases">{["exposure-map", "place-months", "exposure-list"].map((f) => <img key={f} src={`${SHOTS}${f}.png`} alt="" />)}</div>
-                <div className="scr collage ask"><img src={`${SHOTS}analyst.png`} alt="" /></div>
-                <div className="scr collage farm">{["farmer-kilns", "farmer-boro"].map((f) => <img key={f} src={`${SHOTS}${f}.png`} alt="" />)}</div>
-                {exploreTags(s?.sats ?? "…").map(([t, l, tp], i) => <span key={i} className="ptag" style={{ left: `${l}%`, top: `${tp}%` }}><i />{t}</span>)}
-                <b className="glass" />
-              </div>
-            </div>
-            <Phone d={cdata} past={past} play={stage === 1} />
-            <div className="c-say l" data-b={B.explore} data-in="0.3">
-              <p className="kicker">01 · Explore</p>
-              <p>Any place on Earth. <em>{y0} to today.</em> One scale.</p>
-              <p className="who">For researchers and land managers</p>
-            </div>
-            <div className="c-say r cw" data-b={B.warn} data-in="0.3">
-              <p className="kicker">02 · Early warning</p>
-              <p>Burning <em className="f">more than usual</em>? Your phone hears first.</p>
-              <p className="who">For fire services, NGOs and farmers. An outlook from past years, not a forecast.</p>
-            </div>
-            <div className="c-say l" data-b={B.cases} data-in="0.3">
-              <p className="kicker">03 · Cases &amp; exposure</p>
-              <p>Fire near a <em>hospital</em> or a <em>school</em>? Know where to look first.</p>
-              <p className="who">Type any place: fires seen this week, schools and hospitals within 5 km, and how often this month burned in past years. <button className="h3d-link sm" onClick={() => go("cases")}>Open Cases &amp; exposure <Arrow /></button></p>
-            </div>
-            <div className="c-say r" data-b={B.ask} data-in="0.3">
-              <p className="kicker">04 · AI analyst</p>
-              <p>Ask in plain words. Answers from <em>real numbers</em>.</p>
-              <p className="who">For anyone. It reads the data and never makes numbers up.</p>
-            </div>
-            <div className="c-say l" data-b={B.farm} data-in="0.3">
-              <p className="kicker">05 · For farmers, in Bangla</p>
-              <p>Can't show the kiln is there? <em>Now you can.</em></p>
-              <p className="who">One tap in the field: kilns within 1 km on a dated, satellite-checked record, their estimated smoke, and fire before the Boro harvest. Email or print it for the agriculture office. <button className="h3d-link sm" onClick={() => go("bangladesh")}>Open Bangladesh <Arrow /></button></p>
-            </div>
-          </div>
-
-          {/* 16 · news */}
-          <div className="h3d-beat" data-b={B.news}>
-            {/* cards exist from the start (story.ts wires [data-in] once); the live events fill them in */}
-            <div className="newsfeed">
-              <p className="livebar pop" data-in="0.2"><i />Live · NASA EONET <b>{events?.count ?? "…"}</b> wildfire events, last 30 days</p>
-              {[0, 1, 2, 3].map((i) => {
-                const e = events?.events[i];
-                return (
-                  <a key={i} className="ncard pop" data-in={0.35 + i * 0.13} href={e?.url ?? undefined} target="_blank" rel="noreferrer">
-                    <span className="src">NASA EONET · open event</span>
-                    <b>{e?.title ?? (homeErrors.news ? `Couldn't load the live feed: ${homeErrors.news}` : "Loading the live feed…")}</b>
-                    <span className="meta">{e ? `${e.date} · ${e.lat.toFixed(2)}°, ${e.lon.toFixed(2)}°` : ""}</span>
-                  </a>
-                );
-              })}
-            </div>
-            <div className="h3d-col right big news-text">
-              <H lines={["News,", "matched"]} cls="xl" />
+          {/* 6 · for farmers, in Bangla */}
+          <div className="h3d-beat farmbeat" data-b={B.farm}>
+            <div className="farmshots" data-in="0.3">{["farmer-kilns", "farmer-boro"].map((f) => <img key={f} src={`${SHOTS}${f}.png`} alt="" />)}</div>
+            <div className="h3d-col right big">
+              <H lines={["Kilns next to", "the field"]} cls="xl" />
               <div data-in="0.5">
-                <p className="kicker under">NASA EONET · GDELT · GDACS · Google News</p>
-                <p className="h3d-lead">News reports sit <em>next to each month</em> of the record. No news never proves no fire.</p>
-                <p className="who">For journalists and NGOs checking a claim against the satellites.</p>
-                <button className="h3d-link" onClick={() => go("news")}>Open News <Arrow /></button>
+                <p className="kicker under" lang="bn">বাংলাদেশ · For farmers</p>
+                <p className="h3d-lead">Farmers say kiln smoke ruins their crops but cannot show the kilns are there. <em>Now they can</em>, in Bangla, in one tap.</p>
+                <p className="who">Kilns within 1 km from a national inventory, fire this week, and fire before the Boro harvest. Email, WhatsApp or print it for the agriculture office.</p>
+                <button className="h3d-link" onClick={farm}>Try it: Aminbazar <Arrow /></button>
+                <p className="fine">Why “Kiln Watch”: we began with the brick kilns around Dhaka. We measured that fire satellites cannot count kilns, so the farmer check reads a kiln inventory, never the fire detections.</p>
               </div>
             </div>
           </div>
 
-          {/* 17 · connect */}
+          {/* 7 · connect */}
           <div className="h3d-beat connect" data-b={B.connect}>
             <div className="h3d-col big">
               <H lines={["Plug in", "any agent"]} cls="xl" />
               <div data-in="0.5">
                 <p className="kicker under">MCP · REST API · n8n</p>
-                <p className="h3d-lead">Claude, Cursor or any AI agent asks Kiln Watch for <em>real numbers</em> instead of guessing.</p>
-                <p className="who">For developers and data teams. n8n turns an alert into an email or a Slack message.</p>
+                <p className="h3d-lead">Claude, Cursor or any AI assistant asks Kiln Watch for <em>real numbers</em> instead of guessing. MCP is the standard way an assistant calls outside tools.</p>
+                <p className="who">For developers and data teams. n8n, an automation tool, turns an alert into an email or a Slack message.</p>
                 <button className="h3d-link" onClick={() => go("mcp")}>Connect <Arrow /></button>
               </div>
             </div>
             <div className="term" data-in="0.4">
-              <p className="bar"><i /><i /><i /><span>claude_desktop_config.json</span></p>
-              <pre>{`{
-  "mcpServers": {
-    "kiln-watch": {
-      "command": "python",
-      "args": ["-m", "kw.mcp_server"]
-    }
-  }
-}`}</pre>
-              <p className="tools"><span>tools</span>get_harmonized_calendar · get_early_warning · find_anomalies · search_fire_reports · create_alert · get_active_wildfire_events …</p>
+              <p className="bar"><i /><i /><i /><span>terminal · public server, read-only</span></p>
+              <pre>{`claude mcp add --transport http \\\n  kiln-watch ${PUBLIC_MCP}`}</pre>
+              <p className="tools"><span>tools</span>get_harmonized_calendar · check_place_fire_risk · get_early_warning · find_anomalies · search_fire_reports · get_active_wildfire_events …</p>
             </div>
           </div>
 
-          {/* 18 · the way in */}
+          {/* 8 · the way in */}
           <div className="h3d-beat center" data-b={B.go}>
             <H lines={["Get your fire record today"]} cls="xl" at={0.2} />
             <button className="h3d-go" data-in="0.8" onClick={() => go("explore")}>Open the explorer</button>
@@ -510,44 +343,30 @@ export default function Home({ regions, go, openRegion }: PageProps) {
           </div>
         </section>
 
-        <section className="h3d-flat built tour">
+        <section className="h3d-flat built tour" id="h3d-tour" ref={tourSec} tabIndex={-1}>
           <div className="head" data-reveal>
             <p className="label">See it in three minutes</p>
             <h2 className="h3d-h">Six stops,<br />one story</h2>
           </div>
           <ol className="who-grid" data-reveal>
-            {tour(y1, s?.areas ?? "…").map(([t, d, pg], i) => <li key={t}><button onClick={() => (pg === "punjab" ? openRegion("punjab") : go(pg))}><b>{i + 1}. {t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
+            {tour(y1, s?.areas ?? "…").map(([t, d, pg], i) => <li key={t}><button onClick={() => (pg === "punjab" ? openRegion("punjab") : pg === "farm" ? farm() : go(pg))}><b>{i + 1}. {t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
           </ol>
-          <ul className="who-grid tiles" data-reveal>
-            {TILES.map(([t, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><i><Arrow /></i></button></li>)}
-          </ul>
-        </section>
-
-        {/* below the 3D story: opaque sections */}
-        <section className="h3d-flat built">
-          <div className="head" data-reveal>
-            <p className="label">Built for</p>
-            <h2 className="h3d-h">Whoever needs<br />a fire record<br />they can trust</h2>
-          </div>
-          <ul className="who-grid" data-reveal>
-            {who(y0).map(([t, d, pg]) => <li key={t}><button onClick={() => go(pg)}><b>{t}</b><span>{d}</span><i><Arrow /></i></button></li>)}
-          </ul>
         </section>
 
         <section className="h3d-flat heritage">
           <p className="label">The record so far</p>
           <div className="nums" data-reveal>
-            <div><b><Count v={s?.areas} /></b><span>Fire regimes built</span></div>
-            <div><b><Count v={s?.rho} dec={2} /></b><span>Rank correlation with Aqua on {s?.rhoN ?? "…"} withheld months</span></div>
-            <div><b><Count v={s ? s.statics / 1000 : null} />K</b><span>Persistent heat-source detections (gas flares, industry) kept apart</span></div>
+            <div><b><Count v={s?.areas} /></b><span>Areas built, {y0} to today</span></div>
+            <div><b><Count v={s?.rho} dec={2} /></b><span>Match with the satellite we hid, 1.00 is perfect ({s?.rhoN ?? "…"} months)</span></div>
+            <div><b><Count v={s ? s.statics / 1000 : null} />K</b><span>Detections from steady heat sources (gas flares, factories) kept apart from fires</span></div>
           </div>
-          <p className="fine">Middle figure: median across areas of the rehearsal “what if MODIS had ended in 2016?”, where {s?.rhoTest ? `${s.rhoTest[0]} to ${s.rhoTest[1]}` : "…"} is rebuilt from VIIRS alone and compared with what Aqua observed. Data through {s?.through ?? "…"}.</p>
+          <p className="fine">Middle figure: median across areas of the test “what if MODIS had ended in 2016?”, where {s?.rhoTest ? `${s.rhoTest[0]} to ${s.rhoTest[1]}` : "…"} is rebuilt from VIIRS alone and compared with what Aqua MODIS saw. Data through {s?.through ?? "…"}.</p>
         </section>
 
         <section className="h3d-flat wall">
           <div className="head" data-reveal>
-            <h2 className="h3d-h">Fire regimes<br />on one scale</h2>
-            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes a few minutes (about 6 on the hosted server).</p>
+            <h2 className="h3d-h">{s?.areas ?? "…"} areas<br />on one scale</h2>
+            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes 5 to 10 minutes.</p>
           </div>
           <ul className="cells" data-reveal>
             {presets.map((r) => (
@@ -562,13 +381,11 @@ export default function Home({ regions, go, openRegion }: PageProps) {
         <footer className="h3d-flat h3d-foot">
           <div className="cols">
             <div className="about"><h3>Kiln Watch</h3><p>One consistent fire record,<br />{y0} to today.<br />NASA Space Apps 2026.</p></div>
-            <div><h3>Explore</h3><button onClick={() => go("explore")}>Explorer</button><button onClick={() => go("warning")}>Early warning</button><button onClick={() => go("after")}>After MODIS</button><button onClick={() => go("cases")}>Cases &amp; exposure</button><button onClick={() => go("bangladesh")}>Bangladesh</button><button onClick={() => go("news")}>News</button></div>
-            <div><h3>Data</h3><button onClick={() => go("download")}>Download</button><button onClick={() => go("create")}>Create an area</button><button onClick={() => go("method")}>Proof and method</button><button onClick={() => go("questions")}>Open questions</button></div>
-            <div><h3>Connect</h3><button onClick={() => go("mcp")}>MCP</button><button onClick={() => go("n8n")}>n8n alerts</button><button onClick={() => go("contact")}>Contact</button></div>
+            {SECTIONS.map(([l, ps]) => <div key={l}><h3>{l}</h3>{ps.map(([k, pl]) => <button key={k} onClick={() => go(k)}>{pl}</button>)}</div>)}
           </div>
           <div className="legal">
             <p>Data: NASA FIRMS (MODIS C6.1, VIIRS 375 m) via the Portolan mirror. Satellite models: NASA 3D Resources. Earth: NASA Blue Marble. Not an official NASA product.</p>
-            <p>Detections are not fires and not burned area. The early warning is a climatological outlook, not a forecast.</p>
+            <p>Detections are not fires and not burned area. The fire outlook is a climatological outlook, not a forecast.</p>
           </div>
         </footer>
       </div>

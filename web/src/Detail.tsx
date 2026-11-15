@@ -163,7 +163,7 @@ function Daily({ ev, cls, onDate }: { ev: Evidence; cls: Cls; onDate: (d: string
           let y = H;
           const o = by.get(d) ?? {};
           return (
-            <g key={d} onClick={() => onDate(d)} className="cell">
+            <g key={d} onClick={() => onDate(d)} className="cell" role="button" tabIndex={0} aria-label={`Show ${d} on the map`} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onDate(d))}>
               <rect x={k * bw} y={0} width={bw} height={H} fill="transparent" />
               {STACK.map((sn) => {
                 const hh = ((o[sn] ?? 0) / max) * (H - 4);

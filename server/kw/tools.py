@@ -2,6 +2,7 @@
 
 Every number these return is read from build outputs or computed from cached NASA FIRMS rows — never generated.
 """
+import contextlib
 import datetime as dt
 import functools
 import hashlib
@@ -1521,6 +1522,11 @@ def place_risk(query=None, lat=None, lon=None, radius_km=10.0, facilities=True, 
     headline, reasons = _place_text(place["name"].split(",")[0], level, radius_km, dets, season, ocls.get("class"), rec is not None)
     built = next(({"id": r["id"], "name": r["name"]} for r in list_regions()
                   if r["bbox"][1] <= lat <= r["bbox"][3] and r["bbox"][0] <= lon <= r["bbox"][2]), None)
+    if built:   # the harmonized record's word on this month: same days in every earlier year, on one scale
+        with contextlib.suppress(Exception):
+            cur = _read(built["id"], "meta").get("current") or {}
+            built["this_month"] = cur.get("sentence")
+            built["month"] = {k: cur.get(k) for k in ("period", "partial", "value", "median", "higher_than", "rank", "n_prior")} if cur else None
     return {
         "place": {**place, "lat": round(lat, 5), "lon": round(lon, 5)}, "candidates": candidates, "radius_km": radius_km,
         "level": level, "headline": headline, "reasons": reasons,

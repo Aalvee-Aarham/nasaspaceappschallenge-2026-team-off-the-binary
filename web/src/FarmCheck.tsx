@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FarmCheck as Farm, PlaceLevel, PlaceRisk, api, farmCheck, placeRisk } from "./api";
+import { FarmCheck as Farm, PlaceLevel, PlaceRisk, api, farmCheck, placeRisk, ttsAudio } from "./api";
 import { PlaceAlert } from "./exposure";
 import Loader from "./Loader";
 
@@ -31,6 +31,7 @@ const T = {
     kilns: "ইটভাটা", in1: "১ কিমির মধ্যে", in3: "৩ কিমির মধ্যে", nearest: "সবচেয়ে কাছে", piece: "টি",
     outside: "বাংলাদেশের বাইরে। তথ্য নেই।", noData: "এই এলাকার ইটভাটার তথ্য নেই।",
     fire: "এই সপ্তাহে আগুন", fire5: (n: string) => `৫ কিমির মধ্যে ${n}টি`, fire0: "৫ কিমির মধ্যে নেই", fireNear: (d: string) => `সবচেয়ে কাছে ${d}`,
+    month: (more: boolean, k: string, n: string) => `এই মাসে আগুন আগের ${n} বছরের মধ্যে ${k} বছরের চেয়ে ${more ? "বেশি" : "কম"} (সব স্যাটেলাইট এক মাপে)।`,
     fireNo: "উত্তর আসেনি", fireWait: ["নাসার স্যাটেলাইটে গত ৭ দিন দেখা হচ্ছে"], fireEta: "সাধারণত ১ মিনিটের কম; ব্যস্ত থাকলে ২–৩ মিনিট",
     boro: "বোরো মৌসুম", rBoro: "বোরো", rFire: "আগুন", rKiln: "ইটভাটা",
     stage: { seed: "বীজ", plant: "রোপণ", grow: "বৃদ্ধি", flower: "ফুল", harvest: "কাটা" },
@@ -38,7 +39,8 @@ const T = {
     harvestTip: "পাকা ধান ও খড় পোড়ানো জমি থেকে দূরে রাখুন।",
     harvestNow: "কাটার মৌসুমে এই সপ্তাহে কাছে আগুন দেখা গেছে।",
     key: (n: string) => `সংখ্যা = গত ${n} বছরে কত বছর আগুন দেখা গেছে।`,
-    mail: "ইমেইলে পাঠান", print: "প্রিন্ট", listen: "শুনুন", stop: "থামুন",
+    mail: "ইমেইলে পাঠান", print: "প্রিন্ট", listen: "শুনুন", stop: "থামুন", whatsapp: "হোয়াটসঅ্যাপে পাঠান",
+    gloss: "PM2.5 = সূক্ষ্ম ধোঁয়ার কণা, ফুসফুসের ক্ষতি করে। SO2 = সালফার গ্যাস, ফসলের ক্ষতি করতে পারে।",
     mailHelp: "উপজেলা কৃষি অফিস বা পরিবেশ অধিদপ্তরে পাঠান। ছবি যোগ করুন।",
     more: "তথ্যের সীমা", emergency: "সরকারি সতর্কবার্তা নয়। আগুন দেখলে ৯৯৯।",
     lim: (f: string, p: string) => [
@@ -62,6 +64,7 @@ const T = {
     kilns: "Brick kilns", in1: "within 1 km", in3: "within 3 km", nearest: "nearest", piece: "",
     outside: "Outside Bangladesh. No data.", noData: "No kiln data for this area.",
     fire: "Fire this week", fire5: (n: string) => `${n} within 5 km`, fire0: "None within 5 km", fireNear: (d: string) => `closest ${d}`,
+    month: (more: boolean, k: string, n: string) => `This month: ${more ? "more" : "less"} fire than in ${k} of the previous ${n} years (MODIS and VIIRS on one scale).`,
     fireNo: "No answer", fireWait: ["Asking NASA satellites about the last 7 days"], fireEta: "usually under a minute; up to 2 to 3 minutes when busy",
     boro: "Boro season", rBoro: "Boro", rFire: "Fire", rKiln: "Kilns",
     stage: { seed: "Seedbed", plant: "Plant", grow: "Grow", flower: "Flower", harvest: "Harvest" },
@@ -69,7 +72,8 @@ const T = {
     harvestTip: "Keep ripe paddy and straw away from burning fields.",
     harvestNow: "Fire seen nearby this week, in harvest season.",
     key: (n: string) => `Number = years with fire, of the last ${n}.`,
-    mail: "Email report", print: "Print", listen: "Listen", stop: "Stop",
+    mail: "Email report", print: "Print", listen: "Listen", stop: "Stop", whatsapp: "Send on WhatsApp",
+    gloss: "PM2.5 = fine smoke particles that harm lungs. SO2 = sulphur gas that can harm crops.",
     mailHelp: "Send to the Upazila Agriculture Office or the Department of Environment. Add photos.",
     more: "Limits of the data", emergency: "Not an official warning. Fire: call 999.",
     lim: (f: string, p: string) => [
@@ -100,7 +104,7 @@ function useLang(): [Lang, (l: Lang) => void] {
   return [lang, (l) => { set(l); try { localStorage.setItem(LANG_KEY, l); } catch { /* private mode */ } }];
 }
 
-/** A voice for the language, only if the phone has one (many have no Bangla voice: then there is no Listen button). */
+/** The browser's voice for the language, if it has one (desktop Chrome has no Bangla voice). */
 function useVoice(lang: Lang) {
   const [v, setV] = useState<SpeechSynthesisVoice | null>(null);
   useEffect(() => {
@@ -111,6 +115,53 @@ function useVoice(lang: Lang) {
     return () => { speechSynthesis.removeEventListener("voiceschanged", pick); speechSynthesis.cancel(); };
   }, [lang]);
   return v;
+}
+
+/** What a voice reads badly ("PM2.5", "SO2", "কিমি"), in words. */
+const SPOKEN: Record<Lang, [RegExp, string][]> = {
+  bn: [[/PM2\.5/g, "সূক্ষ্ম ধোঁয়ার কণা"], [/SO2/g, "সালফার গ্যাস"], [/কিমি/g, "কিলোমিটার"], [/ · /g, ", "]],
+  en: [[/ t PM2\.5/g, " tonnes of fine smoke particles"], [/ t SO2/g, " tonnes of sulphur gas"], [/(\d) km\b/g, "$1 kilometres"], [/(\d) m\b/g, "$1 metres"], [/ · /g, ", "]],
+};
+const spoken = (s: string, lang: Lang) => SPOKEN[lang].reduce((a, [re, w]) => a.replace(re, w), s);
+
+/** Read the sentences aloud: the browser's voice when it has one, else the server's neural voice, else the browser
+ *  with the language set and no voice (some phones speak anyway). One utterance per sentence: some Chrome versions
+ *  cut long ones off. */
+function useSpeaker(lang: Lang): [boolean, (lines: string[]) => void] {
+  const voice = useVoice(lang);
+  const [on, setOn] = useState(false);
+  const stop = useRef<() => void>(() => undefined);
+  useEffect(() => () => stop.current(), []);
+  const browser = (lines: string[]) => {
+    if (!("speechSynthesis" in window)) { setOn(false); return; }
+    speechSynthesis.cancel();
+    lines.forEach((l, i) => {
+      const u = new SpeechSynthesisUtterance(l);
+      if (voice) u.voice = voice;
+      u.lang = voice?.lang ?? (lang === "bn" ? "bn-BD" : "en-US");
+      u.onerror = () => setOn(false);
+      if (i === lines.length - 1) u.onend = () => setOn(false);
+      speechSynthesis.speak(u);
+    });
+    stop.current = () => speechSynthesis.cancel();
+  };
+  const play = async (lines: string[]) => {
+    if (on) { stop.current(); setOn(false); return; }
+    const said = lines.map((l) => spoken(l, lang));
+    setOn(true);
+    if (voice) { browser(said); return; }
+    const ac = new AbortController();
+    stop.current = () => ac.abort();
+    try {
+      const url = URL.createObjectURL(await ttsAudio(said.join(" "), lang, ac.signal)), a = new Audio(url);
+      a.onended = a.onerror = () => { setOn(false); URL.revokeObjectURL(url); };
+      stop.current = () => { a.pause(); URL.revokeObjectURL(url); };
+      await a.play();
+    } catch {
+      if (!ac.signal.aborted) browser(said);
+    }
+  };
+  return [on, play];
 }
 
 type Target = { lat: number; lon: number; name: string };
@@ -138,6 +189,7 @@ export default function FarmCheck({ online }: { online: boolean }) {
   }, [online]);
 
   const run = (x: Target) => {
+    history.replaceState(null, "", placeLink(x).slice(location.origin.length));   // the address bar now opens this answer
     const id = ++latest.current;
     const mine = () => latest.current === id;
     setTarget(x); setFarm(null); setFire(null); setFireErr(""); setErr(""); setBusy(true); setFireBusy(true);
@@ -163,6 +215,13 @@ export default function FarmCheck({ online }: { online: boolean }) {
       (p) => { setQ(""); run({ lat: +p.coords.latitude.toFixed(5), lon: +p.coords.longitude.toFixed(5), name: t.you }); },
       () => setErr(t.noGeo), { timeout: 15000, maximumAge: 600000 });
   };
+
+  // deep link: #pg=bangladesh&at=23.79,90.32&n=Aminbazar (or &q=Aminbazar) opens a finished answer
+  useEffect(() => {
+    const h = new URLSearchParams(location.hash.slice(1)), at = (h.get("at") ?? "").split(",").map(Number), q0 = h.get("q");
+    if (at.length === 2 && at.every(Number.isFinite)) run({ lat: at[0], lon: at[1], name: h.get("n") || `${at[0]}, ${at[1]}` });
+    else if (q0) { setQ(q0); find(q0); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!online) return <p className="warn">{t.failed}</p>;
 
@@ -200,17 +259,9 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
   const t = T[lang];
   const p = farm.place!;
   const cc = farm.cross_check;
-  const voice = useVoice(lang);
-  const [speaking, setSpeaking] = useState(false);
+  const [speaking, listen] = useSpeaker(lang);
   const say = summary(lang, x, farm, fire);
-  const listen = () => {
-    if (speaking) { speechSynthesis.cancel(); setSpeaking(false); return; }
-    const u = new SpeechSynthesisUtterance(say.join(" "));
-    u.voice = voice; u.lang = voice!.lang;
-    u.onend = u.onerror = () => setSpeaking(false);
-    speechSynthesis.cancel(); speechSynthesis.speak(u); setSpeaking(true);
-  };
-  const r = fire?.recent;
+  const r = fire?.recent, mo = fire?.built_area?.month;
   return (
     <article className="fk-res">
       <p className="fk-where"><span aria-hidden>📍</span> <b>{x.name}</b></p>
@@ -224,7 +275,7 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
             <div><b>{p.nearest_km! <= 3 ? dist(p.nearest_km!, lang) : "–"}</b><span>{t.nearest}</span></div>
           </div>
           {!!p.within_3km && p.pm25_t_yr_3km != null && p.so2_t_yr_3km != null &&
-            <p className="fk-smoke"><span>{t.smoke}</span> <b>{t.tons(num(p.pm25_t_yr_3km, lang), num(p.so2_t_yr_3km, lang))}</b></p>}
+            <p className="fk-smoke"><span>{t.smoke}</span> <b>{t.tons(num(p.pm25_t_yr_3km, lang), num(p.so2_t_yr_3km, lang))}</b><small>{t.gloss}</small></p>}
         </section>
       )}
 
@@ -236,6 +287,7 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
             : <>
               <p className="fk-lvl" data-l={fire.level}>{LEVEL_WORD[lang][fire.level]}</p>
               {r.count === 0 ? <p className="fk-ok">{t.fire0}</p> : <p className="fk-hot"><b>{t.fire5(num(r.count, lang))}</b> · {t.fireNear(dist(r.nearest_km!, lang))}</p>}
+              {mo && <p className="fk-help">{monthLine(lang, mo)}</p>}
             </>}
         </section>
         <section className="pr-sec fk-mapbox">
@@ -248,8 +300,9 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
       <section className="pr-sec fk-act">
         <div className="fk-btns">
           <a className="pr-go fk-btn" href={mailto(lang, x, say)}><span aria-hidden>✉️</span> {t.mail}</a>
+          <a className="pr-here fk-btn" href={`https://wa.me/?text=${encodeURIComponent([...say, placeLink(x)].join("\n"))}`} target="_blank" rel="noreferrer"><span aria-hidden>💬</span> {t.whatsapp}</a>
           <button type="button" className="pr-here fk-btn" onClick={() => window.print()}><span aria-hidden>🖨️</span> {t.print}</button>
-          {voice && <button type="button" className="pr-here fk-btn" onClick={listen} aria-pressed={speaking}><span aria-hidden>🔊</span> {speaking ? t.stop : t.listen}</button>}
+          <button type="button" className="pr-here fk-btn" onClick={() => listen(say)} aria-pressed={speaking}><span aria-hidden>🔊</span> {speaking ? t.stop : t.listen}</button>
           <PlaceAlert lat={x.lat} lon={x.lon} label={x.name} />
         </div>
         <p className="fk-help">{t.mailHelp}</p>
@@ -265,6 +318,12 @@ function Result({ lang, x, farm, fire, fireBusy, fireErr }: { lang: Lang; x: Tar
   );
 }
 
+/** The study area's harmonized month to date against the same days of earlier years (meta.current, by rank). */
+const monthLine = (lang: Lang, m: NonNullable<NonNullable<PlaceRisk["built_area"]>["month"]>) => {
+  const more = m.value >= m.median;
+  return T[lang].month(more, num(more ? m.higher_than : m.rank - 1, lang), num(m.n_prior, lang));
+};
+
 /** The sentences read aloud and put in the report email; every number from the two API answers. */
 function summary(lang: Lang, x: Target, farm: Farm, fire: PlaceRisk | null) {
   const t = T[lang], p = farm.place!, r = fire?.recent, end = lang === "bn" ? "।" : ".", out: string[] = [];
@@ -274,8 +333,12 @@ function summary(lang: Lang, x: Target, farm: Farm, fire: PlaceRisk | null) {
     if (p.within_3km && p.pm25_t_yr_3km != null && p.so2_t_yr_3km != null) out.push(`${t.smoke}: ${t.tons(num(p.pm25_t_yr_3km, lang), num(p.so2_t_yr_3km, lang))}${end}`);
   }
   if (r) out.push(`${t.fire}: ${r.count ? `${t.fire5(num(r.count, lang))}, ${t.fireNear(dist(r.nearest_km!, lang))}` : t.fire0}${end}`);
+  if (fire?.built_area?.month) out.push(monthLine(lang, fire.built_area.month));
   return out;
 }
+
+/** A link that reopens this exact check. */
+const placeLink = (x: Target) => `${location.origin}${location.pathname}#pg=bangladesh&at=${x.lat},${x.lon}&n=${encodeURIComponent(x.name)}`;
 
 function mailto(lang: Lang, x: Target, say: string[]) {
   const t = T[lang];
@@ -284,7 +347,7 @@ function mailto(lang: Lang, x: Target, say: string[]) {
     `${x.name} (${x.lat}, ${x.lon})`, `https://www.openstreetmap.org/?mlat=${x.lat}&mlon=${x.lon}#map=15/${x.lat}/${x.lon}`,
     new Date().toLocaleDateString(lang === "bn" ? "bn-BD" : "en-GB", { day: "numeric", month: "long", year: "numeric" }), "",
     lang === "bn" ? "ছবি: (যোগ করুন)" : "Photos: (attach)", "",
-    `${t.src}: Kiln Watch ${location.origin}/#pg=bangladesh · APAD (CC BY 4.0) · NASA FIRMS`,
+    `${t.src}: Kiln Watch ${placeLink(x)} · APAD (CC BY 4.0) · NASA FIRMS`,
   ].join("\n");
   return `mailto:?subject=${encodeURIComponent(`${t.report}: ${x.name}`)}&body=${encodeURIComponent(body)}`;
 }

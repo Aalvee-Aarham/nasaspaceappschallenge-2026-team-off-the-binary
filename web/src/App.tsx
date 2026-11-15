@@ -15,7 +15,8 @@ import Contact from "./pages/Contact";
 import News from "./pages/News";
 import AfterModis from "./pages/AfterModis";
 import Bangladesh from "./pages/Bangladesh";
-import { ALL_PAGES, LevelChip, PAGES, Page, PageProps, useSmoothScroll } from "./pages/shared";
+import { ALL_PAGES, LevelChip, Page, PageProps, SECTIONS, SubNav, sectionOf, useSmoothScroll } from "./pages/shared";
+import Near from "./pages/Near";
 import Timeline from "./Timeline";
 import CasesPage from "./pages/CasesPage";
 import CasesPanel from "./CasesPanel";
@@ -247,18 +248,22 @@ export default function App() {
 
   return (
     <div className={`app ${analystOpen ? "with-analyst" : ""} ${panelOpen ? "" : "panel-closed"}`}>
+      <a className="skip-link" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to content</a>
       <header className="top">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); openRegion(null); setPg("home"); }}>
           <svg viewBox="0 0 32 32" aria-hidden><path d="M16 4c2.2 5.4 7.5 7.6 7.5 14a7.5 7.5 0 0 1-15 0c0-3.3 2.1-5.4 3.2-7.5 1.1 3.2 2.2 4.3 4.3 4.3C15 10.5 15 7.3 16 4z" fill="#EA7329" /><path d="M16 17c1 2.2 3 3 3 5.5a3 3 0 0 1-6 0c0-1.6 1-2.6 1.6-3.5.4 1.2.9 1.6 1.4 1.6-.4-1.2-.4-2.4 0-3.6z" fill="#F6C64F" /></svg>
           <span>Kiln Watch</span>
         </a>
         <nav className="nav" aria-label="Pages">
-          {PAGES.map(([k, l]) => (
-            <button key={k} className={`navlink ${pg === k ? "on" : ""} ${k === "warning" ? "feature" : ""}`} aria-current={pg === k ? "page" : undefined}
-              onClick={() => { setPg(k); if (k === "explore") setPeriod(null); }}>
-              {l}{k === "warning" && ew && ew.alerts.some((a) => a.level === "elevated" || a.level === "watch") && <i className="pip" aria-label="areas above normal" />}
-            </button>
-          ))}
+          {SECTIONS.map(([l, [[k]]]) => {
+            const on = sectionOf(pg)?.[0] === l;
+            return (
+              <button key={l} className={`navlink ${on ? "on" : ""}`} aria-current={on ? "page" : undefined}
+                onClick={() => { setPg(k); if (k === "explore") setPeriod(null); }}>
+                {l}{k === "near" && ew && ew.alerts.some((a) => a.level === "elevated" || a.level === "watch") && <i className="pip" aria-label="areas above normal" />}
+              </button>
+            );
+          })}
         </nav>
         {pg === "explore" && <>
         <form className="search" onSubmit={doSearch} role="search" aria-busy={searching}>
@@ -281,8 +286,10 @@ export default function App() {
       </header>
 
       {pg !== "explore" ? (
-        <main className="page" id="main" key={pg} ref={pageRef}>
+        <main className="page" id="main" key={pg} ref={pageRef} tabIndex={-1}>
           <div className="page-in">
+            <SubNav pg={pg} go={setPg} />
+            {pg === "near" && <Near {...pageProps} />}
             {pg === "warning" && <Suspense fallback={<div className="skeleton tall" />}><EarlyWarning {...pageProps} /></Suspense>}
             {pg === "after" && <AfterModis {...pageProps} />}
             {pg === "bangladesh" && <Bangladesh {...pageProps} />}
@@ -298,7 +305,7 @@ export default function App() {
           </div>
         </main>
       ) : (
-      <main className="stage">
+      <main className="stage" id="main" tabIndex={-1}>
         <Suspense fallback={<div className="map" aria-label="Loading the map" />}>
           <MapView regions={regions} region={region} month={month} date={date} layers={layers} basemap={basemap}
             projection={projection} outlook={outlook} onOutlookPick={pickAround}
@@ -315,7 +322,7 @@ export default function App() {
           <aside className="layers" aria-label="Map layers">
             <h2>View</h2>
             <Seg value={projection} onChange={setProjection} options={[["globe", "3D globe"], ["mercator", "Flat map"]]} />
-            <h2>Early warning, next 30 days</h2>
+            <h2>Fire outlook, next 30 days</h2>
             <label className="check"><input type="checkbox" checked={layers.outlook} onChange={(e) => setLayers({ ...layers, outlook: e.target.checked })} disabled={!outlook} /><i className="sw-pulse" />Worldwide fire-season outlook</label>
             {outlook ? <OutlookKey o={outlook} /> : <p className="muted small">{online ? "Loading the outlook…" : "Needs the Kiln Watch API."}</p>}
             <h2>Fire detections on {date}</h2>
@@ -365,7 +372,7 @@ export default function App() {
               <h2>Analyse this area?</h2>
               <p className="num">{draft[1].toFixed(2)}°, {draft[0].toFixed(2)}° to {draft[3].toFixed(2)}°, {draft[2].toFixed(2)}°</p>
               {area > 16 ? <p className="error">This box is {area.toFixed(1)} square degrees. Draw one up to 16 (about 4° × 4°).</p>
-                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes <b>minutes, not seconds</b> (measured 2½ min on a laptop, 6 min on the hosted server): it reads every detection since 2000, one request per year, then calibrates and checks the fire cases. A smaller box does not make it faster; after the first build the area opens instantly.</p>}
+                : <p className="muted">About {Math.round(area * 12100).toLocaleString()} km². The first build takes <b>5 to 10 minutes</b>: it reads every detection since 2000, one request per year, then calibrates and checks the fire cases. A smaller box does not make it faster; after the first build the area opens instantly.</p>}
               {health?.serverless && <p className="warn small">This hosted demo cannot build new areas (a build takes minutes, longer than its server allows). The nine prebuilt areas work here; run Kiln Watch with Docker to build any place.</p>}
               <div className="row">
                 <button className="btn" onClick={() => startBuild()} disabled={area > 16 || !!health?.serverless}>Build record</button>
@@ -391,7 +398,7 @@ export default function App() {
                 <div>
                   <h2>{region.meta.name}</h2>
                   <p className="muted small">{region.meta.country ? `${region.meta.country}, ` : ""}data through {region.meta.data_through}</p>
-                  {(() => { const w = ew?.alerts.find((a) => a.region_id === regionId); return w && <button className="chiplink" onClick={() => setPg("warning")} title={w.headline}>Early warning: <LevelChip level={w.level} /></button>; })()}
+                  {(() => { const w = ew?.alerts.find((a) => a.region_id === regionId); return w && <button className="chiplink" onClick={() => setPg("warning")} title={w.headline}>Fire outlook: <LevelChip level={w.level} /></button>; })()}
                 </div>
                 <div className="rec-actions">
                   {online && <button className={`btn ghost sm ${exportOpen ? "on" : ""}`} onClick={() => setExportOpen(!exportOpen)} aria-expanded={exportOpen}>Download</button>}
@@ -542,7 +549,7 @@ function EwBanner({ ew, onOpen }: { ew: Warnings; onOpen: () => void }) {
   const hot = ew.alerts.filter((a) => a.level === "elevated" || a.level === "watch");
   return (
     <button className={`ew-banner ${hot.length ? "hot" : ""}`} onClick={onOpen}>
-      <b>Early warning</b>
+      <b>Fire outlook</b>
       <span>{hot.length ? `${hot.length} of ${ew.count} areas above normal now: ${hot.slice(0, 2).map((a) => a.name.split(",")[0]).join(", ")}${hot.length > 2 ? "…" : ""}` : `No area above normal as of ${ew.as_of}`}</span>
       <span className="go">See the watchlist ›</span>
     </button>
@@ -578,7 +585,7 @@ function OutlookCard({ o, onFly, onPickAround }: { o: Outlook; onFly: (b: number
   return (
     <section className="ocard">
       <header>
-        <span className="live"><i />Early warning</span>
+        <span className="live"><i />Fire outlook</span>
         <b>Next 30 days, {day(o.next_30_days[0])} to {day(o.next_30_days[1])}</b>
       </header>
       <p className="small"><b className="num" style={{ color: OUTLOOK_COLOR.watch }}>{fmt(o.counts.watch)}</b> cells are entering a usually active fire season while already running above normal; <b className="num">{fmt(o.counts.rising)}</b> are in a season that usually ramps up now.</p>

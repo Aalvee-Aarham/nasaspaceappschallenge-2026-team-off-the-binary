@@ -149,7 +149,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
   const busy = job?.status === "running";
   return (
     <>
-      <PageHead kicker="Any place on Earth" title="Create your dataset" lead="Give any box up to 16 square degrees (about 4° × 4°). Kiln Watch reads every MODIS and VIIRS detection since 2000, calibrates them onto one scale and builds the calendar, season and validation for it. The first build takes minutes, not seconds: measured 2½ minutes on a laptop and 6 on the hosted server (27 reads of NASA's archive, one per year whatever the box size, then the calibration and the fire-case checks)." />
+      <PageHead kicker="Any place on Earth" title="Create your dataset" lead="Give any box up to 16 square degrees (about 4° × 4°). Kiln Watch reads every MODIS and VIIRS detection since 2000, calibrates them onto one scale and builds the calendar, season and validation for it. The first build takes 5 to 10 minutes (27 reads of NASA's archive, one per year whatever the box size, then the calibration and the fire-case checks)." />
       {!online && <Offline what="Building a new area" />}
 
       <section>
@@ -163,7 +163,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
         <section>
           <h2>Your areas</h2>
           <ul className="areas compact">{mine.map((r) => <li key={r.id}><button onClick={() => openRegion(r.id)}><b>{r.name}</b><span className="muted small">built {r.built_at?.slice(0, 10)}</span></button></li>)}</ul>
-          <p className="muted small">Each is on the Early warning watchlist and downloadable from the Download page.</p>
+          <p className="muted small">Each is on the Fire outlook watchlist and downloadable from the Download page.</p>
         </section>
       )}
 

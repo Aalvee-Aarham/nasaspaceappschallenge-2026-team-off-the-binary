@@ -18,6 +18,14 @@ export const LEVEL: Record<PlaceLevel, { word: string; icon: string; color: stri
   unknown: { word: "Could not check", icon: "❔", color: "#97A3B3", say: "The satellite check did not answer. Please try again in a few minutes." },
 };
 const SCALE: PlaceLevel[] = ["low", "season", "watch", "near"];
+/** Bangla for a place in Bangladesh (the farmer check's words). */
+const BN: Record<PlaceLevel, [string, string]> = {
+  near: ["কাছেই আগুন", "এই সপ্তাহে ৫ কিমির মধ্যে স্যাটেলাইটে আগুন দেখা গেছে।"],
+  watch: ["সতর্ক থাকুন", "এই সপ্তাহে আশেপাশে আগুন দেখা গেছে, বা বছরের এই সময়ে এখানে প্রায়ই আগুন লাগে।"],
+  season: ["আগুনের মৌসুম", "বছরের এই সময়ে এখানে মাঝে মাঝে আগুন লাগে।"],
+  low: ["এখন কম", "এই সপ্তাহে কাছে আগুন দেখা যায়নি, আর এটি সাধারণত আগুনের মাস নয়।"],
+  unknown: ["জানা যায়নি", "স্যাটেলাইটের উত্তর আসেনি। কয়েক মিনিট পরে আবার চেষ্টা করুন।"],
+};
 export const KIND: Record<PlaceKind, { icon: string; many: string; one: string }> = {
   school: { icon: "🏫", many: "Schools", one: "School" },
   hospital: { icon: "🏥", many: "Hospitals", one: "Hospital" },
@@ -38,7 +46,7 @@ const when = (t: string) => new Date(t.replace(" ", "T") + "Z").toLocaleDateStri
 
 type Target = { q?: string; lat?: number; lon?: number; label?: string };
 
-export default function PlaceRiskCheck({ online, onArea }: { online: boolean; onArea?: (id: string) => void }) {
+export default function PlaceRiskCheck({ online, onArea, initialQ }: { online: boolean; onArea?: (id: string) => void; initialQ?: string }) {
   const [q, setQ] = useState("");
   const [radius, setRadius] = useState(10);
   const [target, setTarget] = useState<Target | null>(null);
@@ -84,6 +92,10 @@ export default function PlaceRiskCheck({ online, onArea }: { online: boolean; on
       { timeout: 15000, maximumAge: 600000 });
   };
   const pickRadius = (r: number) => { setRadius(r); if (target && !busy) run(data ? { lat: data.place.lat, lon: data.place.lon, label: data.place.name } : target, r); };
+  // deep link (Near.tsx reads #pg=near&q=…): open a finished answer, as the README's "Try it" links promise
+  useEffect(() => {
+    if (initialQ && online) { setQ(initialQ); run({ q: initialQ }); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!online) return <p className="warn">The fire check needs the Kiln Watch API, which is not answering right now. Please try again in a minute.</p>;
 
@@ -125,13 +137,15 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
   const m0 = d.season?.by_month[month];
   const ol = d.outlook?.class ?? "none";
   const name = d.place.name.split(",")[0];
+  const bd = /bangladesh|বাংলাদেশ/i.test(`${d.place.country ?? ""} ${d.place.display_name ?? ""}`);
   return (
     <article className="pr-res">
       <section className={`pr-verdict ${d.level}`} style={{ ["--lv" as string]: L.color }}>
         <div className="pr-icon" aria-hidden>{L.icon}</div>
         <div>
-          <p className="pr-word">{L.word}</p>
+          <p className="pr-word">{L.word}{bd && <span lang="bn"> · {BN[d.level][0]}</span>}</p>
           <h2 className="pr-head">{d.headline}</h2>
+          {bd && <p className="pr-where" lang="bn">{BN[d.level][1]}</p>}
           <p className="pr-where">{d.place.display_name ?? d.place.name} · looking within {d.radius_km} km</p>
         </div>
       </section>
@@ -153,7 +167,7 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
         <div className="pr-tile">
           <span>{m0 ? MONTHS[month] : "This month"} in past years</span>
           {m0 ? <b>{m0.years_with_fire} of {m0.record_years} years</b> : <b className="muted">Not available</b>}
-          <small>{m0 ? `had fire within about ${d.season!.within_km} km` : "History could not be read."}</small>
+          <small>{m0 ? `had fire within about ${d.season!.within_km} km (MODIS-only table, ${d.season!.first_year}–${d.season!.last_year})` : "History could not be read."}</small>
         </div>
         <div className="pr-tile">
           <span>Next 30 days</span>
@@ -192,7 +206,7 @@ function Result({ d, fac, facBusy, facErr, retryFac, onPick, onArea }: {
       </section>
 
       {d.built_area && onArea && (
-        <p className="pr-alt">This place is inside a study area with the full 2000–today record: <button className="link" onClick={() => onArea(d.built_area!.id)}>{d.built_area.name} ›</button></p>
+        <p className="pr-alt">This place is inside a study area with the full 2000–today record on one scale{d.built_area.this_month ? <>. <b>{d.built_area.this_month}</b></> : ""} <button className="link" onClick={() => onArea(d.built_area!.id)}>Open {d.built_area.name} ›</button></p>
       )}
 
       <details className="cx-more">
@@ -266,7 +280,7 @@ function Months({ s, now }: { s: NonNullable<PlaceRisk["season"]>; now: number }
   return (
     <section className="pr-sec" aria-labelledby="pr-m-h">
       <h3 id="pr-m-h">When does fire usually happen here?</h3>
-      <p>{busy.length ? <>Most often in <b>{busy.map((m) => MONTHS[m.month - 1]).join(", ")}</b>. Each bar shows in how many of the last {s.last_year - s.first_year + 1} years fire was seen within about {s.within_km} km in that month.</>
+      <p>{busy.length ? <>Most often in <b>{busy.map((m) => MONTHS[m.month - 1]).join(", ")}</b>. Each bar shows in how many of the last {s.last_year - s.first_year + 1} years fire was seen within about {s.within_km} km in that month (MODIS-only table, {s.first_year}–{s.last_year}; one satellite family, so no calibration enters it).</>
         : <>Fire was not seen within about {s.within_km} km in any month of the last {s.last_year - s.first_year + 1} years.</>}</p>
       <ol className="pr-months">
         {s.by_month.map((m, i) => (

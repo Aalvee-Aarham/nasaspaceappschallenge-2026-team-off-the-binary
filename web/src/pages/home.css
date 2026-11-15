@@ -2,7 +2,7 @@
    Look: black, white tight-set grotesque, one blue accent; ember is reserved for fire data. */
 .h3d { --blue: #00A1FF; --grey: #66717E; --soft: #A7B2BF; --hair: rgba(255, 255, 255, .12); --gut: clamp(20px, 4.2vw, 60px);
   position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; background: #000; color: #fff; z-index: 1;
-  font-family: "Inter Tight", "Inter", system-ui, sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
+  font-family: "Inter Tight", "Inter", "Noto Sans Bengali", system-ui, sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
 .h3d p { max-width: none; margin: 0; }
 .h3d button { font-family: inherit; cursor: pointer; }
 .h3d-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; }
@@ -80,7 +80,7 @@
 .h3d-tags > div > * { transform: translate(14px, -50%); }
 .h3d-tags i { grid-row: span 2; width: 1px; height: 30px; background: linear-gradient(transparent, var(--blue)); }
 .h3d-tags b { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; background: rgba(0, 0, 0, .55); padding: 2px 6px; }
-.h3d-tags span { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); white-space: nowrap; padding: 0 6px; }
+.h3d-tags span { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); white-space: nowrap; padding: 0 6px; }
 .h3d-tags .modis i { background: linear-gradient(transparent, #fff); }
 .h3d-tags .modis span { color: var(--soft); }
 
@@ -116,7 +116,7 @@
 
 /* the cue: its ring fills while a scene is still landing, then it invites the next move */
 .h3d-cue { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 9; display: grid; justify-items: center; gap: 5px; background: none; border: 0; padding: 4px 10px;
-  color: var(--grey); font-size: 10px; font-weight: 650; letter-spacing: .3em; text-indent: .3em; text-transform: uppercase; transition: opacity .4s, color .3s; }
+  color: var(--grey); font-size: 12px; font-weight: 650; letter-spacing: .3em; text-indent: .3em; text-transform: uppercase; transition: opacity .4s, color .3s; }
 .h3d-cue svg { width: 30px; height: 30px; overflow: visible; }
 .h3d-cue circle { fill: none; stroke: var(--blue); stroke-width: 1.4; stroke-dasharray: 1; stroke-dashoffset: 1; transform: rotate(-90deg); transform-origin: 50% 50%; }
 .h3d-cue path { fill: none; stroke: currentColor; stroke-width: 1.6; opacity: .3; transition: opacity .3s; }
@@ -177,7 +177,7 @@
   transition: transform .3s, border-color .3s, background .3s; }
 .ncard:nth-child(odd) { margin-left: 34px; }
 .ncard:hover { transform: translateX(6px); background: rgba(10, 20, 36, .9); border-color: rgba(0, 161, 255, .5); border-left-color: #ff6a3d; }
-.ncard .src { font-size: 10.5px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: #ff8a5c; }
+.ncard .src { font-size: 12px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: #ff8a5c; }
 .ncard b { font-size: 16px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; }
 .ncard .meta { font-size: 12.5px; color: var(--grey); font-variant-numeric: tabular-nums; }
 .h3d-console .glass { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, rgba(120, 190, 255, .1), rgba(255, 255, 255, 0) 38%, rgba(0, 0, 0, 0) 60%, rgba(0, 20, 50, .35)); }
@@ -207,7 +207,7 @@
 .term .bar span { margin-left: 10px; color: var(--grey); font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
 .term pre { margin: 0; padding: 20px 22px; font: 13.5px/1.6 ui-monospace, Consolas, monospace; color: #cfe3f5; }
 .term .tools { padding: 14px 22px 20px; border-top: 1px solid rgba(255, 255, 255, .07); font: 12.5px/1.7 ui-monospace, Consolas, monospace; color: var(--soft); }
-.term .tools span { display: block; color: var(--blue); font-family: "Inter Tight", sans-serif; font-weight: 650; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+.term .tools span { display: block; color: var(--blue); font-family: "Inter Tight", sans-serif; font-weight: 650; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
 
 .built .head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr); gap: 40px; align-items: start; padding-bottom: 60px; }
 .built .label { font-size: 17px; font-weight: 650; text-transform: uppercase; letter-spacing: -.01em; padding-top: 8px; }
@@ -280,7 +280,7 @@
   .h3d-beat.hero { align-items: end; padding-bottom: 20vh; }
   .h3d-bar { bottom: 70px; left: 20px; right: 20px; transform: none; }
   .h3d-bar > button { flex: 1; width: auto; height: 24px; }
-  .h3d-bar span { left: 6px; line-height: 24px; font-size: 9px; }
+  .h3d-bar span { left: 6px; line-height: 24px; font-size: 12px; }
   .h3d-cta { bottom: 104px; right: 20px; }
   .h3d-cta i { width: 40px; height: 40px; }
   .h3d-tags { display: none; } /* the name labels would sit on the sentence; the legend under it carries the colours */
@@ -325,7 +325,7 @@
   box-shadow: 0 30px 90px rgba(0, 0, 0, .6); }
 .pixcard.n2 { width: min(700px, 50vw); align-self: end; margin-bottom: 128px; }
 .pixcard figcaption { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: var(--soft); font-size: 13px; }
-.pixcard figcaption span { padding: 2px 7px; border: 1px solid #3a4250; border-radius: 3px; color: var(--grey); font-size: 10.5px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.pixcard figcaption span { padding: 2px 7px; border: 1px solid #3a4250; border-radius: 3px; color: var(--grey); font-size: 12px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
 .patches { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 14px; }
 .patch svg { display: block; width: 100%; height: auto; border-radius: 4px; }
 .patch .ground { fill: #0d1310; }
@@ -405,7 +405,7 @@
   .h3d-flow, .h3d-say .h3d-flow { flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; }
   .h3d-flow li, .h3d-say .h3d-flow li { padding: 8px 11px; }
   .h3d-flow b, .h3d-say .h3d-flow b { font-size: 12.5px; }
-  .h3d-flow span { font-size: 11px; }
+  .h3d-flow span { font-size: 12px; }
   .phone { --ph: 34vh; margin-bottom: 118px; }
   .h3d-big { font-size: 44px; }
 }
@@ -425,3 +425,15 @@
 
 
 .h3d-link.sm { display: flex; margin-top: 12px; font-size: 14px; }
+
+/* first screen: the two things a non-expert can try in ten seconds, and a way past the story */
+.h3d-try { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px !important; pointer-events: auto; }
+.h3d-try button { padding: 10px 18px; border-radius: 99px; border: 1px solid var(--blue); background: rgba(0, 161, 255, .14); color: #fff; font-size: 15px; font-weight: 600; }
+.h3d-try button:hover { background: rgba(0, 161, 255, .3); }
+.h3d-try button.ghost { border-color: var(--hair); background: none; color: var(--soft); }
+/* farmers beat: the farmer check's captures beside the globe */
+.farmshots { justify-self: start; align-self: center; display: grid; gap: 14px; width: min(420px, 36vw); margin-left: clamp(0px, 3vw, 50px); }
+.farmshots img { width: 100%; display: block; border: 1px solid var(--hair); border-radius: 8px; box-shadow: 0 18px 50px rgba(0, 0, 0, .65); }
+.farmshots img:nth-child(2) { margin-left: 34px; width: calc(100% - 34px); }
+.farmbeat .fine { max-width: 460px; margin-left: auto; }
+@media (max-width: 900px) { .farmshots { display: none; } }

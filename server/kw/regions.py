@@ -13,7 +13,7 @@ PRESETS = {
         "name": "Punjab–Haryana crop residue burning",
         "country": "India",
         "bbox": (73.8, 29.5, 77.6, 32.6),
-        "story": "Post-harvest rice stubble burning (Oct–Nov) and wheat residue (Apr–May) drive smog over the Indo-Gangetic Plain.",
+        "story": "Post-harvest rice stubble burning (Oct–Nov) and wheat residue (Apr–May) drive smog over the Indo-Gangetic Plain. Caveat: since 2024 a NASA scientist has reported, from a geostationary satellite, that more burning starts after the early-afternoon pass of the satellites used here (not yet checked on the ground). If so, recent low counts are partly a timing effect this record cannot see.",
         "lang": ["hi", "pa", "en"],
         "places": ["Punjab", "Haryana", "Ludhiana", "Sangrur"],
     },

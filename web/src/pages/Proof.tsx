@@ -4,6 +4,12 @@ import { Meta, Num, RegionItem, api, fmt } from "../api";
 const times = (v: Num | undefined) => (v == null ? "–" : `×${v.toFixed(2)}`);
 const sgn = (v: Num | undefined) => (v == null ? "–" : `${v > 0 ? "+" : ""}${fmt(v, 1)}%`);
 const cov = (v: Num | undefined) => (v == null ? "–" : `${fmt(v * 100, 0)}%`);
+/** Plain trust label from the "what if MODIS had ended in 2016" test: the bias of the record rebuilt from VIIRS alone.
+ *  High within 10 %, Medium within 25 %, else Low. */
+export const trust = (m: Meta): "High" | "Medium" | "Low" => {
+  const b = m.denial.modis_ends_2016?.ours_seasonal_eb.bias_pct;
+  return b == null ? "Low" : Math.abs(b) <= 10 ? "High" : Math.abs(b) <= 25 ? "Medium" : "Low";
+};
 const inRange = (m: Meta) => {
   const h = m.steps.VIIRS_SNPP?.harmonized_excess;
   return h != null && m.placebo != null && h >= m.placebo.excess_p05 && h <= m.placebo.excess_p95;
@@ -34,6 +40,7 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
           <caption className="muted small" style={{ textAlign: "left" }}>Each row is one area. Every value is read from that area's published results.</caption>
           <thead><tr>
             <th scope="col">Area</th>
+            <th scope="col">Trust</th>
             <th scope="col">Raw jump at the Suomi-NPP arrival</th>
             <th scope="col">Harmonized jump</th>
             <th scope="col">Error if MODIS had ended (raw → ours)</th>
@@ -48,6 +55,7 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
             return (
               <tr key={m.id}>
                 <th scope="row">{m.name}</th>
+                <td><span className={`trust ${trust(m).toLowerCase()}`}>{trust(m)}</span></td>
                 <td className="num">{times(s?.raw_all_sensors_excess)}</td>
                 <td className="num">{times(s?.harmonized_excess)}{s && inRange(m) && <span className="muted small"> within no-change range</span>}</td>
                 <td className="num">{sgn(d.uncalibrated.bias_pct)} → <b>{sgn(d.ours_seasonal_eb.bias_pct)}</b></td>
@@ -61,7 +69,8 @@ export function Scorecard({ regions }: { regions: RegionItem[] }) {
           })}</tbody>
         </table>
       </div>
-      <p className="muted small">How to read it: a harmonized jump near ×1.00 means the satellite arrival left no artificial step, and raw jumps show how large the artifact would have been. Error if MODIS had ended is the bias of rebuilding 2017–2020 from VIIRS alone. Chain closure is how far two routes to the Aqua scale disagree. The fire-size term column is the mean absolute log error of predicting Aqua from Suomi-NPP over 2017–2020, without and with a term for the month's mean VIIRS fire power (lower is better). Early-warning skill is the Peirce skill score of the percentile rule run as if it were day 15 of each past month (1 is perfect, 0 is no better than chance).</p>
+      <p className="small"><b>What this does not show:</b> burned area or fire size (detections are not fires); fires the satellites miss (under cloud, too small, or burning after the early-afternoon pass); any place outside these areas, which has no score until its own record is built.</p>
+      <p className="muted small">How to read it: Trust is High when the record rebuilt from VIIRS alone is within 10% of what Aqua MODIS saw over 2017–2020, Medium within 25%, else Low. A harmonized jump near ×1.00 means the satellite arrival left no artificial step, and raw jumps show how large the artifact would have been. Error if MODIS had ended is the bias of rebuilding 2017–2020 from VIIRS alone. Chain closure is how far two routes to the Aqua scale disagree. The fire-size term column is the mean absolute log error of predicting Aqua from Suomi-NPP over 2017–2020, without and with a term for the month's mean VIIRS fire power (lower is better). Early-warning skill is the Peirce skill score of the percentile rule run as if it were day 15 of each past month (1 is perfect, 0 is no better than chance).</p>
       {(short.length > 0 || worstTransfer.length > 0) && (
         <>
           <h3>Where it falls short</h3>

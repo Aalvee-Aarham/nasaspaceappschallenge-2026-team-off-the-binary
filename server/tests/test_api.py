@@ -266,6 +266,18 @@ def test_farm_check_counts_kilns_and_never_says_zero_where_it_cannot_see():
     assert sylhet["in_bangladesh"] and not sylhet["covered"] and "within_3km" not in sylhet, sylhet
 
 
+def test_tts_validates_before_calling_the_voice_and_mcp_answers_with_a_slash():
+    assert client.post("/api/tts", json={"text": "  "}).status_code == 400            # empty: never sent out
+    assert client.post("/api/tts", json={"text": "x" * 1201}).status_code == 400      # too long
+    assert client.post("/api/tts", json={"text": "hi", "lang": "fr"}).status_code == 400
+    init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+            "clientInfo": {"name": "t", "version": "0"}}}
+    hdr = {"Accept": "application/json, text/event-stream"}
+    for path in ("/mcp", "/mcp/"):   # no redirect: some clients do not follow one for a POST
+        r = client.post(path, json=init, headers=hdr, follow_redirects=False)
+        assert r.status_code == 200 and r.json()["result"]["serverInfo"], (path, r.status_code)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

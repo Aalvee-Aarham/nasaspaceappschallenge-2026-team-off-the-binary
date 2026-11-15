@@ -21,7 +21,10 @@ export default function Bangladesh({ go, openRegion, online }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Local impact" title="Bangladesh" lead="Farmers say kiln smoke ruins their crops but cannot show the kilns are there. Now they can: a dated, satellite-checked record of the kilns near their field, fire this week, and the Boro season." />
+      <PageHead kicker="বাংলাদেশ · For farmers" title="বাংলাদেশ · Bangladesh" lang="bn"
+        lead="কৃষকরা বলেন ইটভাটার ধোঁয়া ফসল নষ্ট করে, কিন্তু ইটভাটা যে আছে তা দেখাতে পারেন না। এখন পারবেন: জমির কাছের ইটভাটার তারিখসহ তালিকা, এই সপ্তাহের আগুন, আর বোরো মৌসুম।">
+        <p className="muted">Farmers say kiln smoke ruins their crops but cannot show the kilns are there. Now they can: a dated, satellite-checked record of the kilns near their field, fire this week, and the Boro season.</p>
+      </PageHead>
       <section><FarmCheck online={online} /></section>
       <details className="cx-more fk-research">
       <summary>For researchers: how we measured kilns around Dhaka</summary>

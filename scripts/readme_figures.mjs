@@ -79,6 +79,9 @@ function hero(id) {
 }
 
 // ---------- 2. stat tiles ----------
+// the headline pair used everywhere (site hero, README): the median across areas, as Home.tsx summarize() computes it
+const med = (xs) => { const s = [...xs].sort((a, b) => a - b), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+
 function stats() {
   const all = Object.values(metas), W = 1000, H = 132;
   const raw = all.map((m) => m.steps.VIIRS_SNPP.raw_all_sensors_excess), hm = all.map((m) => m.steps.VIIRS_SNPP.harmonized_excess);
@@ -88,8 +91,8 @@ function stats() {
   const span = Math.round((Date.parse(lastD) - Date.parse(first)) / (365.25 * 864e5));
   const tiles = [
     [`${span} years`, `${first.slice(0, 7)} to ${lastD.slice(0, 7)}, one record`],
-    [`${Math.min(...raw).toFixed(1)}–${Math.max(...raw).toFixed(1)}×`, "raw jump when Suomi-NPP arrives"],
-    [`${Math.min(...hm).toFixed(2)}–${Math.max(...hm).toFixed(2)}×`, "the same step after harmonization"],
+    [`×${med(raw).toFixed(1)}`, `raw jump when Suomi-NPP arrives (median, ${all.length} areas)`],
+    [`×${med(hm).toFixed(2)}`, "the same step in our record (1.00 = no jump)"],
     [`${big(det)}`, `detections processed, ${all.length} test regions`],
   ];
   const w = (W - 5 * 16) / 4;
@@ -98,7 +101,7 @@ function stats() {
     return `<rect x="${x}" y="16" width="${w}" height="${H - 32}" rx="10" fill="#0F1A2E" stroke="${C.edge}"/>` +
       T(x + 18, 66, a, { size: 32, w: 700, fill: i === 1 ? C.raw : i === 2 ? C.harm : C.text }) + T(x + 18, 94, b, { size: 13, fill: C.mute });
   }).join("");
-  numbers.stats = { span_years: span, first, last: lastD, raw_step: [Math.min(...raw), Math.max(...raw)], harmonized_step: [Math.min(...hm), Math.max(...hm)], coverage_pct: [Math.min(...cov), Math.max(...cov)], detections: det, regions: all.length };
+  numbers.stats = { span_years: span, first, last: lastD, raw_step_median: med(raw), harmonized_step_median: med(hm), raw_step: [Math.min(...raw), Math.max(...raw)], harmonized_step: [Math.min(...hm), Math.max(...hm)], coverage_pct: [Math.min(...cov), Math.max(...cov)], detections: det, regions: all.length };
   save("stats", svg(W, H, g));
 }
 

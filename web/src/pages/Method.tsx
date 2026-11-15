@@ -12,7 +12,7 @@ const STEPS: [string, string][] = [
   ["Observing opportunity", "The share of days each satellite delivered data anywhere on Earth, measured per period from the data itself. Launches, gaps and the Suomi-NPP end are never hard-coded. Counts are divided by it."],
   ["Calibration", "A ratio of totals per calendar month, day and night separately, shrunk toward the pooled ratio by empirical Bayes. Chain: Terra to Aqua, Suomi-NPP to Aqua (before Aqua's orbit drift), NOAA-20 to Suomi-NPP, NOAA-21 to NOAA-20. Chain-closure mismatch is added to the error."],
   ["Stitching", "An inverse-variance mean of the satellites observing each period, with intervals widened to the coverage measured in the denial test."],
-  ["Comparison", "Median, ratio, percentile and rank against the same period in other complete years. Fire counts are skewed, so there are no sigma thresholds. The Early warning level uses the same percentiles."],
+  ["Comparison", "Median, ratio, percentile and rank against the same period in other complete years. Fire counts are skewed, so there are no sigma thresholds. The Fire outlook level uses the same percentiles."],
 ];
 
 const WHY: [string, string][] = [
@@ -35,6 +35,7 @@ const REFS: [string, string][] = [
 ];
 
 export const LIMITS = [
+  "Every satellite here passes in the early afternoon or at night. A fire lit and finished between passes is never seen. In Punjab and Haryana a NASA scientist reported from a geostationary satellite (GEO-KOMPSAT-2A) that burning has moved later in the day since 2024, not yet checked on the ground; if so, part of the recent fall in counts there is timing, not less burning.",
   "Exposure is a static context layer joined to the 0.1° grid. Population is WorldPop's modelled 2020 surface, not a census; hospitals, schools and roads are an OpenStreetMap snapshot from the query date; farmland is ESA WorldCover 2021 cropland, one year of land cover. No fire perimeter, no smoke, no fire spread, no crop loss and no impact estimate.",
   "An outside event (EONET, GDACS) is one point on a fire that can span several cells and start before its first hotspots, so it is matched to the record in its 0.1° cell and the 8 around it, in the event month and the next. Those windows are judgement calls, not fitted. Press counts are matched by place names and fire words only, so a count says reports exist, not that they describe this fire; the press witness never says a fire did not happen, and a witness whose search failed or does not reach back that far is shown as \"could not look\".",
   "The burned-area witness (MODIS MCD64A1) sums the burn scar mapped in the case cell and its 8 neighbours that month. It confirms fire on the ground, but its mapping is guided by MODIS active fires, so it is not fully independent of the hotspot record.",
@@ -47,7 +48,7 @@ export const LIMITS = [
   "Near-real-time rows cannot be compared with standard processing from the mirror, so those months are labelled provisional, not adjusted.",
   "Brick-kiln evidence is a published Sentinel-2 kiln map (kiln structures in the 2024-25 dry season, about 8 in 10 right inside labelled footprints, about 2 in 10 outside) Black Marble night lights, a weak witness because city lights drown a kiln's, and Sentinel-1 radar contrast with the surroundings (dry season against monsoon), which also responds to buildings and moisture. It shows structures, not kilns in operation, and the map is licensed for non-commercial use.",
   "GDELT search starts in 2017 and GDACS wildfire events in 2021. Reports are matched by place and date only; Google News RSS returns at most about 100 items per query, so busy windows are split by year and language.",
-  "The 30-day outlook is on the Aqua MODIS scale but counted by NOAA-20 VIIRS from Aqua's measured drift onset and for the last 30 days, with a per-cell ratio fitted on earlier years (the held-out error is on the Early warning page). It is a climatology plus the present anomaly, never a forecast, and it has not been backtested as a predictor of later seasons.",
+  "The 30-day outlook is on the Aqua MODIS scale but counted by NOAA-20 VIIRS from Aqua's measured drift onset and for the last 30 days, with a per-cell ratio fitted on earlier years (the held-out error is on the Fire outlook page). It is a climatology plus the present anomaly, never a forecast, and it has not been backtested as a predictor of later seasons.",
   "The outlook drops cells whose typed history is 30% or more static sources; a new gas-flare field can look above normal until FIRMS types it.",
 ];
 
@@ -148,6 +149,18 @@ export default function MethodPage({ regions }: PageProps) {
       </section>
 
       <section>
+        <h2>What this is not</h2>
+        <ul className="plain">
+          <li>Detections are not fires, and not burned area.</li>
+          <li>Missing news is never evidence that nothing happened, and a report is never proof of a detection.</li>
+          <li>The fire outlook compares with history. It does not forecast.</li>
+          <li>Nothing on screen is typed in: every number comes from the pipeline, and each file records its code version.</li>
+        </ul>
+      </section>
+
+      <details className="proof-more">
+        <summary>How it works, step by step: the reference, the six steps, the outlook, news, cases, other data, limits and credits</summary>
+      <section>
         <h2>The reference instrument</h2>
         <Suspense fallback={<div className="skeleton tall" />}><Satellite /></Suspense>
       </section>
@@ -176,7 +189,7 @@ export default function MethodPage({ regions }: PageProps) {
 
       <section>
         <h2>The 30-day outlook</h2>
-        <p>The globe in the Explorer and on Early warning shows, for every half-degree cell on Earth, two things measured from the same instrument since 2003: <b>what the next 30 calendar days usually bring</b> (median and 90th percentile of earlier years) and <b>how unusual the last 30 days were</b> (percentile against the same days in each earlier year). Aqua MODIS is used alone because it is the one sensor observed every year since 2003, so no calibration enters the comparison.</p>
+        <p>The globe in the Explorer and on Fire outlook shows, for every half-degree cell on Earth, two things measured from the same instrument since 2003: <b>what the next 30 calendar days usually bring</b> (median and 90th percentile of earlier years) and <b>how unusual the last 30 days were</b> (percentile against the same days in each earlier year). Aqua MODIS is used alone because it is the one sensor observed every year since 2003, so no calibration enters the comparison.</p>
         <ul className="plain">
           <li><b style={{ color: "#F6C64F" }}>Season ahead</b>: the next 30 days usually bring at least 5 hotspots.</li>
           <li><b style={{ color: "#FF9A3C" }}>Above normal</b>: the last 30 days are at or above the 90th percentile of the same days in earlier years, and at least 5 hotspots.</li>
@@ -212,15 +225,6 @@ export default function MethodPage({ regions }: PageProps) {
         <p>Population (WorldPop 2020, 1 km) and infrastructure (OpenStreetMap) inside the 0.1° cells where the record shows fire. This is a context layer: FIRMS gives detections, not a fire perimeter, so nothing here says the fire reached a place, and nothing here models smoke or fire spread. Population is modelled 2020 data.</p>
       </section>
 
-      <section>
-        <h2>What this is not</h2>
-        <ul className="plain">
-          <li>Detections are not fires, and not burned area.</li>
-          <li>Missing news is never evidence that nothing happened, and a report is never proof of a detection.</li>
-          <li>The early warning compares with history. It does not forecast.</li>
-          <li>Nothing on screen is typed in: every number comes from the pipeline, and each file records its code version.</li>
-        </ul>
-      </section>
 
       <section>
         <h2>Evidence for an area</h2>
@@ -249,6 +253,7 @@ export default function MethodPage({ regions }: PageProps) {
         <h2>Data and credits</h2>
         <p className="small">We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS). Burned area for the area-level check is NASA MCD64A1 Collection 6.1, from the LP DAAC via the public Planetary Computer catalogue; the per-case burned-area witness uses the same product through Google Earth Engine. The APAD brick-kiln inventory (CC BY 4.0) backs the independent kiln cross-check. Detections via the Portolan FIRMS mirror (CC0). Imagery: NASA GIBS. Night lights: NASA Black Marble (VIIRS Day/Night Band) via GIBS. Events: NASA EONET and GDACS (European Commission JRC, UN OCHA). News: The GDELT Project and Google News RSS (personal, non-commercial use). Place names: OpenStreetMap Nominatim. Base map: OpenFreeMap and OpenStreetMap contributors. Kiln Watch is an independent project and not an official NASA product.</p>
       </section>
+      </details>
     </>
   );
 }
