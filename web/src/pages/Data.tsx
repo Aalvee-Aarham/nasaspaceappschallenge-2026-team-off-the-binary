@@ -163,7 +163,7 @@ export function Create({ regions, online, job, build, openRegion, goDraw }: Page
         <section>
           <h2>Your areas</h2>
           <ul className="areas compact">{mine.map((r) => <li key={r.id}><button onClick={() => openRegion(r.id)}><b>{r.name}</b><span className="muted small">built {r.built_at?.slice(0, 10)}</span></button></li>)}</ul>
-          <p className="muted small">Each is on the Fire outlook watchlist and downloadable from the Download page.</p>
+          <p className="muted small">Each is on the Early warning watchlist and downloadable from the Download page.</p>
         </section>
       )}
 

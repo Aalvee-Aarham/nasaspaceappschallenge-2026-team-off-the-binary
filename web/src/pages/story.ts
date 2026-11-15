@@ -21,7 +21,7 @@ export type StoryOpts = {
   onBeat: (to: number, from: number) => void;
   onPlayhead: (ph: number) => void;
 };
-export type Story = { ph: Playhead; start: () => void; go: (to: number) => void; next: () => void; skip: (el: HTMLElement) => void; dispose: () => void };
+export type Story = { ph: Playhead; start: () => void; go: (to: number) => void; next: () => void; dispose: () => void };
 
 type Block = { el: HTMLElement; a: number; b: number; at: number; tl: gsap.core.Timeline; on: boolean; out?: gsap.core.Tween };
 
@@ -161,17 +161,8 @@ export function mountStory(scroller: HTMLElement, content: HTMLElement, opts: St
       .to(fade, { autoAlpha: 0, duration: 0.5 }, "+=0.05");
   };
 
-  /** "Skip the story": past it to a section below, through black like a far chapter jump. */
-  const skip = (el: HTMLElement) => {
-    const y = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scrollY();
-    if (!lenis) return scroller.scrollTo({ top: y });
-    gsap.timeline().to(fade, { autoAlpha: 1, duration: 0.25 })
-      .add(() => { lenis.scrollTo(y, { immediate: true, force: true }); update(); })
-      .to(fade, { autoAlpha: 0, duration: 0.5 }, "+=0.05");
-  };
-
   return {
-    ph, skip,
+    ph,
     start() {
       if (started) return;
       started = true;

@@ -246,7 +246,7 @@ def _local_picture(sub):
             gaps.append(why)
     w, why = _try(lambda: tools.early_warning(rid), "The area's early-warning level")
     if w:
-        cells.append(("Fire outlook", w["level"].title(), w["headline"][:110]))
+        cells.append(("Early warning", w["level"].title(), w["headline"][:110]))
     elif not p:
         gaps.append(why if "not found" not in (why or "").lower() else "The area's record is still being built (5 to 10 minutes)")
     if not p:

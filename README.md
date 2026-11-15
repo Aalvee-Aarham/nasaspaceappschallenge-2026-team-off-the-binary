@@ -31,7 +31,7 @@
 | [Punjab, 26 years](https://kiln-watch-seven.vercel.app/#pg=explore&r=punjab) | The burning calendar: one square per month, one row per year, no jump in 2012 |
 | [The scorecard](https://kiln-watch-seven.vercel.app/#pg=method) | Nine areas, every test, a plain trust label, and where it falls short |
 | [After MODIS](https://kiln-watch-seven.vercel.app/#pg=after) | Switch satellites off and watch the record hold |
-| [Is fire near Ludhiana?](https://kiln-watch-seven.vercel.app/#pg=near&q=Ludhiana%2C%20India) | Fire seen this week, when fire usually comes, and the schools and hospitals near it |
+| [Is fire near Ludhiana?](https://kiln-watch-seven.vercel.app/#pg=cases&q=Ludhiana%2C%20India) | Fire seen this week, when fire usually comes, and the schools and hospitals near it |
 | [Farmer check, Aminbazar](https://kiln-watch-seven.vercel.app/#pg=bangladesh&q=Aminbazar%2C%20Savar%2C%20Bangladesh) | Kilns within 1 and 3 km, their estimated smoke, the Boro season, in Bangla with a Listen button |
 | `claude mcp add --transport http kiln-watch https://kiln-watch-seven.vercel.app/mcp` | 35 read-only fire tools for Claude over the same record |
 
@@ -107,7 +107,7 @@ It shows that kilns stand near a field; it does not prove crop damage. [The meas
   checked on the ground); if so, recent low counts there are partly timing.
 - **After MODIS the chain does not fully close.** NOAA-20 straight to Aqua and NOAA-20 through Suomi-NPP disagree by up to
   about 90% at night in some areas; the gap is added to the interval, not hidden.
-- **Detections are not fires and not burned area**, and the fire outlook is history plus the present, never a forecast.
+- **Detections are not fires and not burned area**, and the early warning is history plus the present, never a forecast.
 
 Every alternative we tested and every check that failed, with numbers: [HARMONIZATION_TESTS.md](HARMONIZATION_TESTS.md).
 Everything else (all shortfalls, exposure, NASA's open questions, how it is built, hosting, how to run it, references):

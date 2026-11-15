@@ -36,21 +36,37 @@ const kf = (d: Partial<K>) => KF.push({ ...(KF[KF.length - 1] ?? ({} as K)), ...
 // 0 hero: satellite over a dark limb, whole (no break-apart in the opening)
 kf({ cx: 0.2, cy: 1.5, cz: 3.25, lx: 0.2, ly: 1.42, lz: 0, ox: 0.22, oy: -0.04, fov: 40, rx: 0.5, ry: -0.85, aT: 0, aO: 1, tT: 1.6, tO: 0, sep: 0, sT: 1.6, sO: 0,
   merge: 0, rings: 0, tags: 0, ev: 1, dr: 1, beam: 1, earth: 1, dots: 0.15, grid: 0, streaks: 0 });
-// 1 the older camera: Terra and Aqua fly in as parts and assemble side by side on the blueprint grid
-kf({ ...iso(9.8), ox: -0.03, oy: 0.04, fov: 15, rx: 0, ry: 0, aT: 0, aO: 1, tT: 0, tO: 1, sep: 0.66, ev: 0, earth: 0, grid: 1, merge: 1, dr: 0, beam: 0, dots: 1 });
-// 2 the sharper camera: Terra and Aqua scatter, Suomi NPP assembles between them
+// 1 the problem: the whole globe on the right, five labelled orbits (white = older camera, blue = newer)
+kf({ cx: 0, cy: 0.35, cz: 5.6, lx: 0, ly: 0, lz: 0, ox: 0.24, oy: 0, aO: 0, dr: 0, beam: 0, dots: 1, rings: 1, tags: 1, streaks: 0.25, ev: 0.6 });
+// 2 the challenge: the camera swings round and in; the orbits still run apart
+kf({ cx: 1.9, cy: 1.15, cz: 3.5, ox: 0.27, tags: 0, aT: 1.6 });
+// 3 our solution: the five orbits fold into one
+kf({ cx: 0, cy: 1.5, cz: 4.6, ox: 0.23, merge: 1, streaks: 0 });
+// 4 the impact: a big globe from the right, live fires on it
+kf({ cx: 0, cy: 0.25, cz: 2.7, lx: -1.5, ly: 0.1, ox: 0, rings: 0, ev: 1 });
+// 5 the older camera: Terra and Aqua fly in as parts and assemble side by side on the blueprint grid
+kf({ ...iso(9.8), ox: -0.03, oy: 0.04, fov: 15, rx: 0, ry: 0, aT: 0, aO: 1, tT: 0, tO: 1, sep: 0.66, ev: 0, earth: 0, grid: 1 });
+// 6 the sharper camera: Terra and Aqua scatter, Suomi NPP assembles between them
 kf({ ...iso(7.4), ox: 0.06, oy: -0.24, aT: 2.2, tT: 2.2, aO: 0, tO: 0, sT: 0, sO: 1 });
-// 3 the jump: Suomi NPP bursts apart, back to a quiet globe behind the chart
+// 7 the jump: Suomi NPP bursts apart, back to a quiet globe behind the chart
 kf({ cx: 0, cy: 0.4, cz: 3.6, lx: 0, ly: 1.25, lz: 0, ox: 0, oy: 0, fov: 40, rx: 0.5, ry: -0.85, sT: 2.2, sO: 0, sep: 0, grid: 0, earth: 0.6 });
-// 4 the fix
+// 8 the fix
 kf({ cy: 0.45, cz: 3.5, ly: 1.2 });
-// 5 the proof: globe sinks to the lower half
+// 9 the proof: globe sinks to the lower half
 kf({ cy: 0.5, ly: 1.15 });
-// 6 farmers: globe to the left, the farmer check beside it
-kf({ cx: 0, cy: 0.35, cz: 2.75, lx: 0.95, ly: 0.2, lz: 0, earth: 1, ev: 0 });
-// 7 connect: globe low on the right
+// 10 console: a huge globe fills the lower half
+kf({ cy: 0.62, cz: 2.25, ly: 1.02, earth: 1 });
+// 11-15 explore / warn / cases / ask / farmers: the camera drifts under the floating screen
+kf({ cx: -0.32, cy: 0.7, cz: 2.0, lx: 0.1, ly: 0.82 });
+kf({ cx: 0.34, cy: 0.66, cz: 2.0, lx: -0.1, ly: 0.8 });
+kf({ cx: -0.26, cy: 0.58, cz: 1.95, lx: 0.08, ly: 0.76 });
+kf({ cx: 0.12, cy: 0.5, cz: 1.9, lx: 0, ly: 0.7 });
+kf({ cx: -0.2, cy: 0.46, cz: 1.9, lx: 0.06, ly: 0.68 });
+// 16 news: globe to the left, live EONET wildfire events on it
+kf({ cx: 0, cy: 0.35, cz: 2.75, lx: 0.95, ly: 0.2, lz: 0, ev: 1 });
+// 17 connect: globe low on the right
 kf({ cx: 0, cy: 0.95, cz: 2.8, lx: -0.75, ly: 1.0, lz: 0, ev: 0 });
-// 8 finale: Aqua reassembles above the globe
+// 18 finale: Aqua reassembles above the globe
 kf({ cx: 0.55, cy: 1.72, cz: 4.35, lx: 0.55, ly: 1.12, lz: 0.75, aO: 1, aT: 0, dr: 0.5, ev: 1 });
 export const BEATS = KF.length;
 

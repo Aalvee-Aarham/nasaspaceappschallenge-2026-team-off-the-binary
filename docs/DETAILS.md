@@ -60,9 +60,9 @@ We publish these, not hide them. Every alternative we tested and every check the
 - Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 6%.
 - Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
-- No cloud-cover correction yet. The fire-outlook rule is now backtested per area (Fire outlook page), but in sparse areas the
+- No cloud-cover correction yet. The early-warning rule is now backtested per area (Early warning page), but in sparse areas the
   scored months lean toward active ones, so its skill numbers there are not yet comparable across areas.
-- **The fire-outlook backtest flattered itself, and we now say by how much.** On day 15 the rule's skill was scored
+- **The early-warning backtest flattered itself, and we now say by how much.** On day 15 the rule's skill was scored
   against the whole month, which contains the 15 days it had already seen. Scored only on the 16th to the month's end,
   the skill falls (Punjab 0.77 → 0.38, Alberta 0.82 → 0.59, Niger Delta 0.54 → 0.06). Against a simple reference,
   "last month was in the top tenth", the rule wins in Alberta, Punjab and south-east Australia, ties in Northern
@@ -100,7 +100,7 @@ numbers: `data/validation/burned_area.json`, `data/validation/kilns_dhaka-kilns.
 <td width="50%" valign="top"><img src="readme/app-globe.jpg" alt="3D globe with the worldwide 30-day outlook"><br><b>Globe and 30-day outlook.</b> Every half-degree cell on Earth: what the next 30 days usually bring, and how unusual the last 30 were.</td>
 </tr>
 <tr>
-<td valign="top"><img src="readme/app-warning.jpg" alt="Fire outlook page with a list of places to watch"><br><b>Fire outlook.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
+<td valign="top"><img src="readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
 <td valign="top"><img src="readme/app-mcp.jpg" alt="MCP page: 35 read-only tools online, 40 locally, 4 characters, 5 resources"><br><b>Ask it anything.</b> An in-app analyst and an MCP server (35 read-only tools online, 40 locally) for Claude, Cursor and n8n. The AI model only picks which algorithm answers the question; the algorithm writes the answer, so every number comes from the pipeline.</td>
 </tr>
 </table>
@@ -368,7 +368,7 @@ An alert email can therefore come a few hours after the satellites see fire; eve
 
 **Signing up for an alert with an email** starts it at once (no confirmation step: the audience is small and known).
 Two emails follow on their own: the fire picture around the place (fire this week and how far, the usual fire months,
-the 30-day outlook, the fire-outlook level, and the people, schools and hospitals near fire), usually within about a
+the 30-day outlook, the early-warning level, and the people, schools and hospitals near fire), usually within about a
 minute; then fire across the whole country this week, read live from NASA FIRMS (detections per satellite, the busiest
 places, the cells on fire-season watch, open NASA EONET wildfires), within a few minutes. A source that cannot be read
 is named in the email ("Could not look: …"), never shown as zero. Every push runs the six

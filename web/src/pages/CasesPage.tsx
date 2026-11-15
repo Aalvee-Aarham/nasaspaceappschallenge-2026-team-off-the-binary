@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { CaseVerdict, CasebookOverview, api, fmt } from "../api";
 import { CaseCard, CellMap, Icon, LABEL, VerdictChips, compact, peopleShade, useCases, useExposure } from "../casebook";
 import { FarmSection, PeopleSection, PlaceCheck } from "../exposure";
 import { AreaSelect, Offline, PageHead, PageProps } from "./shared";
+
+// The place check draws a MapLibre map: lazy, so the map library stays out of the entry chunk.
+const PlaceRiskCheck = lazy(() => import("../PlaceRisk"));
 
 export default function CasesPage({ regions, online, area }: PageProps) {
   const presets = regions.filter((r) => r.preset);
@@ -17,6 +20,8 @@ export default function CasesPage({ regions, online, area }: PageProps) {
   const [place, setPlace] = useState<{ lat: number; lon: number; label: string; n: number } | null>(null);
   const [side, setSide] = useState<"cases" | "people">("cases");
   const [hi, setHi] = useState<[number, number] | null>(null);
+  // deep link #pg=cases&q=Ludhiana, India: read at first render, before App rewrites the hash (the check loads later)
+  const [q0] = useState(() => new URLSearchParams(location.hash.slice(1)).get("q")?.trim() || undefined);
   const check = (lat: number, lon: number, label: string) => {
     setPlace((p) => ({ lat, lon, label, n: (p?.n ?? 0) + 1 }));
     requestAnimationFrame(() => document.getElementById("ex-place")?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -31,8 +36,17 @@ export default function CasesPage({ regions, online, area }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Proof · fire cases" title="Fire cases and exposure"
-        lead="Known fires in the nine study areas, checked against NASA EONET, GDACS, burned-area maps and the news, and the people, schools, hospitals and farmland in every 11 km cell that has had fire since 2000." />
+      <PageHead kicker="Cases & exposure" title="Is fire near you?"
+        lead="Type any town, village, school or address in the world. See if NASA satellites saw fire near it this week, which schools, hospitals and care homes are close to that fire, and when fire usually comes." />
+
+      <Suspense fallback={<div className="skeleton tall" />}>
+        <PlaceRiskCheck online={online} initialQ={q0} onArea={(a) => { setRid(a); requestAnimationFrame(() => document.getElementById("cx-study")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+      </Suspense>
+
+      <header className="pr-split" id="cx-study">
+        <h2>For fire managers and students: nine study areas in depth</h2>
+        <p className="muted">Known fires checked against NASA EONET, GDACS, burned-area maps and the news, and the people, schools, hospitals and farmland in every 11 km cell that has had fire since 2000.</p>
+      </header>
 
       {!online ? <Offline what="This page" /> : <>
         <div className="cx-pick">
