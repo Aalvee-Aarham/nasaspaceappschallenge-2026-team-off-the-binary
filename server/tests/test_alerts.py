@@ -85,10 +85,7 @@ def test_first_alert_goes_out_on_confirm():
     alerts.smtp_ready = lambda: True
     try:
         a = alerts.create(region_id=_hot_area(), ratio=0.5, min_hotspots=0, email="test@example.com", base_url="http://x")
-        assert len(sent) == 1  # the confirmation mail only
-        sent.clear()
-        code = alerts._load()[a["token"]]["code"]
-        alerts.confirm(a["token"], code)
+        assert sent == [] and alerts._load()[a["token"]]["confirmed"] is True   # no confirmation step: active at once
         first = alerts.notify_first(a["token"])
         assert first["sent"] is True and len(sent) == 1 and sent[0][0] == "test@example.com", (first, sent)
         assert alerts.notify_first(a["token"])["sent"] is False and len(sent) == 1  # a second click repeats nothing
@@ -104,15 +101,29 @@ def test_quiet_area_still_gets_a_status_email_on_confirm():
     alerts.smtp_ready = lambda: True
     try:
         a = alerts.create(region_id="punjab", ratio=20, min_hotspots=1000, email="test@example.com", base_url="http://x")
-        assert alerts.FREE_SERVER in sent[0][1]   # the confirmation says the server sleeps
-        sent.clear()
-        alerts.confirm(a["token"], alerts._load()[a["token"]]["code"])
         first = alerts.notify_first(a["token"])
         assert first.get("status_only") and len(sent) == 1 and "active" in sent[0][0], (first, sent)
+        assert alerts.FREE_SERVER in sent[0][1]   # every email says the server sleeps
         again = alerts.notify_first(a["token"])
         assert again["sent"] is False and "error" not in again and len(sent) == 1, again   # a second click: no error, no mail
     finally:
         alerts.send_email, alerts.smtp_ready = real_send, real_ready
+
+
+def test_email_sign_up_is_active_at_once_and_starts_the_welcome_emails():
+    alerts.FILE = Path(tempfile.mkdtemp()) / "alerts.json"
+    started = []
+    real = alerts.smtp_ready, alerts.welcome, tools.SERVERLESS
+    alerts.smtp_ready, alerts.welcome, tools.SERVERLESS = (lambda: True), started.append, False
+    try:
+        a = alerts.create(region_id="punjab", email="test@example.com", base_url="http://x")
+        for _ in range(50):          # the welcome emails run in a background thread
+            if started:
+                break
+            __import__("time").sleep(0.05)
+        assert a["email_status"] == "sending" and a["confirmed"] is True and started == [a["token"]], (a, started)
+    finally:
+        alerts.smtp_ready, alerts.welcome, tools.SERVERLESS = real
 
 
 def test_alerts_survive_a_restart_through_the_blob_store():

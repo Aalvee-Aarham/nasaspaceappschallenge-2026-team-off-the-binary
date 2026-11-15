@@ -3,7 +3,7 @@ import { ExposureResponse, Facility, Farmland, MONTH_SHORT, MONTHS, PlaceExposur
 import { compact } from "./casebook";
 import { saveAlerts, savedAlerts } from "./pages/shared";
 
-export const EMAIL_NOTE = "It usually arrives within a minute (check spam too). Two more follow on their own: the fire picture around this place within a few minutes, then fire across the whole country in about 5 to 10 minutes. Click the confirmation link to start the alert. Kiln Watch runs on a free server that sleeps when nobody uses the site; a scheduled job wakes it every 3 hours to check alerts, so later alerts can come a few hours late. Do not rely on it for safety.";
+export const EMAIL_NOTE = "Your alert is active now. Two emails are on their way (check spam too): the fire picture around this place within a few minutes, then fire across the whole country in about 5 to 10 minutes. Kiln Watch runs on a free server that sleeps when nobody uses the site; a scheduled job wakes it every 3 hours to check alerts, so later alerts can come a few hours late. Do not rely on it for safety.";
 // The exposure sections of the Cases & exposure page: which schools and hospitals sit where fire is detected, what
 // farmland sees, and a lookup for one place. Every number comes from /exposure and /exposure/place. Context, never
 // impact: a cell counts when one detection fell anywhere in its 11 km, so nothing here says a place was hit.
@@ -235,9 +235,9 @@ export function PlaceAlert({ lat, lon, label }: { lat: number; lon: number; labe
   };
   if (done) return (
     <div className="ex-alert ok" role="status">
-      <b>{done.status === "confirmation_sent" ? "Check your inbox" : "Alert created"}</b>
-      <p className="small">{done.status === "confirmation_sent" ? <>We sent a confirmation link to <b>{email}</b>. {EMAIL_NOTE}</>
-        : email ? <>The confirmation email could not be sent ({done.status?.replace("not_sent: ", "")}). The alert still works through n8n.</>
+      <b>{done.status === "sending" ? "Check your inbox" : "Alert created"}</b>
+      <p className="small">{done.status === "sending" ? <>Emails go to <b>{email}</b>. {EMAIL_NOTE}</>
+        : email ? <>The email could not be sent ({done.status?.replace("not_sent: ", "")}). The alert still works through n8n.</>
           : <>No email given: see it under My alerts, or connect it to n8n.</>}</p>
       <a className="link small" href="#pg=warning">Open My alerts ›</a>
     </div>

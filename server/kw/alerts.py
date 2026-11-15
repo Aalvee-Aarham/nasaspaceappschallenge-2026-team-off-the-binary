@@ -169,7 +169,8 @@ def _page_url(sub):
 def _html(title, paras, sub, token, footer_link=True):
     esc = [f"<p style='margin:0 0 12px;line-height:1.5'>{p}</p>" for p in paras]
     base = sub.get("base_url", "").rstrip("/")
-    unsub = f"{base}/api/alerts/{token}/unsubscribe?code={sub.get('code', '')}"
+    api = (os.environ.get("KW_API_URL") or base).rstrip("/")   # the server that holds the alerts, not a read-only copy
+    unsub = f"{api}/api/alerts/{token}/unsubscribe?code={sub.get('code', '')}"
     foot = (f"<p style='color:#8892a0;font-size:12px'>A climatological outlook from NASA FIRMS satellite detections "
             f"(MODIS, VIIRS), harmonized by Kiln Watch. Not a forecast and not an official alert. {FREE_SERVER} "
             f"<a href='{unsub}' style='color:#8892a0'>Unsubscribe</a></p>") if footer_link else ""
@@ -179,21 +180,6 @@ def _html(title, paras, sub, token, footer_link=True):
             f"{html.escape(title)}</h1>{''.join(esc)}<p><a href='{_page_url(sub)}' style='background:#00a1ff;color:#00121f;"
             f"padding:9px 14px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase'>Open the "
             f"record</a></p>{foot}</div></div>")
-
-
-def _send_confirm(token, sub):
-    url = f"{sub.get('base_url', '').rstrip('/')}/api/alerts/{token}/confirm?code={sub['code']}"
-    name = html.escape(sub.get("name") or sub["region_id"])
-    send_email(sub["email"], f"Confirm your Kiln Watch alert for {sub.get('name') or sub['region_id']}",
-               f"Confirm your fire alert for {sub.get('name')}: {url}\nAfter you confirm, we email you the fire status there "
-               f"straight away.\n"
-               f"If you did not ask for this, ignore this email.\n\n{FREE_SERVER}",
-               _html("Confirm your fire alert", [f"Someone (hopefully you) asked Kiln Watch to email this address about "
-                     f"fire activity in <b>{name}</b>.", f"<a href='{url}' style='color:#00a1ff'>Confirm the alert</a>. "
-                     "After you confirm, we email you the fire status there straight away. Two more emails are on "
-                     "their way now: the fire picture around this place (in a few minutes), then fire across the whole "
-                     "country (in about 5 to 10 minutes). If you did not ask for this, ignore this email and nothing will be sent.",
-                     f"<span style='color:#8892a0;font-size:13px'>{FREE_SERVER}</span>"], sub, token, False))
 
 
 # ---------- welcome emails: the fire picture right after a sign-up ----------
@@ -370,8 +356,8 @@ def welcome(token):
                     log.info("welcome for %s...: no country found, country email skipped", token[:3])
                     return
                 title, paras, text = _country_picture(country)
-            paras.append(f"<span style='color:#8892a0;font-size:13px'>Your alert starts once you click the confirmation link "
-                         f"we sent first. Satellite detections are heat seen from space, not confirmed fires.</span>")
+            paras.append("<span style='color:#8892a0;font-size:13px'>Your alert is active: we will email you when satellites "
+                         "see something new there. Satellite detections are heat seen from space, not confirmed fires.</span>")
             send_email(sub["email"], title, text + f"\n\n{FREE_SERVER}", _html(title, paras, sub, token))
             log.info("welcome email (%s) for %s... sent", build, token[:3])
         except Exception as ex:  # noqa: BLE001 - a welcome email never breaks the sign-up
@@ -450,21 +436,21 @@ def create(region_id=None, bbox=None, name=None, ratio=1.0, min_hotspots=5.0, em
         token = secrets.token_urlsafe(9)
         d[token] = {"region_id": rid, "bbox": bbox, "name": name, "ratio": ratio, "min_hotspots": floor,
                     "created": _now(), "last_notified": None, "triggers": triggers, "email": email,
-                    "confirmed": False, "code": secrets.token_urlsafe(16), "base_url": base_url,
+                    "confirmed": bool(email), "code": secrets.token_urlsafe(16), "base_url": base_url,
                     "last_outlook": None, "events_seen": [], "sent": [],
                     "place": place, "nearby_seen": None, "last_season": None}
         _save(d)
         sub = dict(d[token])
     email_status = None
-    if email:
-        try:
-            _send_confirm(token, sub)
-            email_status = "confirmation_sent"
-            if WELCOME and not tools.SERVERLESS:   # the fire picture follows in two emails, local first, then the country
+    if email:   # no confirmation step (a small closed group): the alert is active and the fire picture goes out now
+        if not smtp_ready():
+            email_status = "not_sent: email delivery is not configured on this server"
+        elif tools.SERVERLESS:
+            email_status = "not_sent: this copy of the site is read-only"
+        else:
+            email_status = "sending"
+            if WELCOME:   # two emails in the background: the place first, then the whole country
                 threading.Thread(target=welcome, args=(token,), daemon=True, name="alert-welcome").start()
-        except Exception as ex:  # surfaced, never swallowed: the UI tells the user to use n8n instead
-            email_status = f"not_sent: {str(ex)[:160]}"
-            log.error("confirmation email for alert %s... failed: %s", token[:3], ex)
     return {"token": token, **public(sub), "email_status": email_status}
 
 

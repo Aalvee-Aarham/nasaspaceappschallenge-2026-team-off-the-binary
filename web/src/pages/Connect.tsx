@@ -39,7 +39,7 @@ const TOOLS: [string, [string, string][]][] = [
     ["get_kiln_evidence", "Brick kilns from a published map, how few NASA FIRMS sees, and night lights in kiln season (Dhaka belt)."],
   ]],
   ["Alerts", [
-    ["subscribe_email_alert", "Email for any box: anomaly, 30-day watch, new events. Double opt-in."],
+    ["subscribe_email_alert", "Email for any box: anomaly, 30-day watch, new events. Active at once, with the fire picture emailed right away."],
     ["subscribe_place_alert", "Alert for one school, hospital or farm: a detection nearby, or a usually active month ahead."],
     ["create_alert / check_alert / delete_alert", "Token alerts for n8n or polling."],
   ]],

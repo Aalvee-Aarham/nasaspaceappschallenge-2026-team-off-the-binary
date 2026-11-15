@@ -332,7 +332,8 @@ def alert_create(request: Request, body: dict = Body(...)):
     """Your own alert for any area: {region_id | bbox, name?, ratio?, min_hotspots?, email?, triggers?, place?}.
     triggers: any of anomaly, outlook, events, and with a place {lat, lon, radius_km?, label?} also nearby (fire
     detected within radius_km in the last 2 days) and season (the place's usual fire month is starting).
-    With email, a confirmation link is mailed first (double opt-in). Returns the secret token."""
+    With email the alert is active at once and two emails follow: the fire picture there, then across the country.
+    Returns the secret token."""
     return _guard(alerts.create, body.get("region_id"), body.get("bbox"), body.get("name"),
                   body.get("ratio", 1.0), body.get("min_hotspots", 5.0), body.get("email"), body.get("triggers"),
                   _public_base(request, body.get("origin")), body.get("place"))

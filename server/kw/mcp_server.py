@@ -356,7 +356,7 @@ def subscribe_email_alert(email: str, west: float, south: float, east: float, no
                           ratio: float = 1.0, anomaly: bool = True, outlook_watch: bool = True, new_events: bool = True) -> dict:
     """Email alert for ANY box (up to 16 square degrees). Triggers: anomaly (month so far tops `ratio` x the median of
     the same days in earlier years), outlook_watch (30-day outlook has watch cells), new_events (new NASA EONET
-    wildfire in the box). A confirmation link is emailed first; nothing is sent until it is clicked. Returns a
+    wildfire in the box). The alert is active at once and the fire picture is emailed right away. Returns a
     secret token (keep it private)."""
     from . import alerts
     trig = [t for t, on in (("anomaly", anomaly), ("outlook", outlook_watch), ("events", new_events)) if on]

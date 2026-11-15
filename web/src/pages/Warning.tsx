@@ -237,14 +237,14 @@ function EmailAlert({ online, emailOn, serverless, preset, onAlert, go }: { onli
       .catch((x) => { setErr(x.message); setState("idle"); });
   };
   if (state === "done" && res) {
-    const sent = res.status === "confirmation_sent";
+    const sent = res.status === "sending";
     return (
       <div className={`alertbox done ${sent ? "ok" : ""}`}>
         <div className="check-anim" aria-hidden><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg></div>
         <div>
           <h3>{sent ? "Check your inbox" : "Alert created"}</h3>
-          {sent ? <p>We sent a confirmation link to <b>{email}</b>. {EMAIL_NOTE}</p>
-            : email ? <p className="warn small">The confirmation email could not be sent ({res.status?.replace("not_sent: ", "")}). The alert works; get it through n8n instead, or ask the server's operator to set SMTP.</p>
+          {sent ? <p>Emails go to <b>{email}</b>. {EMAIL_NOTE}</p>
+            : email ? <p className="warn small">The email could not be sent ({res.status?.replace("not_sent: ", "")}). The alert works; get it through n8n instead, or ask the server's operator to set SMTP.</p>
               : <p>Get it through n8n (download below) or check it any time under My alerts.</p>}
           <div className="row">
             <a className="btn ghost" href={api.workflowUrl(res.token)} download>n8n workflow</a>
@@ -286,9 +286,9 @@ function EmailAlert({ online, emailOn, serverless, preset, onAlert, go }: { onli
             <input className="grow" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.org" aria-label="Email address" autoComplete="email" />
             <button className="btn" disabled={!online || state === "saving" || !trig.length || (!!email && !valid)}>{state === "saving" ? "Saving…" : email ? "Email me" : "Create without email"}</button>
           </div>
-          {serverless && <p className="muted small">This hosted demo keeps alerts only while its server stays warm (minutes to hours). The confirmation and "send test" emails work here; for alerts that last, run Kiln Watch with Docker (see the README) or use <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
-          {emailOn === false && <p className="muted small">This server has no email settings yet (SMTP), so confirmation emails cannot go out. The alert still works through <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
-          <p className="muted small">Double opt-in: you confirm by email first. At most one anomaly email per month, one outlook email per week, one per new event. Unsubscribe in one click. New areas build their 26-year record in the background.</p>
+          {serverless && <p className="muted small">This hosted demo keeps alerts only while its server stays warm (minutes to hours). The first emails and "send test" work here; for alerts that last, run Kiln Watch with Docker (see the README) or use <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
+          {emailOn === false && <p className="muted small">This server has no email settings yet (SMTP), so emails cannot go out. The alert still works through <button type="button" className="link" onClick={() => go("n8n")}>n8n</button>.</p>}
+          <p className="muted small">The alert starts at once, and two emails with the fire picture follow. Then at most one anomaly email per month, one outlook email per week, one per new event. Unsubscribe in one click. New areas build their 26-year record in the background.</p>
           {err && <p className="error small">{err}</p>}
         </form>
       )}
@@ -402,8 +402,8 @@ function AlertForm({ regionId, name, median, onAlert, go }: { regionId: string; 
       <h3>Alert me about this area</h3>
       {state === "done" ? (
         <>
-          <p>{status === "confirmation_sent" ? <>Confirmation sent to <b>{email}</b>. {EMAIL_NOTE}</> : "Alert created."} You can also get it through n8n: import the workflow and add your email or chat credentials.</p>
-          {status && status !== "confirmation_sent" && <p className="warn small">Email not sent: {status.replace("not_sent: ", "")}</p>}
+          <p>{status === "sending" ? <>Emails go to <b>{email}</b>. {EMAIL_NOTE}</> : "Alert created."} You can also get it through n8n: import the workflow and add your email or chat credentials.</p>
+          {status && status !== "sending" && <p className="warn small">Email not sent: {status.replace("not_sent: ", "")}</p>}
           <div className="row">
             <a className="btn" href={api.workflowUrl(token)} download>Download n8n workflow</a>
             <button className="btn ghost" onClick={() => go("n8n")}>Setup steps</button>
@@ -474,7 +474,7 @@ function MyAlerts({ mine, online, onDrop, go }: { mine: Saved[]; online: boolean
             <div>
               <b>{ok?.name ?? m.name}</b>
               <div className="achips">
-                {ok?.email && <span className={ok.confirmed ? "ok" : "wait"}>{ok.confirmed ? "✓ " : "awaiting confirmation · "}{ok.email}</span>}
+                {ok?.email && <span className={ok.confirmed ? "ok" : "wait"}>{"✓ "}{ok.email}</span>}
                 {(ok?.triggers ?? []).map((t) => <span key={t}>{TRIG.find((x) => x[0] === t)?.[1] ?? PLACE_TRIG[t] ?? t}</span>)}
               </div>
               {!a && <span className="muted small"> checking…</span>}
