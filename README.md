@@ -61,7 +61,7 @@ comparing two instruments, not two fire seasons.
 Kiln Watch puts every satellite on one scale, so all 26 years can be compared, and shows the result as a burning
 calendar: one square per month, one row per year, for any area you choose.
 
-Six things to know:
+Seven things to know:
 
 - **It is tested by taking satellites away.** We rebuild 2017–2020 without MODIS and compare with what MODIS really saw.
   In seven of nine areas the rebuilt record is within 10% of it; uncalibrated counts are off by 470% to 1,767%.
@@ -72,6 +72,9 @@ Six things to know:
   published it ([Who it is for](#who-it-is-for)), along with every other limit we know of.
 - **It shows who is near the fire.** Every fire cell carries its people, schools, hospitals, roads and farmland, and
   any place on Earth gets its schools and hospitals listed by distance to this week's fire ([Exposure](#exposure-who-is-near-the-fire)).
+- **Farmers in Bangladesh can show the kilns next to their fields.** One tap gives a dated, satellite-checked record of
+  nearby kilns and their estimated smoke, and the months fire usually comes before the Boro harvest
+  ([For farmers](#for-farmers-what-is-near-your-field)).
 - **One answer, four ways to reach it:** the website, an open API with no key, a 40-tool MCP server for AI assistants,
   and alerts by email or n8n.
 
@@ -353,6 +356,41 @@ A source that could not answer says so; it is never shown as "no fire" or "no bu
 
 <p align="center"><sub>The map shows kiln structures in the 2024-25 dry season, not kilns in operation; about 8 in 10 detections inside human-labelled footprints are kilns, about 2 in 10 outside. Licence CC BY-NC 4.0 (non-commercial). Night lights and radar are consistent with kilns, not proof: kilns sit on town edges that also brighten in winter, and radar also responds to buildings and moisture. A second, independently licensed inventory (APAD, CC BY 4.0) reaches the same conclusion about the persistent-heat cells: see <a href="#checked-against-other-data">Checked against other data</a>.</sub></p>
 
+### For farmers: what is near your field?
+
+Farmers near brick kilns report smoke damage to rice, mango and vegetables in the dry season, and kilns burn coal: smoke,
+sulphur and CO2. When they complain, they are often asked to show that a kiln is there at all. The
+[Bangladesh page](https://kiln-watch-seven.vercel.app/#pg=bangladesh) lets them: a dated record of the kilns around
+their field, from a national inventory checked against satellite images, with the kilns' estimated smoke. In Bangla first:
+
+1. Press **Use my location** in the field, or type the village or market.
+2. Read the answer: kilns within 1 km and 3 km and the nearest one, their estimated smoke (tonnes of PM2.5 and SO2 a
+   year), fire seen within 5 km this week, and the **Boro
+   season** on one 12-month strip: seedbed to harvest (BAMIS crop calendar), how many of the last 23 years had fire
+   nearby in each month (NASA MODIS), and the kiln season (NASA Black Marble). It names the fire years in the April–May
+   harvest months, so straw and threshed paddy can be kept away from burning fields.
+3. **Email this report** opens the phone's own email app with everything written in, ready for the Upazila Agriculture
+   Officer or the Department of Environment; **Print one page** gives a Bangla sheet for an office or a union notice board.
+   An email alert can be set for fire near the field.
+
+<p align="center"><img src="docs/readme/app-farmer.png" alt="The farmer check for Aminbazar, in Bangla: 1 kiln within 1 km, 34 within 3 km, the nearest 970 m away; fire this week; a map of the kilns around the field; and the months of fire and kiln season" width="80%"></p>
+
+| Across Bangladesh | Number | Source |
+|---|---|---|
+| Kilns in the national inventory | 4,760 | APAD (CC BY 4.0) |
+| Kilns with cropland on half or more of the land within 1 km | 2,802 (59%) | ESA WorldCover 10 m, measured around each kiln |
+| Listed kilns within 300 m of a kiln seen in Sentinel-2 imagery (Dhaka area) | 84.5%, against 4.2% for random places | Cross-check with the Sentinel-2 kiln map |
+| Sentinel-2 kilns that the inventory lists (Dhaka area) | 52% | Same cross-check: counts are a floor, not the full number |
+| Estimated smoke from all listed kilns | 248,939 t PM2.5 and 168,633 t SO2 a year | APAD's modelled estimate per kiln (capacity × emission factor by kiln type), not measured |
+| Example: Aminbazar, Savar | 34 kilns within 3 km, the nearest 970 m away; about 1,827 t PM2.5 a year | The check on the page |
+
+Kiln positions come from the inventory, never from FIRMS. The inventory stops at about 90.9° E, so Chattogram, Sylhet and
+the east of Dhaka division get "no kiln data here", never "0 kilns". It shows kiln structures, not whether one is firing.
+It shows that kilns stand near a field; it does not prove that a kiln damaged a crop, and whether a kiln breaks the brick
+kiln law is the Department of Environment's call. Built by
+`uv run --with rasterio --with numpy python scripts/build_farm_kilns.py` into `data/global/kilns_bd.json`; served by
+`GET /api/farm-check?lat=&lon=`.
+
 ---
 
 ## Open questions from NASA's discussions
@@ -500,7 +538,7 @@ Every fire number in Kiln Watch comes from NASA data. The kiln map is the one ou
 | Dataset | Link | How we used it |
 |---|---|---|
 | ESA Copernicus Sentinel-2 L2A, through the Bangladesh kiln map below | [sentinels.copernicus.eu](https://sentinels.copernicus.eu) | Kiln structures seen in 10 m imagery; Kiln Watch uses the published detections, not the imagery |
-| ESA WorldCover 10 m 2021 v200, class 40 (cropland) | [esa-worldcover.org](https://esa-worldcover.org) | Square kilometres of farmland in each fire cell (exposure; context, not impact) |
+| ESA WorldCover 10 m 2021 v200, class 40 (cropland) | [esa-worldcover.org](https://esa-worldcover.org) | Square kilometres of farmland in each fire cell (exposure; context, not impact), and the cropland share within 1 km of each of Bangladesh's 4,760 listed kilns |
 | ESA Copernicus Sentinel-1 GRD, IW, VV (via Google Earth Engine) | [sentinels.copernicus.eu](https://sentinels.copernicus.eu) | Radar contrast of each mapped kiln with its surroundings, dry season against monsoon (one orbit, 14 and 10 scenes): brick stacks in the yards |
 
 NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
@@ -515,7 +553,9 @@ NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
 | Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
 | ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
 | WorldPop Global 2000-2020 population grid, 1 km (CC BY 4.0) | [worldpop.org](https://www.worldpop.org) | Modelled 2020 population in the 0.1° cells where the record shows fire (context, not impact) |
-| APAD / IGP asset-data-igp Bangladesh brick-kiln inventory (CC BY 4.0) | [registry.opendata.aws/asset-data-igp-brick-kilns-ban](https://registry.opendata.aws/asset-data-igp-brick-kilns-ban/) | Independent cross-check of the published persistent-heat cells against 4,760 operating kilns, with a random-placement baseline |
+| APAD / IGP asset-data-igp Bangladesh brick-kiln inventory (CC BY 4.0) | [registry.opendata.aws/asset-data-igp-brick-kilns-ban](https://registry.opendata.aws/asset-data-igp-brick-kilns-ban/) | Independent cross-check of the published persistent-heat cells against 4,760 operating kilns, with a random-placement baseline; and the kilns near each field in the farmer check on the Bangladesh page, with APAD's modelled PM2.5 and SO2 per kiln |
+| BAMIS crop-weather calendars, Boro (Bangladesh Agromet Information System) | [bamis.gov.bd](https://bamis.gov.bd) | Boro stages by month (December–May, 150–155 days) on the farmer check's season strip |
+| Natural Earth 1:50m admin-0 countries (public domain) | [naturalearthdata.com](https://www.naturalearthdata.com) | The Bangladesh outline: a place outside it never reads "0 kilns" |
 | OpenStreetMap via the Overpass API (ODbL) | [openstreetmap.org](https://www.openstreetmap.org/copyright) | Hospitals and major roads in those cells (context, not impact); for "Is fire near you?", the schools, kindergartens, colleges, hospitals, clinics, care homes and fire stations within 25 km of any place, live |
 | OpenFreeMap | [openfreemap.org](https://openfreemap.org) | Vector base map |
 | OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |

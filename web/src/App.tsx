@@ -573,7 +573,7 @@ const day = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB"
 function FacStatusLine({ s, retry }: { s: NonNullable<FacilityStatus>; retry: () => void }) {
   const part = s.partial ? " Showing the area's partial build-time list meanwhile." : "";
   if (s.state === "zoom") return <p className="fac-st" role="status">Zoom in to see schools and hospitals.</p>;
-  if (s.state === "loading") return <p className="fac-st" role="status">Loading schools and hospitals… {s.n ? `${fmt(s.n)} so far.` : ""}{part}</p>;
+  if (s.state === "loading") return <p className="fac-st" role="status">Loading schools and hospitals… {s.n ? `${fmt(s.n)} so far.` : ""}{s.msg ? " Part of this view did not load (OpenStreetMap busy); trying again." : ""}{part}</p>;
   if (s.state === "failed") return (
     <p className="fac-st err" role="alert" title={s.msg}>Could not load: map service busy.{part} <button className="linkish" onClick={retry}>Retry</button></p>
   );

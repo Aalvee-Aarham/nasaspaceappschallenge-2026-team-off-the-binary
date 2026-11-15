@@ -506,3 +506,19 @@ export const placeRiskPath = (p: { q?: string; lat?: number; lon?: number; radiu
   return `/api/place-risk?${s}`;
 };
 export const placeRisk = (p: Parameters<typeof placeRiskPath>[0]) => json<PlaceRisk>(placeRiskPath(p));
+
+// ---------- Bangladesh: brick kilns near a field (/api/farm-check) ----------
+export type FarmKiln = { lat: number; lon: number; km: number; cropland_pct_1km: number | null; division: string };
+export type FarmCheck = {
+  built_at: string;
+  inventory: { name: string; url: string; registry: string; licence: string; n: number; by_division: Record<string, number>; east_edge_lon: number; coverage: string; caveat: string };
+  cross_check: { status: string; apad_in_area?: number; apad_within_300m_of_s2_pct?: number; random_within_300m_of_s2_pct?: number; s2_labelled_with_apad_within_500m_pct?: number; reference?: string; note?: string; reason?: string } | null;
+  cropland: { source: string; url: string; radius_km: number; kilns_with_half_or_more: number; kilns_measured: number; median_pct: number | null };
+  emissions?: { source: string; unit: string; pm25_total: number; so2_total: number };
+  kiln_months: number[] | null; divisions: string[]; law: string;
+  boundary?: { source: string; rings: [number, number][][] };
+  kilns?: [number, number, number | null, number][];   // lat, lon, cropland % within 1 km, division index
+  place?: { lat: number; lon: number; in_bangladesh: boolean; covered: boolean; reason?: string;
+    within_1km?: number; within_3km?: number; nearest_km?: number; pm25_t_yr_3km?: number | null; so2_t_yr_3km?: number | null; kilns?: FarmKiln[] };
+};
+export const farmCheck = (lat?: number, lon?: number) => json<FarmCheck>(lat == null || lon == null ? "/api/farm-check" : `/api/farm-check?lat=${lat}&lon=${lon}`);

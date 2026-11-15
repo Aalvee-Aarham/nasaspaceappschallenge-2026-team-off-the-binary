@@ -499,7 +499,7 @@ def active_events():
                     and (a["bbox"][0] <= e["lon"] <= a["bbox"][2] if a["bbox"][0] <= a["bbox"][2]
                          else e["lon"] >= a["bbox"][0] or e["lon"] <= a["bbox"][2])), None)
         out.append({**e, "region_id": hit})
-    return {"source": "NASA EONET (open wildfire events)", "count": len(out), "events": out,
+    return {"source": "NASA EONET (open wildfire events reported in the last 30 days)", "count": len(out), "events": out,
             "note": "Events are what agencies and media reported to EONET. Few events does not mean few fires."}
 
 # ---------- custom areas ----------
@@ -1207,6 +1207,72 @@ def _recent_fires(lat, lon, radius_km, days=RECENT_DAYS):
         return {"start": str(a), "end": str(b),
                 "detections": sorted((d for d in dets if d["km"] <= radius_km), key=lambda d: d["km"])}
     return _cached_ok(f"recent:{lat:.2f},{lon:.2f},{radius_km}:{int(time.time() // 3600)}", 3600, fetch)
+
+
+@functools.lru_cache(maxsize=2)
+def _farm_kilns(path, _mtime):
+    """The Bangladesh kiln file (scripts/build_farm_kilns.py), plus the kiln months measured with night lights."""
+    d = json.loads(open(path, encoding="utf-8").read())
+    try:
+        a, b = _read("dhaka-kilns", "kilns")["night_lights"]["kiln_season"]   # e.g. 2024-12-01 .. 2025-03-01 (end exclusive)
+        m, end, months = int(a[5:7]), int(b[5:7]), []
+        while m != end:
+            months.append(m)
+            m = m % 12 + 1
+        d["kiln_months"] = months
+    except (NotFound, KeyError, ValueError):
+        d["kiln_months"] = None
+    return d
+
+
+def _in_rings(lat, lon, rings):
+    """Even-odd point in polygon over all rings (holes included); lon/lat are planar here, fine at country scale."""
+    inside = False
+    for ring in rings:
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+            if (y1 > lat) != (y2 > lat) and lon < x1 + (lat - y1) * (x2 - x1) / (y2 - y1):
+                inside = not inside
+    return inside
+
+
+FARM_COVER_KM = 25   # say "no kilns within 3 km" only where the inventory lists a kiln within this distance
+
+
+def farm_check(lat=None, lon=None):
+    """Brick kilns near a field in Bangladesh, for farmers: mapped kilns within 1 and 3 km, the nearest one, and how
+    much farmland surrounds each (ESA WorldCover). Without lat/lon: the national picture (every kiln, by division).
+    A place outside Bangladesh or outside the inventory's coverage is 'not covered', never '0 kilns'. Kiln positions come
+    from the APAD inventory, never from FIRMS (which cannot find kilns). Structures, not whether a kiln is firing today."""
+    from .globe import SEASON
+    path = SEASON.parent / "kilns_bd.json"
+    if not path.exists():
+        raise NotFound("the Bangladesh kiln file is not on this server (scripts/build_farm_kilns.py)")
+    d = _farm_kilns(path.as_posix(), path.stat().st_mtime)
+    out = {k: d.get(k) for k in ("built_at", "inventory", "cross_check", "cropland", "emissions", "kiln_months", "fields", "divisions")}
+    out["law"] = ("Bangladesh's brick kiln law controls where kilns may be built, including near farmland. Whether a "
+                  "kiln breaks it is for the Department of Environment to decide, not this website.")
+    if lat is None or lon is None:
+        return {**out, "boundary": d["boundary"], "kilns": d["kilns"]}
+    lat, lon = float(lat), float(lon)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("lat must be -90 to 90 and lon -180 to 180")
+    near = sorted((round(_gc_km(lat, lon, k[0], k[1]), 2), k) for k in d["kilns"])
+    nearest = near[0][0]
+    inside = _in_rings(lat, lon, d["boundary"]["rings"])
+    covered = inside and nearest <= FARM_COVER_KM
+    place = {"lat": round(lat, 5), "lon": round(lon, 5), "in_bangladesh": inside, "covered": covered}
+    if not covered:
+        place["reason"] = ("This place is outside Bangladesh; the kiln inventory covers Bangladesh only." if not inside else
+                           f"The kiln inventory lists no kiln within {FARM_COVER_KM} km of this place. "
+                           + d["inventory"]["coverage"])
+        return {**out, "place": place}
+    within = [{"lat": k[0], "lon": k[1], "km": km_, "cropland_pct_1km": k[2], "division": d["divisions"][k[3]],
+               "pm25_t_yr": k[4] if len(k) > 4 else None, "so2_t_yr": k[5] if len(k) > 5 else None}
+              for km_, k in near if km_ <= 3]
+    total = lambda key: round(sum(x[key] or 0 for x in within)) if all(x[key] is not None for x in within) else None
+    return {**out, "place": {**place, "within_1km": sum(x["km"] <= 1 for x in within), "within_3km": len(within),
+                             "nearest_km": nearest, "pm25_t_yr_3km": total("pm25_t_yr"), "so2_t_yr_3km": total("so2_t_yr"),
+                             "kilns": within[:60]}}
 
 
 @functools.lru_cache(maxsize=2)

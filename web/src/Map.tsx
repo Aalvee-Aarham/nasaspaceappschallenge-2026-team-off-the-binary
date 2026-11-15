@@ -450,7 +450,7 @@ export default function MapView(p: Props) {
         });
         const base = { n: d.items.length, partial: d.partial, truncated: d.truncated };
         if (d.loading) {
-          facRef.current?.({ state: "loading", ...base });
+          facRef.current?.({ state: "loading", ...base, msg: d.failed[0] });   // some tiles may have failed while others load
           poll = window.setTimeout(load, 4000);
         } else if (d.failed.length) facRef.current?.({ state: "failed", ...base, msg: d.failed[0] });
         else { lastKey = key; facRef.current?.({ state: "ok", ...base }); }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { KilnEvidence, Num, api, fmt } from "../api";
 import { compact, useExposure } from "../casebook";
+import FarmCheck from "../FarmCheck";
 import { PageHead, PageProps, useRegion } from "./shared";
 
-// ponytail: English only. A Bangla toggle needs strings written or reviewed by a native speaker; add { en, bn } here then.
+// The farmer check (FarmCheck.tsx) is Bangla first; the research sections below stay English.
 export default function Bangladesh({ go, openRegion, online }: PageProps) {
   const { region, err } = useRegion("dhaka-kilns");
   const [k, setK] = useState<KilnEvidence | null>(null);
@@ -20,7 +21,10 @@ export default function Bangladesh({ go, openRegion, online }: PageProps) {
 
   return (
     <>
-      <PageHead kicker="Local impact" title="Bangladesh" lead="The brick-kiln belt around Dhaka: thousands of small, steady fires. NASA's fire product sees only a few of them, so Kiln Watch counts kilns from a published kiln map and checks it against night lights." />
+      <PageHead kicker="Local impact" title="Bangladesh" lead="Farmers say kiln smoke ruins their crops but cannot show the kilns are there. Now they can: a dated, satellite-checked record of the kilns near their field, fire this week, and the Boro season." />
+      <section><FarmCheck online={online} /></section>
+      <details className="cx-more fk-research">
+      <summary>For researchers: how we measured kilns around Dhaka</summary>
       {err && <p className="error">{err}</p>}
       {!region && !err && <div className="skeleton tall" />}
       {region && m && (
@@ -61,6 +65,7 @@ export default function Bangladesh({ go, openRegion, online }: PageProps) {
           </section>
         </>
       )}
+      </details>
     </>
   );
 }

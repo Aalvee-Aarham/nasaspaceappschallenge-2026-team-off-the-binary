@@ -253,6 +253,17 @@ def test_export_columns_formats_and_old_csv_unchanged():
     assert client.get("/api/regions/punjab/export", params={"kind": "detections"}).status_code == 400
 
 
+def test_farm_check_counts_kilns_and_never_says_zero_where_it_cannot_see():
+    s = client.get("/api/farm-check").json()
+    assert len(s["kilns"]) == s["inventory"]["n"] > 4000 and s["boundary"]["rings"], s["inventory"]
+    at = client.get("/api/farm-check", params={"lat": 24.11744, "lon": 90.16412}).json()["place"]    # APAD kiln BKB-1
+    assert at["covered"] and at["within_1km"] >= 1 and at["nearest_km"] < 0.05 and at["within_3km"] == len(at["kilns"]), at
+    kolkata = client.get("/api/farm-check", params={"lat": 22.57, "lon": 88.36}).json()["place"]
+    assert not kolkata["in_bangladesh"] and not kolkata["covered"] and "within_3km" not in kolkata, kolkata
+    sylhet = client.get("/api/farm-check", params={"lat": 24.90, "lon": 91.87}).json()["place"]    # east of the inventory
+    assert sylhet["in_bangladesh"] and not sylhet["covered"] and "within_3km" not in sylhet, sylhet
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

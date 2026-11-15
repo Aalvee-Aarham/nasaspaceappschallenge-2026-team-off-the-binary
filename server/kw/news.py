@@ -132,9 +132,10 @@ def eonet(bbox, start, end, limit=50):
 
 
 def open_wildfires():
-    """Wildfire events NASA EONET currently lists as open, worldwide (cached one hour)."""
+    """Open wildfire events NASA EONET received in the last 30 days, worldwide (cached one hour). No count cap: EONET
+    keeps thousands of stale events "open", so the 30-day window is what makes the count mean "now"."""
     def fetch():
-        data = json.loads(_get("https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=200", 40))
+        data = json.loads(_get("https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&days=30", 40))
         out = []
         for ev in data.get("events", []):
             g = (ev.get("geometry") or [{}])[-1]
@@ -143,7 +144,7 @@ def open_wildfires():
             out.append({"title": ev.get("title"), "date": (g.get("date") or "")[:10], "lon": g["coordinates"][0],
                         "lat": g["coordinates"][1], "url": (ev.get("sources") or [{}])[0].get("url") or ev.get("link")})
         return sorted(out, key=lambda e: e["date"], reverse=True)
-    return _cached("eonet-open", 3600, fetch)
+    return _cached("eonet-open-30d", 3600, fetch)
 
 
 def _gdelt_query(places, langs):

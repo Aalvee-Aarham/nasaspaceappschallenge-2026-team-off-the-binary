@@ -180,6 +180,13 @@ def place_risk(q: str = "", lat: float | None = None, lon: float | None = None, 
     return _guard(tools.place_risk, q or None, lat, lon, radius_km, facilities, label or None)
 
 
+@app.get("/api/farm-check")
+def farm_check(lat: float | None = None, lon: float | None = None):
+    """Brick kilns near a field in Bangladesh (APAD inventory, ESA WorldCover cropland): within 1 and 3 km and the
+    nearest. Without lat/lon: every kiln and the national summary. Outside the inventory's coverage: 'not covered'."""
+    return _guard(tools.farm_check, lat, lon)
+
+
 @app.get("/api/facilities")
 def facilities_in_box(west: float, south: float, east: float, north: float):
     """Schools, hospitals, clinics, care homes and fire stations in a box of at most 1° x 1° (OpenStreetMap, cached).

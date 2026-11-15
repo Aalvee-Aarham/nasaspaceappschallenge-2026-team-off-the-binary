@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Block, Events, Meta, api } from "../api";
-import { AskScreen, CasesData, CasesScreen, ConsoleData, PastAlert, Phone, WarnScreen } from "./ConsoleScreens";
+import { ConsoleData, PastAlert, Phone } from "./ConsoleScreens";
 import { JumpChart, PixelCard, ValidateChart } from "./StoryCharts";
 import { BEATS, mountScene, SceneHandle } from "./scene";
 import { mountStory, Story } from "./story";
@@ -13,7 +13,7 @@ import "./home.css";
 // scene.ts, so the order of B below must match the KF order there.
 // Every number here is read from the pipeline's meta.json files; nothing is typed in.
 const B = { hero: 0, problem: 1, challenge: 2, solution: 3, impact: 4, old: 5, sharp: 6, jump: 7, fix: 8, proof: 9,
-  console: 10, explore: 11, warn: 12, cases: 13, ask: 14, news: 15, connect: 16, go: 17 };
+  console: 10, explore: 11, warn: 12, cases: 13, ask: 14, farm: 15, news: 16, connect: 17, go: 18 };
 const LAST = BEATS - 1;
 console.assert(B.go === LAST, "Home.tsx beats and scene.ts keyframes are out of step");
 
@@ -99,7 +99,7 @@ const Arrow = () => <svg viewBox="0 0 24 24" aria-hidden><path d="M6 18 18 6M8 6
 const GROUPS: [string, number[]][][] = [
   [["Problem", [B.problem]], ["Challenge", [B.challenge]], ["Solution", [B.solution]], ["Impact", [B.impact]]],
   [["Old camera", [B.old]], ["New camera", [B.sharp]], ["The jump", [B.jump]], ["The fix", [B.fix]], ["The proof", [B.proof]]],
-  [["Explore", [B.console, B.explore]], ["Warn", [B.warn]], ["Cases", [B.cases]], ["Ask", [B.ask]]],
+  [["Explore", [B.console, B.explore]], ["Warn", [B.warn]], ["Cases", [B.cases]], ["Ask", [B.ask]], ["Farmers", [B.farm]]],
   [["News", [B.news]], ["Connect", [B.connect]]],
 ];
 const CHAPTERS = GROUPS.flatMap((g, gi) => g.map(([l, ks]) => ({ l, ks, gi })));
@@ -110,7 +110,7 @@ const tour = (snppYear: string, areas: number | string): [string, string, Page |
   ["The proof", `${areas} areas, one scorecard.`, "method"],
   ["After MODIS", "Switch satellites off and watch the record hold.", "after"],
   ["Early warning", "And how often it was right in past years.", "warning"],
-  ["Bangladesh", "The brick-kiln belt around Dhaka.", "bangladesh"],
+  ["Bangladesh", "Farmers can now show the kilns next to their fields, and see fire before the Boro harvest.", "bangladesh"],
   ["Ask Claude", `A ${MCP_TOOLS}-tool MCP server over the same record; ${MCP_HTTP_TOOLS} read-only tools over public HTTP.`, "mcp"],
 ];
 const TILES: [string, Page][] = [
@@ -129,8 +129,9 @@ const who = (y0: string): [string, string, Page][] => [
 // the five satellites, in scene.ts ORBITS order
 const SATS = [["Terra", "MODIS", "MODIS_T"], ["Aqua", "MODIS", "MODIS_A"], ["Suomi NPP", "VIIRS", "VIIRS_SNPP"], ["NOAA-20", "VIIRS", "VIIRS_NOAA20"], ["NOAA-21", "VIIRS", "VIIRS_NOAA21"]];
 
-// console stage 1: a real capture of the Explorer (web/public/shots), callouts placed in % of the screen.
-// Stages 2 to 4 are live animated screens (ConsoleScreens.tsx). Keyed by position: the gsap code holds these nodes.
+// console stages: real captures of the site (web/public/shots); the Explorer's callouts are placed in % of the screen.
+// Keyed by position: the gsap code holds these nodes.
+const SHOTS = `${import.meta.env.BASE_URL}shots/`;
 const exploreTags = (sats: number | string): [string, number, number][] => [["Every hotspot, every day", 50, 49], ["Built areas, one click", 84, 34], [`${sats} satellites, one timeline`, 46, 93]];
 
 export default function Home({ regions, go, openRegion }: PageProps) {
@@ -141,7 +142,6 @@ export default function Home({ regions, go, openRegion }: PageProps) {
   const [events, setEvents] = useState<Events | null>(null);
   const [stage, setStage] = useState(-1); // console screen playing: 0 explore, 1 early warning, 2 cases, 3 analyst
   const [cdata, setCdata] = useState<ConsoleData | null>(null);
-  const [xdata, setXdata] = useState<CasesData | null>(null);
   const [homeErrors, setHomeErrors] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState(false); // the page menu on narrow screens
   const [area, setArea] = useState<{ meta: Meta; monthly: Block } | null>(null); // the area the story charts show
@@ -154,8 +154,8 @@ export default function Home({ regions, go, openRegion }: PageProps) {
     const tags = sec.querySelectorAll<HTMLElement>(".ptag"), phone = sec.querySelector<HTMLElement>(".phone")!;
     const vw = (v: number) => (innerWidth < 900 ? 0 : (innerWidth * v) / 100); // phones: no sideways swing, the screen is full width
     const pose = (b: number) => b < B.explore ? { autoAlpha: 0, rotateX: 58, rotateY: 0, x: 0, yPercent: 55, z: -500, scale: 0.8 } // waiting below
-      : b > B.ask ? { autoAlpha: 0, rotateX: -16, rotateY: 0, x: 0, yPercent: -28, z: 0, scale: 1 } // gone above
-      : { autoAlpha: 1, yPercent: 0, z: 0, scale: 1, ...[{ rotateX: 9, rotateY: -17, x: vw(14) }, { rotateX: 7, rotateY: 16, x: vw(-14) }, { rotateX: 6, rotateY: -15, x: vw(13) }, { rotateX: 4, rotateY: 12, x: vw(-12) }][b - B.explore] };
+      : b > B.farm ? { autoAlpha: 0, rotateX: -16, rotateY: 0, x: 0, yPercent: -28, z: 0, scale: 1 } // gone above
+      : { autoAlpha: 1, yPercent: 0, z: 0, scale: 1, ...[{ rotateX: 9, rotateY: -17, x: vw(14) }, { rotateX: 7, rotateY: 16, x: vw(-14) }, { rotateX: 6, rotateY: -15, x: vw(13) }, { rotateX: 4, rotateY: 12, x: vw(-12) }, { rotateX: 5, rotateY: -14, x: vw(13) }][b - B.explore] };
     let play: gsap.core.Tween | undefined;
     const ctx = gsap.context(() => {
       gsap.set(frame, pose(0));
@@ -176,7 +176,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
       });
       play?.kill();
       setStage(-1); // the screens replay each time their beat arrives
-      if (st >= 0 && st <= 3) play = gsap.delayedCall(d * 0.6, () => setStage(st));
+      if (st >= 0 && st <= B.farm - B.explore) play = gsap.delayedCall(d * 0.6, () => setStage(st));
     };
     const onPlayhead = (p: number) => {
       const b = bar.current;
@@ -208,23 +208,6 @@ export default function Home({ regions, go, openRegion }: PageProps) {
     }).catch((e) => { if (live) setHomeErrors((s) => ({ ...s, warning: msg(e) })); });
     return () => { live = false; };
   }, []);
-
-  // the casebook stage: real data, area picked by rule
-  useEffect(() => {
-    let live = true;
-    api.casebook().then(async (o) => {
-      // prefer an area whose hospitals and schools are both known, then one with cases that agree and cases the record missed
-      const score = (a: (typeof o.areas)[number]) => (a.cases ? (a.exposure?.hospitals != null ? 2 : 0) + (a.exposure?.schools != null ? 2 : 0)
-        + Math.min(a.cases.counts.corroborated, 1) + Math.min(a.cases.counts.agency_only, 1) + a.cases.total / 1000 : -1);
-      const best = [...o.areas].sort((a, b) => score(b) - score(a))[0];
-      const r = regions.find((x) => x.id === best?.id);
-      if (!best || !r) return;
-      const [cs, ex] = await Promise.all([api.cases(best.id), api.exposure(best.id).catch(() => null)]);
-      if (live) setXdata({ id: best.id, name: best.name, bbox: r.bbox, cases: cs.cases, counts: cs.counts, people: ex?.population ?? null, hospitals: ex?.hospitals ?? null, schools: ex?.schools ?? null,
-        named: [...new Map((ex?.hospital_list ?? []).map((h) => h.name).filter((n) => n.length <= 42).map((n) => [n.split(" ")[0], n] as const)).values()].slice(0, 3), cells: ex?.map_cells ?? null });
-    }).catch((e) => { if (live) setHomeErrors((s) => ({ ...s, cases: msg(e) })); });
-    return () => { live = false; };
-  }, [regions]);
 
   useEffect(() => {
     let live = true;
@@ -329,7 +312,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               <p className="kicker" data-in>NASA Space Apps 2026 · Harmonization of MODIS and VIIRS Hot Spots</p>
               <H tag="h1" cls="xl" lines={["Every fire.", "One record."]} at={0.1} />
               <p className="h3d-lead big" data-in="0.6">NASA satellites have watched Earth's fires from space <em>since {y0}</em>. We turn their mismatched counts into <em>one record you can trust</em>.</p>
-              <p className="firechip" data-in="0.9"><i /><b>{events?.count ?? "…"}</b> wildfires NASA is tracking right now</p>
+              <p className="firechip" data-in="0.9"><i /><b>{events?.count ?? "…"}</b> wildfires reported to NASA in the last 30 days</p>
             </div>
           </div>
 
@@ -421,18 +404,19 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="chartwrap" data-in="0.2"><ValidateChart meta={sm ?? null} /></div>
           </div>
 
-          {/* 10-14 · the console: explore, warn, cases, ask (the floating screen is driven from onBeat above) */}
-          <div className="h3d-beat console" data-b={`${B.console}-${B.ask}`} ref={consoleSec}>
+          {/* 10-15 · the console: explore, warn, cases, ask, farmers (the floating screen is driven from onBeat above) */}
+          <div className="h3d-beat console" data-b={`${B.console}-${B.farm}`} ref={consoleSec}>
             <div className="c-head" data-b={B.console}>
               <p className="kicker" data-in>In your browser · no login</p>
               <H lines={["Fire record console"]} cls="xl" at={0.1} />
             </div>
             <div className="h3d-console" aria-hidden>
               <div className="frame">
-                <img className="scr" src={`${import.meta.env.BASE_URL}shots/explore.jpg`} alt="" />
-                <WarnScreen d={cdata} play={stage === 1} err={homeErrors.warning} />
-                <CasesScreen d={xdata} play={stage === 2} err={homeErrors.cases} />
-                <AskScreen d={cdata} play={stage === 3} err={homeErrors.warning} />
+                <img className="scr" src={`${SHOTS}explore.jpg`} alt="" />
+                <img className="scr" src={`${SHOTS}warning.png`} alt="" />
+                <div className="scr collage cases">{["exposure-map", "place-months", "exposure-list"].map((f) => <img key={f} src={`${SHOTS}${f}.png`} alt="" />)}</div>
+                <div className="scr collage ask"><img src={`${SHOTS}analyst.png`} alt="" /></div>
+                <div className="scr collage farm">{["farmer-kilns", "farmer-boro"].map((f) => <img key={f} src={`${SHOTS}${f}.png`} alt="" />)}</div>
                 {exploreTags(s?.sats ?? "…").map(([t, l, tp], i) => <span key={i} className="ptag" style={{ left: `${l}%`, top: `${tp}%` }}><i />{t}</span>)}
                 <b className="glass" />
               </div>
@@ -451,20 +435,25 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="c-say l" data-b={B.cases} data-in="0.3">
               <p className="kicker">03 · Cases &amp; exposure</p>
               <p>Fire near a <em>hospital</em> or a <em>school</em>? Know where to look first.</p>
-              <p className="who">Every place where satellites see fire is matched to the hospitals, schools and people inside it. Each fire is also checked against agency records and the news. <button className="h3d-link sm" onClick={() => go("cases")}>Open Cases &amp; exposure <Arrow /></button></p>
+              <p className="who">Type any place: fires seen this week, schools and hospitals within 5 km, and how often this month burned in past years. <button className="h3d-link sm" onClick={() => go("cases")}>Open Cases &amp; exposure <Arrow /></button></p>
             </div>
             <div className="c-say r" data-b={B.ask} data-in="0.3">
               <p className="kicker">04 · AI analyst</p>
               <p>Ask in plain words. Answers from <em>real numbers</em>.</p>
               <p className="who">For anyone. It reads the data and never makes numbers up.</p>
             </div>
+            <div className="c-say l" data-b={B.farm} data-in="0.3">
+              <p className="kicker">05 · For farmers, in Bangla</p>
+              <p>Can't show the kiln is there? <em>Now you can.</em></p>
+              <p className="who">One tap in the field: kilns within 1 km on a dated, satellite-checked record, their estimated smoke, and fire before the Boro harvest. Email or print it for the agriculture office. <button className="h3d-link sm" onClick={() => go("bangladesh")}>Open Bangladesh <Arrow /></button></p>
+            </div>
           </div>
 
-          {/* 15 · news */}
+          {/* 16 · news */}
           <div className="h3d-beat" data-b={B.news}>
             {/* cards exist from the start (story.ts wires [data-in] once); the live events fill them in */}
             <div className="newsfeed">
-              <p className="livebar pop" data-in="0.2"><i />Live · NASA EONET <b>{events?.count ?? "…"}</b> open wildfire events</p>
+              <p className="livebar pop" data-in="0.2"><i />Live · NASA EONET <b>{events?.count ?? "…"}</b> wildfire events, last 30 days</p>
               {[0, 1, 2, 3].map((i) => {
                 const e = events?.events[i];
                 return (
@@ -479,7 +468,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="h3d-col right big news-text">
               <H lines={["News,", "matched"]} cls="xl" />
               <div data-in="0.5">
-                <p className="kicker under">NASA EONET · GDELT · ReliefWeb</p>
+                <p className="kicker under">NASA EONET · GDELT · GDACS · Google News</p>
                 <p className="h3d-lead">News reports sit <em>next to each month</em> of the record. No news never proves no fire.</p>
                 <p className="who">For journalists and NGOs checking a claim against the satellites.</p>
                 <button className="h3d-link" onClick={() => go("news")}>Open News <Arrow /></button>
@@ -487,7 +476,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             </div>
           </div>
 
-          {/* 16 · connect */}
+          {/* 17 · connect */}
           <div className="h3d-beat connect" data-b={B.connect}>
             <div className="h3d-col big">
               <H lines={["Plug in", "any agent"]} cls="xl" />
@@ -512,7 +501,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             </div>
           </div>
 
-          {/* 17 · the way in */}
+          {/* 18 · the way in */}
           <div className="h3d-beat center" data-b={B.go}>
             <H lines={["Get your fire record today"]} cls="xl" at={0.2} />
             <button className="h3d-go" data-in="0.8" onClick={() => go("explore")}>Open the explorer</button>
@@ -557,7 +546,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
         <section className="h3d-flat wall">
           <div className="head" data-reveal>
             <h2 className="h3d-h">Fire regimes<br />on one scale</h2>
-            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes 5 to 10 minutes.</p>
+            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes a few minutes (about 6 on the hosted server).</p>
           </div>
           <ul className="cells" data-reveal>
             {presets.map((r) => (
