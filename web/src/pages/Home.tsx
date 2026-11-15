@@ -55,7 +55,7 @@ function span(ms: Meta[], k: string) {
 }
 
 // home menu: the in-app top bar's pages (shared.tsx PAGES; the Explorer has its own button) plus News and Data
-const NAV: (readonly [Page, string])[] = [...PAGES.filter(([k]) => k !== "explore"), ["news", "News"], ["download", "Data"]];
+const NAV: (readonly [Page, string])[] = [...PAGES.filter(([k]) => k !== "explore"), ["download", "Data"]];
 
 // the MCP server's size: 40 @mcp.tool functions in server/kw/mcp_server.py, 5 of them PUBLIC_WRITE_TOOLS that the public
 // HTTP connector drops (35 left). No endpoint reports it, so it is a constant: recount when tools are added.

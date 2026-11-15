@@ -7,7 +7,7 @@ export type Page = "home" | "explore" | "warning" | "after" | "cases" | "banglad
 export const ALL_PAGES: readonly Page[] = ["home", "explore", "warning", "after", "cases", "method", "questions", "bangladesh", "mcp", "n8n", "news", "download", "create", "contact"];
 export const PAGES: readonly (readonly [Page, string])[] = [
   ["explore", "Explorer"], ["warning", "Early warning"], ["after", "After MODIS"], ["cases", "Is fire near you?"],
-  ["method", "Proof"], ["questions", "Open questions"], ["bangladesh", "Bangladesh"], ["mcp", "Connect"], ["contact", "Contact"],
+  ["method", "Proof"], ["questions", "Open questions"], ["bangladesh", "Bangladesh"], ["news", "News"], ["mcp", "Connect"], ["contact", "Contact"],
 ];
 
 export type PageProps = {
