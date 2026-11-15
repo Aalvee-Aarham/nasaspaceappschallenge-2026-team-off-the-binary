@@ -60,8 +60,15 @@ def _blob(method, body=None):
     base, _, sas = STATE_URL.partition("?")
     req = urllib.request.Request(f"{base.rstrip('/')}/alerts.json?{sas}", data=body, method=method,
                                  headers={"x-ms-blob-type": "BlockBlob", "Content-Type": "application/json"} if body else {})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read()
+    except urllib.error.HTTPError as ex:
+        if ex.code == 404 and method == "GET":
+            raise            # no list yet: _load starts an empty one
+        raise tools.Unavailable(f"the alert store answered HTTP {ex.code}; please try again in a minute") from ex
+    except OSError as ex:
+        raise tools.Unavailable(f"the alert store could not be reached ({ex}); please try again in a minute") from ex
 
 
 def _load():
