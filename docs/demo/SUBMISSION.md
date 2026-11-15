@@ -43,7 +43,7 @@ WorldPop, the APAD Bangladesh brick-kiln inventory, ReliefWeb optional).
 
 **Use of AI:** summarise `AI_USE.md`. No AI system produces any number shown; numbers come from `server/kw/build.py` run on NASA FIRMS data. No personal data was given to an AI tool.
 
-**Demo video:** `TODO` (upload per step 6, then paste the link here and in the README)
+**Demo video:** https://www.youtube.com/watch?v=pXaGiUv_ifM
 
 **Live site:** https://kiln-watch-seven.vercel.app
 

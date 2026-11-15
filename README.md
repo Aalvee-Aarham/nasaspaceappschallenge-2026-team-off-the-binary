@@ -28,7 +28,12 @@
 
 <p align="center"><img src="docs/readme/stats.svg" alt="26 years, raw jump 3.5 to 10.6 times, harmonized step 0.93 to 1.19 times, 7.3 million detections processed" width="100%"></p>
 
-<p align="center"><sub>Demo video: link added after upload (see <code>docs/demo/SUBMISSION.md</code>).</sub></p>
+<h3 align="center">Demo video</h3>
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=pXaGiUv_ifM"><img src="https://img.youtube.com/vi/pXaGiUv_ifM/maxresdefault.jpg" alt="Kiln Watch summary and demo on YouTube" width="80%"></a><br>
+  <a href="https://www.youtube.com/watch?v=pXaGiUv_ifM"><img src="https://img.shields.io/badge/Watch%20the%20demo-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo on YouTube"></a>
+</p>
 
 <p align="center"><sub>Nine areas are prebuilt with the full record; "Is fire near you?" works for any place on Earth; any other box can be built live (5 to 10 minutes, see "Two hosts, one site").</sub></p>
 
