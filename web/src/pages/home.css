@@ -425,3 +425,18 @@
 
 
 .h3d-link.sm { display: flex; margin-top: 12px; font-size: 14px; }
+
+/* "Open the explorer": a button judges notice. Glass pill, a slow pulse, an arrow that nudges, a passing shine. */
+.h3d-cta { padding: 8px 8px 8px 26px; gap: 18px; border: 1px solid rgba(0, 161, 255, .55); border-radius: 999px; background: rgba(4, 14, 28, .72);
+  backdrop-filter: blur(10px); font-size: 19px; box-shadow: 0 10px 40px rgba(0, 0, 0, .45); overflow: hidden;
+  transition: color .25s, opacity .4s, transform .25s, border-color .25s, background .25s; }
+.h3d-cta i { width: 56px; height: 56px; border-radius: 50%; animation: h3d-ring 2.4s ease-out infinite; }
+.h3d-cta svg { width: 28px; height: 28px; animation: h3d-arrow 2.4s ease-in-out infinite; }
+.h3d-cta::after { content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .18) 50%, transparent 70%); animation: h3d-shine 4.8s ease-in-out infinite; }
+.h3d-cta:hover { transform: translateY(-2px) scale(1.03); border-color: var(--blue); background: rgba(0, 161, 255, .16); }
+.h3d-cta:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+@keyframes h3d-arrow { 0%, 60%, 100% { transform: none; } 75% { transform: translate(4px, -4px); } }
+@keyframes h3d-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+@media (max-width: 900px) { .h3d-cta { padding: 6px; } .h3d-cta i { width: 48px; height: 48px; } }
+@media (prefers-reduced-motion: reduce) { .h3d-cta i, .h3d-cta svg, .h3d-cta::after { animation: none; } }
