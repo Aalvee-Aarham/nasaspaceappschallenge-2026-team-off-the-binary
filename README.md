@@ -186,7 +186,8 @@ not used. An area-specific version is an open next step.
 
 ### Where it still falls short
 
-We publish these, not hide them.
+We publish these, not hide them. Every alternative we tested and every check the record failed, with the numbers, is in
+**[HARMONIZATION_TESTS.md](HARMONIZATION_TESTS.md)**: a failed test is a finding too.
 
 - **The ratio per calendar month is not yet better than one ratio per area on totals.** In the MODIS-denial test it
   lowers the monthly error in 5 of 9 areas (Punjab: mean absolute error 146 against 271 hotspots a month), but its
