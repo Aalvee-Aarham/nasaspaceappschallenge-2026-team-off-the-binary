@@ -9,62 +9,124 @@
   NASA Space Apps Challenge 2026 · <i>Harmonization of MODIS and VIIRS Hot Spots</i> · Team Off The Binary, Bangladesh
 </p>
 
-<h3 align="center">Live: <a href="https://kiln-watch-seven.vercel.app">kiln-watch-seven.vercel.app</a> · <a href="https://www.youtube.com/watch?v=pXaGiUv_ifM">Demo video</a></h3>
+<h3 align="center">Live: <a href="https://kiln-watch-seven.vercel.app">kiln-watch-seven.vercel.app</a></h3>
 
-<p align="center"><img src="docs/readme/stats.svg" alt="26 years in one record; raw jump when Suomi-NPP arrives, median of nine areas; the same step in our record; detections processed" width="100%"></p>
+<p align="center">
+  <a href="https://kiln-watch-seven.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-open-FF9A3C?style=for-the-badge" alt="Live demo"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=method"><img src="https://img.shields.io/badge/Method%20%26%20results-read-58A6FF?style=for-the-badge" alt="Method and results"></a>
+  <a href="https://kiln-watch-seven.vercel.app/#pg=mcp"><img src="https://img.shields.io/badge/MCP-35%20tools%20online%20%C2%B7%2040%20local-3DDC97?style=for-the-badge" alt="MCP server, 35 read-only tools online, 40 locally"></a>
+</p>
 
-## For judges: 60 seconds
+<p align="center">
+  <img src="https://img.shields.io/badge/data-NASA%20FIRMS-0B3D91" alt="Data: NASA FIRMS">
+  <img src="https://img.shields.io/badge/imagery-NASA%20GIBS%20%C2%B7%20Black%20Marble-0B3D91" alt="Imagery: NASA GIBS and Black Marble">
+  <img src="https://img.shields.io/badge/DuckDB-GeoParquet-FFF000?logo=duckdb&logoColor=black" alt="DuckDB">
+  <img src="https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/React-MapLibre%20globe-61DAFB?logo=react&logoColor=black" alt="React and MapLibre">
+  <img src="https://img.shields.io/badge/cost-%240%2C%20no%20paid%20services-success" alt="No paid services">
+</p>
 
-- **The jump.** In 2012 a sharper satellite (VIIRS) joined the older one (MODIS). Raw fire counts jumped **×5.6** (median of
-  nine areas) with no change on the ground.
-- **The fix.** We measure how much more each satellite sees, month by month, and put all five on one scale (Aqua MODIS).
-  The same step in our record: **×1.01**, where 1.00 means no jump.
-- **The proof.** We hid MODIS after 2016 and rebuilt 2017–2020 from VIIRS alone. In 7 of 9 areas the rebuilt record is
-  within 10% of what MODIS really saw; uncalibrated counts are off by 470% to 1,767%. So the record survives the end of MODIS.
-- **The farmer check.** In Bangladesh, a farmer types a village (in Bangla) and gets the brick kilns next to the field,
-  fire this week, and this month against 26 years on one scale, ready to email, WhatsApp or print for the agriculture office.
+<p align="center"><img src="docs/readme/stats.svg" alt="26 years, raw jump 3.5 to 10.6 times, harmonized step 0.93 to 1.19 times, 7.3 million detections processed" width="100%"></p>
 
-## Try it
+<h3 align="center">Demo video</h3>
 
-| Click | You will see |
-|---|---|
-| [Punjab, 26 years](https://kiln-watch-seven.vercel.app/#pg=explore&r=punjab) | The burning calendar: one square per month, one row per year, no jump in 2012 |
-| [The scorecard](https://kiln-watch-seven.vercel.app/#pg=method) | Nine areas, every test, a plain trust label, and where it falls short |
-| [After MODIS](https://kiln-watch-seven.vercel.app/#pg=after) | Switch satellites off and watch the record hold |
-| [Is fire near Ludhiana?](https://kiln-watch-seven.vercel.app/#pg=cases&q=Ludhiana%2C%20India) | Fire seen this week, when fire usually comes, and the schools and hospitals near it |
-| [Farmer check, Aminbazar](https://kiln-watch-seven.vercel.app/#pg=bangladesh&q=Aminbazar%2C%20Savar%2C%20Bangladesh) | Kilns within 1 and 3 km, their estimated smoke, the Boro season, in Bangla with a Listen button |
-| `claude mcp add --transport http kiln-watch https://kiln-watch-seven.vercel.app/mcp` | 35 read-only fire tools for Claude over the same record |
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=pXaGiUv_ifM"><img src="https://img.youtube.com/vi/pXaGiUv_ifM/maxresdefault.jpg" alt="Kiln Watch summary and demo on YouTube" width="80%"></a><br>
+  <a href="https://www.youtube.com/watch?v=pXaGiUv_ifM"><img src="https://img.shields.io/badge/Watch%20the%20demo-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo on YouTube"></a>
+</p>
 
-## The problem
+<p align="center"><sub>Nine areas are prebuilt with the full record; "Is fire near you?" works for any place on Earth; any other box can be built live (5 to 10 minutes, see "Two hosts, one site").</sub></p>
 
-<p align="center"><img src="docs/readme/hero.svg" alt="Raw satellite hotspot counts jump when new satellites arrive; the harmonized record stays level" width="100%"></p>
+<p align="center">
+  <a href="#in-one-minute">In one minute</a> ·
+  <a href="#the-problem-in-one-picture">Problem</a> ·
+  <a href="#the-fix">Fix</a> ·
+  <a href="#the-proof">Proof</a> ·
+  <a href="#the-product">Product</a> ·
+  <a href="#exposure-who-is-near-the-fire">Exposure</a> ·
+  <a href="#is-fire-near-you">Is fire near you?</a> ·
+  <a href="#who-it-is-for">Who it is for</a> ·
+  <a href="#open-questions-from-nasas-discussions">Open questions</a> ·
+  <a href="#how-it-is-built">How it is built</a> ·
+  <a href="#data-used">Data used</a> ·
+  <a href="#use-of-ai">Use of AI</a> ·
+  <a href="#references">References</a> ·
+  <a href="#team-off-the-binary">Team</a>
+</p>
 
-## The fix
+---
+
+## In one minute
+
+Satellites have recorded fire from space since 2000, but not with the same instruments. In 2012 a sharper sensor (VIIRS)
+joined the older one (MODIS) and began counting small fires the older one could not see. In our nine study areas the raw
+count jumped 3.5 to 10.6 times, with no change on the ground. Anyone who compares 2024 with 2005 on the raw numbers is
+comparing two instruments, not two fire seasons.
+
+Kiln Watch puts every satellite on one scale, so all 26 years can be compared, and shows the result as a burning
+calendar: one square per month, one row per year, for any area you choose.
+
+Seven things to know:
+
+- **It is tested by taking satellites away.** We rebuild 2017–2020 without MODIS and compare with what MODIS really saw.
+  In seven of nine areas the rebuilt record is within 10% of it; uncalibrated counts are off by 470% to 1,767%.
+- **Every number has a range**, and we measured how often the truth falls inside it (79% to 100% of held-out months; the target is 95%).
+- **It keeps working when MODIS is switched off.** Which satellite was flying when is read from the data, including
+  Aqua's drift from 2023 and Suomi-NPP's last day.
+- **It says what it cannot do.** NASA's fire product cannot count brick kilns. We measured that in our own city and
+  published it ([Who it is for](#who-it-is-for)), along with every other limit we know of.
+- **It shows who is near the fire.** Every fire cell carries its people, schools, hospitals, roads and farmland, and
+  any place on Earth gets its schools and hospitals listed by distance to this week's fire ([Exposure](#exposure-who-is-near-the-fire)).
+- **Farmers in Bangladesh can show the kilns next to their fields.** One tap gives a dated, satellite-checked record of
+  nearby kilns and their estimated smoke, and the months fire usually comes before the Boro harvest
+  ([For farmers](#for-farmers-what-is-near-your-field)).
+- **One answer, four ways to reach it:** the website, an open API with no key, an MCP server for AI assistants (35 read-only tools online, 40 locally),
+  and alerts by email or n8n.
+
+---
+
+## The problem, in one picture
+
+In 2012 a sharper satellite started counting smaller fires. Nothing changed on the ground. The record did.
+
+<p align="center"><img src="docs/readme/hero.svg" alt="Kiln Watch: raw satellite hotspot counts jump when new satellites arrive; the harmonized record stays level" width="100%"></p>
 
 <p align="center"><img src="docs/readme/calendars.svg" alt="Two month-by-year calendars for Punjab: raw counts brighten sharply from 2012, the harmonized calendar stays even" width="100%"></p>
 
-Aqua MODIS is the reference: its afternoon orbit is the only one flown from 2002 through every VIIRS satellite. Each
-satellite is linked to it by a ratio of monthly totals per calendar month, day and night apart, shrunk by empirical Bayes;
-NOAA-20 and NOAA-21 are chained through Suomi-NPP. Which satellite flew when, Aqua's drift (2023) and Suomi-NPP's last day
-(2 November 2026) are read from the data, never typed in. Every value carries a 95% interval.
-[Why this method, and what we tried instead](docs/DETAILS.md#why-this-method).
+## The fix
+
+```mermaid
+flowchart LR
+  T["Terra MODIS<br/>bridge for 2000–2002"] --> A(("Aqua MODIS<br/>reference scale"))
+  S["Suomi-NPP VIIRS"] -->|"2012–2020, before Aqua drifts"| A
+  N20["NOAA-20 VIIRS"] --> S
+  N21["NOAA-21 VIIRS"] --> N20
+  A --> R["One record<br/>with a 95% interval on every value"]
+```
+
+- **Why Aqua?** Its afternoon orbit is the only one flown continuously from 2002 through every VIIRS satellite.
+- **How?** Ratio of totals per calendar month, day and night apart, shrunk by empirical Bayes. No black box. [Why this method](#why-this-method).
+- **Which satellites, when?** Read from the data. Suomi-NPP's end on 2 November 2026 was detected, not typed in.
+- **What about Aqua's drift?** Its overpass time is read from the FIRMS timestamps, and the MODIS archive version from the
+  data. Both changed in 2023 (the pass moved more than 15 minutes later; version 61.03 replaced 6.03). From 2023 the
+  record runs on VIIRS alone, still on the Aqua 2002–2020 scale, so it carries on unchanged when Aqua is switched off.
+
+<p align="center"><img src="docs/readme/sensors.svg" alt="Timeline of the five satellites, with Suomi-NPP ending on 2026-11-02" width="100%"></p>
 
 ## The proof
 
+We test the record the way the future will: by taking satellites away.
+
 <p align="center"><img src="docs/readme/denial.svg" alt="MODIS-denial test for Punjab: the record rebuilt from VIIRS alone follows what Aqua MODIS actually saw" width="100%"></p>
 
-<p align="center"><img src="docs/readme/steps.svg" alt="Step test in nine regions: raw counts jump, harmonized values stay near 1" width="100%"></p>
+<p align="center"><img src="docs/readme/steps.svg" alt="Step test in nine regions: raw counts jump 3.5 to 10.6 times, harmonized values stay near 1" width="100%"></p>
 
-| Claim | Result | What this does not show |
-|---|---|---|
-| The 2012 jump is the satellite, not the fire | Raw ×5.6, ours ×1.01 (median of 9 areas) | That fire did not change: only that the satellite change leaves no step |
-| The record survives the end of MODIS | 7 of 9 areas within 10% with MODIS hidden for 2017–2020 (trust label High); Dhaka +13% (Medium), Paraná Delta +27% (Low) | Places outside the built areas: a new area has no score until its record is built |
-| The ranges are honest | 79% to 100% of held-out months fall inside the 95% interval | Northern California (79%) is too narrow for years unlike its training years |
-| An outside check agrees | NASA MCD64A1 burned area: in 2012 raw counts jump ×4.89, ours moves ×1.03, burned area ×0.72 | Burned area is guided by MODIS hotspots, so it is not fully independent |
-| FIRMS cannot count kilns | Near Dhaka, 4.6% of mapped kilns had a VIIRS hotspot within 500 m; random ground 4.2% | So the farmer check reads a kiln inventory, never the fire detections |
+**How to read the two charts.** Top: the record rebuilt from VIIRS alone, against what Aqua MODIS really saw; the
+closer the two, the better the method. Bottom: how much the record moves when a new satellite arrives, where 1 means
+no jump. Raw counts move 3.5 to 10.6 times; the harmonized record stays near 1 in all nine areas.
 
 <details>
-<summary><b>Full results table, nine areas</b></summary>
+<summary><b>Full results table, nine regions</b></summary>
 
 <br>
 
@@ -85,77 +147,532 @@ so 95% of the 2017–2020 test months fall inside. To check that this is not cir
 2017–2018 alone and tested on 2019–2020: that is the out-of-sample column. Trends are seasonal Sen slopes for
 2003–2020: the median of the per-season Sen slopes, which is what a seasonal test should report, not the pooled slope
 over all months.
-How to read every column: the [Proof page](https://kiln-watch-seven.vercel.app/#pg=method).
+How to read every column: the [Method page](https://kiln-watch-seven.vercel.app/#pg=method).
 
 </details>
 
-## Bangladesh: what is near your field?
+### Why this method
 
-<p align="center"><img src="docs/readme/app-farmer.png" alt="The farmer check for Aminbazar, in Bangla: kilns within 1 and 3 km, the nearest one, fire this week, a map of the kilns and the months of fire and kiln season" width="80%"></p>
+- **Measured on what we publish.** The sensor gap is measured on monthly detection totals, the quantity in the record, so no
+  model of fire physics has to be right first. VIIRS sees many small fires MODIS cannot ([Schroeder et al. 2014](https://doi.org/10.1016/j.rse.2013.12.008);
+  [Giglio et al. 2016](https://doi.org/10.1016/j.rse.2016.02.054)), and the ratio absorbs that difference as it is.
+- **A ratio of totals, not a regression.** Both sensors count with error, so regressing one on the other biases the slope
+  toward zero ([regression dilution, Frost & Thompson 2000](https://doi.org/10.1111/1467-985X.00164)). For Poisson counts with
+  a common rate ratio, the ratio of totals is its maximum-likelihood estimate.
+- **Seasonal, not over-fitted.** One ratio per calendar month, shrunk toward the all-year ratio by empirical Bayes
+  ([Efron & Morris 1975](https://doi.org/10.1080/01621459.1975.10479864)), with the between-month variance estimated by the
+  method of moments ([DerSimonian & Laird 1986](https://doi.org/10.1016/0197-2456(86)90046-2)).
+- **No near-simultaneous pairs needed.** Fire-by-fire or pixel matching needs the two satellites to look within minutes.
+  Aqua's pass has drifted later since 2020, so such pairs become rare. Monthly totals only need both satellites in orbit that month.
+- **Tested by taking satellites away**, with intervals widened by split conformal prediction
+  ([Lei et al. 2018](https://doi.org/10.1080/01621459.2017.1307116)) and checked out of sample. Trends use
+  [Sen's slope (1968)](https://doi.org/10.1080/01621459.1968.10480934).
 
-Farmers near brick kilns say the smoke damages their rice, but when they complain they are asked to show a kiln is there
-at all. The [farmer check](https://kiln-watch-seven.vercel.app/#pg=bangladesh&q=Aminbazar%2C%20Savar%2C%20Bangladesh)
-shows it, Bangla first: the kilns within 1 and 3 km from a national inventory (APAD, 4,760 kilns, CC BY 4.0), fire this
-week, this month against 26 years, and the Boro season, ready to email, WhatsApp or print for the Upazila Agriculture Office.
-It shows that kilns stand near a field; it does not prove crop damage. [The measurements behind it](docs/DETAILS.md#who-it-is-for).
+Each part is a published, standard tool. The way they are combined for MODIS and VIIRS is ours, and the tests above are its proof.
 
-## Limits that matter most
+**The main alternative was tried, and lost.** MODIS detects a fire only above a certain fire power, so the sensor ratio could
+follow the fire mix. We added a term for the month's mean Suomi-NPP fire power per detection to the Suomi-NPP → Aqua ratio,
+fitted on 2012–2016 and scored on 2017–2020 (`transfer_validation.fire_size_term` in each `meta.json`):
 
-- **No cloud correction yet.** A month under cloud reads low in every year alike, so it is consistent, but low.
-- **Satellites pass at fixed times.** A fire lit and finished between passes is never seen. In Punjab a NASA scientist
-  reported, from a geostationary satellite, that burning has moved after the early-afternoon pass since 2024 (not yet
-  checked on the ground); if so, recent low counts there are partly timing.
-- **After MODIS the chain does not fully close.** NOAA-20 straight to Aqua and NOAA-20 through Suomi-NPP disagree by up to
-  about 90% at night in some areas; the gap is added to the interval, not hidden.
-- **Detections are not fires and not burned area**, and the early warning is history plus the present, never a forecast.
+| | Ratio per calendar month (ours) | Plus a fire-size term |
+|---|---|---|
+| Mean absolute log error, 9 areas | **0.459** | 0.460 |
+| Areas where it lowers the log error | – | 3 of 9 (Fort McMurray, Rondônia, south-east Australia) |
+| Areas where it raises the error in detections | – | 6 of 9 |
+| Bias, Northern California / Paraná Delta | +21.0% / +36.9% | +50.1% / +140.2% |
 
-Every alternative we tested and every check that failed, with numbers: [HARMONIZATION_TESTS.md](HARMONIZATION_TESTS.md).
-Everything else (all shortfalls, exposure, NASA's open questions, how it is built, hosting, how to run it, references):
-[docs/DETAILS.md](docs/DETAILS.md).
+It helps in some large-fire areas, but its slope does not hold from the training years to the test years elsewhere, so it is
+not used. An area-specific version is an open next step.
+
+### Where it still falls short
+
+We publish these, not hide them. Every alternative we tested and every check the record failed, with the numbers, is in
+**[HARMONIZATION_TESTS.md](HARMONIZATION_TESTS.md)**: a failed test is a finding too.
+
+- **The ratio per calendar month is not yet better than one ratio per area on totals.** In the MODIS-denial test it
+  lowers the monthly error in 5 of 9 areas (Punjab: mean absolute error 146 against 271 hotspots a month), but its
+  bias on the 2017–2020 total is larger in 5 of 9 (La Rioja −9.7% against −1.8%, Dhaka +13.1% against +8.5%).
+  `denial.modis_ends_2016` in each `meta.json` holds both. We tested three fixes on months they never saw (training
+  cut-offs 2015, 2016 and 2017): choosing between the two per link from a split inside the training years, and
+  weighting recent years more. Neither wins at all three cut-offs, so the method is unchanged
+  (`data/validation/calibration_variants.json`, from `scripts/validation/calibration_variants.py`).
+- **After MODIS, the chain does not fully close.** From 2023 the record runs NOAA-20 → Suomi-NPP → Aqua. The direct
+  NOAA-20 → Aqua ratio and that chain disagree by +18% (day) and +28% (night) in Punjab, +48% at night in Northern
+  California, +90% at night in south-east Australia and −34% / −63% in Dhaka (`closure` in `meta.json`). The mismatch is
+  added to the interval, not removed. Held out on 2021–2022, when Aqua still flew its old orbit, NOAA-20 alone through
+  the chain predicts Aqua with a mean monthly log error of 0.345, against 0.373 for the direct link and 0.373 for one
+  ratio per area (mean total bias 9.3%, 9.4% and 13.0%), so the chain is kept (same file).
+- **NOAA-21 steps are wider than Suomi-NPP's**: 0.63 (Rondônia) to 1.34 (La Rioja), against 0.93–1.18. NOAA-21 arrived in
+  2024, when Aqua was already drifting, so its step mixes the new satellite with Aqua's change.
+- Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 6%.
+- Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
+- Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
+- No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
+  scored months lean toward active ones, so its skill numbers there are not yet comparable across areas.
+- **The early-warning backtest flattered itself, and we now say by how much.** On day 15 the rule's skill was scored
+  against the whole month, which contains the 15 days it had already seen. Scored only on the 16th to the month's end,
+  the skill falls (Punjab 0.77 → 0.38, Alberta 0.82 → 0.59, Niger Delta 0.54 → 0.06). Against a simple reference,
+  "last month was in the top tenth", the rule wins in Alberta, Punjab and south-east Australia, ties in Northern
+  California, and loses in the Paraná Delta, Rondônia and the Niger Delta. It is a climatological outlook, not a
+  forecast (`warning_backtest.by_day` in `meta.json`: `elevated_rest_of_month`, `elevated_persistence`).
+- The 30-day outlook now runs on NOAA-20 VIIRS put on the Aqua scale, so it does not stop with Aqua. Held out on 2022 the
+  total is off by +0.9% and the cell ranking agrees at ρ = 0.84, but its "above normal" flag agrees with Aqua's own on only
+  41% of cells (NOAA-20 finds 681 of Aqua's 1,325 and adds 318): the two satellites sample different small fires. A single
+  dot is a hint; the named regions group neighbouring cells. Other shrinkage weights gave 38–42%, so this is not a tuning issue.
+- The casebook's news witness is only as good as GDELT (2017 on) and Google News; GDACS wildfire events start in 2021. A witness
+  that could not look is shown as "could not look" with its reason, never as "nothing found". MODIS burned area is guided by
+  MODIS hotspots, so it is not fully independent of the record. Event points are matched to hotspots in their cell, the 8 around
+  it and the next month: those windows are judgement calls.
+- Kilns: the kiln map shows structures from the 2024-25 dry season, not kilns in operation, and is licensed non-commercial.
+  Night lights and Sentinel-1 radar are consistent with kilns, not proof of them, and neither says whether a kiln is firing.
+
+### Checked against other data
+
+Two checks run outside the pipeline and publish their results, whether they pass or not.
+
+| Check | What it asks | Result |
+|---|---|---|
+| NASA MCD64A1 burned area, seven areas, 261–263 months each, 2003–2024 | Does the record track physical burned area, and is the 2012 jump real? | The raw detection count jumps ×4.89 in 2012; the harmonized record moves ×1.03; burned area, built from MODIS alone, moves ×0.72. The jump was an instrument change. Monthly rank correlation with burned area: 0.49 harmonized, 0.37 raw. |
+| APAD Bangladesh brick-kiln inventory, 4,760 operating kilns | Do the published persistent-heat cells correspond to mapped kilns? | No. At 1 km, 2 of 109 cells (1.8%) land on a kiln; randomly placed cells of the same number land on one 8.3% of the time. The layer is a persistent-heat proxy, not a kiln inventory. |
+
+Both are re-runnable (`scripts/validation/`), fail closed, and publish their sources, hashes and limitations with the
+numbers: `data/validation/burned_area.json`, `data/validation/kilns_dhaka-kilns.json`.
+
+---
+
+## The product
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/app-calendar.jpg" alt="Burning calendar for Punjab beside the map"><br><b>Burning calendar.</b> Month by year, number in every cell, colour-blind-safe, keyboard navigable. Click a cell for the detections behind it.</td>
+<td width="50%" valign="top"><img src="docs/readme/app-globe.jpg" alt="3D globe with the worldwide 30-day outlook"><br><b>Globe and 30-day outlook.</b> Every half-degree cell on Earth: what the next 30 days usually bring, and how unusual the last 30 were.</td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/readme/app-warning.jpg" alt="Early warning page with a list of places to watch"><br><b>Early warning.</b> A plain rule printed on the page. It compares with earlier years; it never forecasts. Alerts by email or n8n.</td>
+<td valign="top"><img src="docs/readme/app-mcp.jpg" alt="MCP page: 35 read-only tools online, 40 locally, 4 characters, 5 resources"><br><b>Ask it anything.</b> An in-app analyst and an MCP server (35 read-only tools online, 40 locally) for Claude, Cursor and n8n. The AI model only picks which algorithm answers the question; the algorithm writes the answer, so every number comes from the pipeline.</td>
+</tr>
+</table>
+
+**Is fire near you?** The check for any place and the "Who is nearby" map layer: see [Is fire near you?](#is-fire-near-you).
+
+**Nine study areas in depth.** Each fire case is heard by six witnesses (the satellite record, a MODIS-against-VIIRS check, NASA EONET, GDACS, MODIS burned area, the news) and gets a plain verdict. Each witness that could not look says why. Beside it: the people, schools, hospitals, roads and farmland in the cells where fire was seen ([Exposure](#exposure-who-is-near-the-fire)).
+
+**Bangladesh.** The Dhaka kiln belt is counted from a published kiln map and night lights, with NASA's fire product measured against it, not used to find kilns.
+
+Also in the box: draw-your-own area, weekly view, season start and peak, news and event reports beside the data, SVG charts, a printable brief.
+
+**Download exactly what you need.** Any built area, including one you drew, exports as CSV, TSV or JSON. You choose the table
+(the monthly or weekly calendar, or the individual detections for up to a year), the years or dates, and the column groups
+(harmonized hotspots with intervals, history against other years, satellites and coverage, raw counts, quality flags). The same
+choices are in the Explorer panel (Download), on the Download page, in the API and in MCP (`export_data`, which lists the column
+groups and asks you which you want). Files start with `#` comment lines (unit, source, code version) unless you switch them off;
+JSON carries the same provenance in a block. Raw per-satellite counts are optional and labelled: they rise whenever a satellite is added.
+
+```bash
+BASE=https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io
+curl "$BASE/api/export/options"                      # formats, column groups, limits
+curl -o punjab.csv "$BASE/api/regions/punjab/export?columns=hotspots,history&start=2015&end=2025"
+curl -o hot.json  "$BASE/api/regions/punjab/export?kind=detections&format=json&columns=where,strength&start=2025-04-01&end=2025-04-30&used_only=true"
+```
+
+---
+
+## Exposure: who is near the fire
+
+A detection says where heat was seen. The next question is always who and what is there. Kiln Watch answers it at
+two scales, and both say plainly when a source could not be reached.
+
+**For a whole area, over 26 years.** Every 0.1° cell where the record shows fire since 2000 carries five layers:
+
+| Layer | Source | In each fire cell |
+|---|---|---|
+| People | WorldPop 2020, 1 km | Modelled population |
+| Schools and kindergartens | OpenStreetMap | Count, and the named ones listed |
+| Hospitals and clinics | OpenStreetMap | Counted apart, named ones listed |
+| Major roads | OpenStreetMap | Motorways, trunk and primary roads by name |
+| Cropland | ESA WorldCover 10 m, 2021 | Square kilometres of farmland |
+
+| Area | People in fire cells | Schools | Hospitals | Clinics | Major roads | Cropland, km² |
+|---|---|---|---|---|---|---|
+| Dhaka brick-kiln belt | 33,187,073 | 1,964 | 671 | 439 | 325 | 4,302 |
+| Punjab–Haryana | 54,566,902 | could not look | 4,477* | 2,143 | 725 | 80,155 |
+| Chilecito, La Rioja | 324,621 | 141 | 39 | 20 | 42 | 163 |
+| Rondônia | 1,425,955 | could not look | 33 | 25 | 63 | 743 |
+| Fort McMurray | 101,716 | 33 | 2 | 3 | 7 | 46 |
+| South-east Australia | 2,972,434 | could not look | 135 | 495 | could not look | 22,601 |
+| Northern California | 3,292,014 | 1,458 | 63 | 218 | 331 | 5,000 |
+| Paraná Delta | 3,096,778 | 1,905 | 177 | 482 | could not look | 31,178 |
+| Niger Delta | 36,622,013 | 582 | 124 | 84 | could not look | 710 |
+
+<sub>Built by `scripts/build_exposure.py` into each area's `exposure.json`; this table is read from those files. "Could not look":
+the OpenStreetMap server timed out, so the count is unknown, not zero. *Punjab's named hospital list stops at the 1,500 cap.</sub>
+
+**For one place, this week.** "Is fire near you?" lists every school, hospital, clinic, care home and fire station within
+25 km, each with its distance to the nearest fire seen in the last 7 days, red when it is within 5 km.
+
+<p align="center"><img src="docs/readme/app-exposure-list.png" alt="Schools, hospitals and care homes nearby for Paradise, California: 11 schools, 1 hospital, 1 clinic and 4 fire stations within 5 km of a fire seen this week; the hospital has a fire 680 m away" width="100%"></p>
+
+**What exposure is not.** It is context, never impact. FIRMS gives detections, not fire perimeters, and there is no smoke
+or fire-spread model here. WorldPop is modelled, not a census, and not the population on the day of a fire.
+OpenStreetMap is only as complete as its volunteers have made it.
+
+---
+
+## Is fire near you?
+
+**For families, students, fire managers and safety officers, anywhere on Earth.** Type a town, village, school or
+address, or press "Use my location". The answer comes in plain words and pictures, with large text and big buttons for
+people who are not used to maps.
+
+<p align="center"><img src="docs/readme/app-fire-near-you.jpg" alt="Is fire near you? for Ludhiana: 'Stay alert', 9 fire spots this week, the closest 5.6 km away, fire in November in 23 of 23 years, and a street map with the fire spots and the 10 km circle" width="100%"></p>
+
+| You see | Where it comes from |
+|---|---|
+| A traffic-light level: **low right now · fire season · stay alert · fire close by** | The rule `science.place_level`, printed on the page |
+| The fire spots satellites saw within 5, 10 or 25 km in the **last 7 days**, on a street map | NASA FIRMS, every satellite, read live from the public mirror |
+| **How many of the last 23 years** had fire there this month, and which months usually burn | A worldwide table of fire months per 0.1° cell, MODIS 2003–2025 (`data/global/fire_season.parquet`, 10 MB) |
+| What the **next 30 days** usually bring | The worldwide 30-day outlook |
+| **Schools, hospitals, clinics, care homes and fire stations** nearby, each with its distance to the nearest fire this week, red when it is within 5 km | OpenStreetMap |
+| A one-click alert for the place | Email or n8n |
+
+**How long it takes, honestly.** The fire answer usually comes in 5 to 20 seconds (up to a minute when NASA's data server is
+slow). The list of schools and hospitals comes from OpenStreetMap's free public servers: usually 20 to 45 seconds, and the
+page says so and offers a retry if they do not answer within about a minute. Places already looked up are instant for a week.
+
+**On the live map too.** In the Explorer, the layer **Who is nearby** puts the same schools, hospitals, clinics, care homes
+and fire stations on the globe next to the fire layers. Click one for its name; switch it on and off in the Layers panel.
+Zoom in to a town to load it. In the nine study areas a list appears at once while the full one loads; elsewhere a new
+town takes up to a few minutes the first time, and the map stays usable meanwhile.
+
+<p align="center"><img src="docs/readme/app-nearby-layer.jpg" alt="Explorer map of Kathmandu with the Who is nearby layer on: schools, hospitals and clinics as coloured dots, and a hospital's name in a popup" width="100%"></p>
+
+**For developers and AI assistants.** The same answer is a public API with no key, and an MCP tool for Claude:
+
+```bash
+curl "https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io/api/place-risk?q=Ludhiana,%20India&radius_km=10"
+curl "https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io/api/facilities?west=85.25&south=27.65&east=85.5&north=27.75"
+```
+
+MCP: `check_place_fire_risk`. Every endpoint is listed at `/docs` on the API.
+
+**What it is not.** A dot is heat seen from space a few hours ago, not a confirmed fire; factories, gas flares and kilns can
+show as heat. History is not a forecast. This is not an official warning: in an emergency, call your local fire service.
+A source that could not answer says so; it is never shown as "no fire" or "no buildings".
+
+---
+
+## Who it is for
+
+| Anywhere on Earth | At home, in Bangladesh |
+|---|---|
+| **Families, schools and hospitals** check their own street in plain words: [Is fire near you?](#is-fire-near-you) | **Dhaka's brick-kiln belt** is our home test case and the place the project is named after. It is where raw counts mislead most: a 10.6× false jump. |
+| **Fire managers** see whether this month is unusual against 26 comparable years, not 14. | **NASA's fire product cannot count kilns, so we do not ask it to.** We measured it (table below) and count kilns from a published kiln map instead. |
+| **Scientists** get a record with intervals, provenance and the calibration table to download. | **Night lights and radar are the second and third witness.** NASA Black Marble and Sentinel-1 both change at mapped kilns between the monsoon and the kiln season. |
+| **Everyone after MODIS.** Terra and Aqua are near the end of their lives. The denial test shows the record carries on without them, and the 30-day outlook is now counted by NOAA-20 VIIRS, so it does not stop with Aqua. | **We changed our own labels.** The map's "persistent heat sources" used to be called kilns. The data said otherwise, so the name went. |
+
+**What we measured in the Dhaka kiln belt**
+
+| Question | Answer | The numbers |
+|---|---|---|
+| Can NASA's fire product find kilns? | No | Of 717 kilns on a published Sentinel-2 kiln map, 4.6% had a VIIRS hotspot within 500 m in the 2024-25 dry season. Random places far from any kiln: 4.2%. MODIS: 0% against 0.2%. |
+| Do NASA Black Marble night lights change in kiln season? | Consistent with kilns | 40.5% of rural kilns brighten more between the monsoon and the dry season than the random 75th percentile. Chance would be 25%. |
+| Does Sentinel-1 radar change in kiln season? | Consistent with kilns | A mapped kiln's contrast with its surroundings rises a median 0.67 dB from the monsoon to the dry season (random places: 0.03 dB). 54.5% of kilns are above the random 75th percentile. |
+| Are the FIRMS "persistent heat sources" kilns? | No | Only 6 of the 109 sit on a mapped kiln. |
+
+<p align="center"><img src="docs/readme/kilns.svg" alt="Dhaka brick-kiln belt: 717 mapped kilns, of which FIRMS sees about as many as random ground, and night lights in kiln season" width="100%"></p>
+
+<p align="center"><sub>The map shows kiln structures in the 2024-25 dry season, not kilns in operation; about 8 in 10 detections inside human-labelled footprints are kilns, about 2 in 10 outside. Licence CC BY-NC 4.0 (non-commercial). Night lights and radar are consistent with kilns, not proof: kilns sit on town edges that also brighten in winter, and radar also responds to buildings and moisture. A second, independently licensed inventory (APAD, CC BY 4.0) reaches the same conclusion about the persistent-heat cells: see <a href="#checked-against-other-data">Checked against other data</a>.</sub></p>
+
+### For farmers: what is near your field?
+
+Farmers near brick kilns report smoke damage to rice, mango and vegetables in the dry season, and kilns burn coal: smoke,
+sulphur and CO2. When they complain, they are often asked to show that a kiln is there at all. The
+[Bangladesh page](https://kiln-watch-seven.vercel.app/#pg=bangladesh) lets them: a dated record of the kilns around
+their field, from a national inventory checked against satellite images, with the kilns' estimated smoke. In Bangla first:
+
+1. Press **Use my location** in the field, or type the village or market.
+2. Read the answer: kilns within 1 km and 3 km and the nearest one, their estimated smoke (tonnes of PM2.5 and SO2 a
+   year), fire seen within 5 km this week, and the **Boro
+   season** on one 12-month strip: seedbed to harvest (BAMIS crop calendar), how many of the last 23 years had fire
+   nearby in each month (NASA MODIS), and the kiln season (NASA Black Marble). It names the fire years in the April–May
+   harvest months, so straw and threshed paddy can be kept away from burning fields.
+3. **Email this report** opens the phone's own email app with everything written in, ready for the Upazila Agriculture
+   Officer or the Department of Environment; **Print one page** gives a Bangla sheet for an office or a union notice board.
+   An email alert can be set for fire near the field.
+
+<p align="center"><img src="docs/readme/app-farmer.png" alt="The farmer check for Aminbazar, in Bangla: 1 kiln within 1 km, 34 within 3 km, the nearest 970 m away; fire this week; a map of the kilns around the field; and the months of fire and kiln season" width="80%"></p>
+
+| Across Bangladesh | Number | Source |
+|---|---|---|
+| Kilns in the national inventory | 4,760 | APAD (CC BY 4.0) |
+| Kilns with cropland on half or more of the land within 1 km | 2,802 (59%) | ESA WorldCover 10 m, measured around each kiln |
+| Listed kilns within 300 m of a kiln seen in Sentinel-2 imagery (Dhaka area) | 84.5%, against 4.2% for random places | Cross-check with the Sentinel-2 kiln map |
+| Sentinel-2 kilns that the inventory lists (Dhaka area) | 52% | Same cross-check: counts are a floor, not the full number |
+| Estimated smoke from all listed kilns | 248,939 t PM2.5 and 168,633 t SO2 a year | APAD's modelled estimate per kiln (capacity × emission factor by kiln type), not measured |
+| Example: Aminbazar, Savar | 34 kilns within 3 km, the nearest 970 m away; about 1,827 t PM2.5 a year | The check on the page |
+
+Kiln positions come from the inventory, never from FIRMS. The inventory stops at about 90.9° E, so Chattogram, Sylhet and
+the east of Dhaka division get "no kiln data here", never "0 kilns". It shows kiln structures, not whether one is firing.
+It shows that kilns stand near a field; it does not prove that a kiln damaged a crop, and whether a kiln breaks the brick
+kiln law is the Department of Environment's call. Built by
+`uv run --with rasterio --with numpy python scripts/build_farm_kilns.py` into `data/global/kilns_bd.json`; served by
+`GET /api/farm-check?lat=&lon=`.
+
+---
+
+## Open questions from NASA's discussions
+
+We read every thread about this challenge on NASA's Space Apps GitHub (14 November 2026). For each question, the table gives our
+answer. The full page, with tables built from the data, is
+[Open questions](https://kiln-watch-seven.vercel.app/#pg=questions).
+
+| Thread | Question | Our answer | Status |
+|---|---|---|---|
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | MODIS- or VIIRS-equivalent? (reply: either, if justified) | Aqua MODIS scale. Converting VIIRS down is well-posed; going up would invent small fires. The VIIRS-scale view marks pre-2012 months *modelled* | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Standard FIRMS archive, or swath products? (reply: FIRMS) | FIRMS standard and near-real-time. NRT rows have no `type` flag, so cells are typed from their standard-processing history; NRT months are *provisional* | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Suomi-NPP stopped; continuity with NOAA-20/21? (reply: yes) | The question says 2 Nov 2022. The data says Suomi-NPP's last day is **2026-11-02**, detected rather than typed in. NASA's own pages disagree on the hour (FIRMS blog 13:00 UTC, FIRMS FAQ 15:40 UTC); we count days, so the record does not depend on it. The chain NOAA-21 → NOAA-20 → Suomi-NPP → Aqua carries the record on | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Users and time step? (reply: responders to scientists; monthly solid, weekly if readable) | Monthly calendar by default, a weekly grid one switch away, daily detections behind every cell | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) | Is Earth Engine acceptable? (reply: yes, prefer NASA resources) | The fire record uses FIRMS only. Earth Engine is used at build time for witnesses (MCD64A1, Black Marble, Sentinel-1) | Built in |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | Off-nadir pixels grow to about 2 km. How to harmonize? | **Measured**, 2012–2020. Where fire is frequent, the share of Aqua detections in the outer half of the swath moves ±3–5 points a year, and Suomi-NPP ÷ Aqua is the same in the inner and outer halves (Punjab 5.8 and 5.8). So a ratio of monthly totals absorbs it. In event-driven seasons it does not: Fort McMurray ±17 points, outer ratio 16.5 against 9.3 inner | Measured; not yet stratified |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | Some hotspots only VIIRS sees, some only MODIS | **Measured**: 40–91% of Aqua detections have a Suomi-NPP detection within about 1 km on the same day and pass; only 5–56% of Suomi-NPP detections have an Aqua one. The VIIRS-only ones are small fires (median FRP 1.9–4.9 MW against 5.4–12.8 MW matched). We calibrate totals, never pair points, so they are kept | Measured |
+| [#1786](https://github.com/nasa/spaceapps/discussions/1786) | The global CSV is about 45 GB. Global, or one place? | DuckDB reads only an area's rows from remote GeoParquet. Nine areas are prebuilt; any box up to 16 square degrees can be built on demand | Built in |
+| [#2016](https://github.com/nasa/spaceapps/discussions/2016), [#1959](https://github.com/nasa/spaceapps/discussions/1959) | One region? Own FIRMS downloads? (replies: yes; document them) | Nine areas plus draw-your-own. Every file records products, versions, period, box and code version | Built in |
+| [#1879](https://github.com/nasa/spaceapps/discussions/1879) (reply) | Cloud: no detection may mean no clear view | **Not solved yet.** We divide by the days each satellite observed, not by cloud-free views. Next step: use the cloud class of the MYD14A1 fire mask as a clear-sky denominator | Open |
+
+**Raised elsewhere, in NASA pages and papers:**
+
+| Source | Problem | Our answer | Status |
+|---|---|---|---|
+| [Earthdata alert](https://www.earthdata.nasa.gov/data/alerts-outages/transition-from-modis-viirs), [CAMS](https://atmosphere.copernicus.eu/drifting-away-modis-cams-global-fire-assimilation-system) | Terra and Aqua are drifting and will stop (CAMS: Terra January 2027, Aqua around September 2027) | Aqua's drift onset is measured from FIRMS timestamps; from it the record runs on VIIRS on the Aqua scale. Tested by switching MODIS off | Built in |
+| [FIRMS blog](https://www.earthdata.nasa.gov/news/blog/transitioning-from-suomi-npp-viirs-omps-what-firms-users-need-know) | Terra is the only morning overpass; NASA is "investigating alternatives" | The record is defined on Aqua's afternoon and post-midnight passes, which NOAA-20/21 continue, so it stays consistent. But it never measured morning burning, and nothing here replaces Terra | Open |
+| [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq) | NRT differs from standard data: geolocation, no type, day/night by orbit direction instead of solar zenith | NRT months are *provisional* and typed from cell history. The day/night rule is not reconciled, so at high latitudes a provisional month can put detections in the other half | Partly |
+| [Li et al. 2018](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2017jd027823) | VIIRS FRP about 47% lower than MODIS for large boreal fires | We harmonize counts, not FRP. FRP totals must not be compared across the 2012 switch | Open |
+| [arXiv 2510.26816](https://arxiv.org/pdf/2510.26816) | Low-confidence VIIRS detections systematically absent at night | VIIRS low confidence is dropped day and night alike; day and night are calibrated apart | Built in |
+| [GMD 2026](https://gmd.copernicus.org/articles/19/10123/2026/) | Detection probability varies by region (under 30% for MODIS in some equatorial areas) | Each area has its own calibration. Where both sensors miss (cloud, short fires) the record stays low in every year: the cloud item above | Partly |
+
+Every other limitation is listed on the [Proof page](https://kiln-watch-seven.vercel.app/#pg=method) and under "Where it still
+falls short" above. A question we have not answered? Use the
+[contact form](https://kiln-watch-seven.vercel.app/#pg=contact) or [open an issue](https://github.com/Aalvee-Aarham/nasaspaceappschallenge-2026-team-off-the-binary/issues/new).
+
+`nasa/MODIS-VIIRS-Data-Resources` holds access tutorials. Its five issues are closed documentation pull requests, none about
+harmonization. Re-run the checks with `python scripts/discussion_checks.py` (writes `data/regions/discussion_checks.json`).
+
+---
+
+## How it is built
+
+```mermaid
+flowchart LR
+  F[("NASA FIRMS<br/>MODIS C6.1 + VIIRS 375 m")] --> D["DuckDB<br/>reads only the area's rows<br/>from remote GeoParquet"]
+  D --> B["Pipeline<br/>calibrate, stitch, validate"]
+  B --> J[("Region files<br/>JSON + CSV")]
+  J --> TL{{"One deterministic<br/>tool layer"}}
+  TL --> W["Web app<br/>React + MapLibre globe"]
+  TL --> M["MCP server<br/>Claude, Cursor, n8n"]
+  TL --> G["AI analyst<br/>picks the algorithm"]
+  TL --> AL["Alerts<br/>email, n8n"]
+```
+
+- **The 45 GB archive is never downloaded.** DuckDB reads only the chosen area's rows from remote GeoParquet, so a new
+  area anywhere on Earth can be built on demand.
+- **One tool layer, four front ends.** The website, the analyst, the MCP server and the alerts all call the same
+  deterministic functions, so the same question gets the same number everywhere.
+- **Every number can be traced.** Each file records its products, versions, period, box and code version, and all of
+  it can be downloaded.
+- **No key, no paid service.** Earth Engine is used at build time only (burned area, Black Marble, Sentinel-1), so the
+  live site needs none.
+
+<details>
+<summary><b>Run it</b> (Python 3.11+, Node 20+)</summary>
+
+```bash
+cd server && pip install -r requirements.txt
+uvicorn kw.api:app --port 8000        # built regions are committed: calendars work at once
+
+cd web && npm install && npm run dev  # http://localhost:5173
+```
+
+Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s once `python -m kw.globe` has run (one-off, 1.8 GB). Without it, as on the hosted server, the first build of a drawn area takes 5 to 10 minutes: it reads 26 yearly files, 4 at a time (`KW_FETCH_WORKERS`; 8 measured slower). The time depends on the years, not the box size.
+Casebook witnesses (build time only; needs `pip install earthengine-api`, `earthengine authenticate` and `EE_PROJECT` in a git-ignored `.env`):
+`python scripts/build_burned.py && python -m kw.cases` (burned area), `python scripts/build_kilns.py` (Dhaka kiln evidence, needs `python -m kw.firms` first).
+The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
+The worldwide fire months behind "Is fire near you?" (`data/global/fire_season.parquet`, committed): `python -m kw.globe season`.
+Tests: `python server/tests/test_science.py` (also `test_cases.py`, `test_api.py`). Figures on this page: `node scripts/readme_figures.mjs`.
+Record-level independent checks: `python scripts/validation/kilns.py` and `uv run --with rasterio --with numpy --with planetary-computer python scripts/validation/burned_area.py` (results committed in `data/validation/`).
+Analyst keys: set `GROQ_API_KEY` (primary), plus `GEMINI_API_KEY` and optional fallbacks `GEMINI_API_KEYS=key2,key3,...` in a git-ignored `.env` (and as
+secrets on Azure and Vercel). The analyst moves to the next key when one hits its free-tier quota, is overloaded or is
+refused, and uses the `gemini-flash-latest` alias so a retired model version does not break it. Never commit keys.
+MCP setup, email alerts and deployment: the [Connect page](https://kiln-watch-seven.vercel.app/#pg=mcp) and [CLAUDE.md](CLAUDE.md).
+Contact form: messages go to `POST /api/feedback` and are appended to `data/feedback.jsonl` (git-ignored). With the SMTP
+settings and `CONTACT_EMAILS` (comma-separated) set, each one is also mailed. The read-only Vercel copy refuses it, and on
+Azure the file lasts only as long as the replica, so set the emails before relying on it.
+
+**Two hosts, one site.** Vercel serves the site and a read-only API (its functions stop after a minute, too short for a
+build). The full app (`Dockerfile`, site + API on port 7860, live builds on) runs on Azure Container Apps:
+<https://kiln-watch-jp.orangewave-2c5aad89.japaneast.azurecontainerapps.io>. The Vercel project sets
+`VITE_API_BASE` to that address, so the site sends every request to Azure and falls back to Vercel's own read-only API
+when Azure does not answer `/api/health` within 15 s.
+
+The Azure app is free-tier and **sleeps when nobody is using it**: the first request after a quiet spell takes a few extra
+seconds, and its disk is wiped while it sleeps. So the alert list is kept in one Azure Blob (`KW_STATE_URL`), and a free
+GitHub job (`.github/workflows/wake.yml`) wakes the server every 3 hours so it checks every alert and sends the emails.
+An alert email can therefore come a few hours after the satellites see fire; every email says so.
+
+**Signing up for an alert with an email** starts it at once (no confirmation step: the audience is small and known).
+Two emails follow on their own: the fire picture around the place (fire this week and how far, the usual fire months,
+the 30-day outlook, the early-warning level, and the people, schools and hospitals near fire), usually within about a
+minute; then fire across the whole country this week, read live from NASA FIRMS (detections per satellite, the busiest
+places, the cells on fire-season watch, open NASA EONET wildfires), within a few minutes. A source that cannot be read
+is named in the email ("Could not look: …"), never shown as zero. Every push runs the six
+test suites and the type check (`.github/workflows/tests.yml`).
+
+| Piece | Where | Notes |
+|---|---|---|
+| Container App `kiln-watch` | resource group `kiln-watch-rg`, East Asia (Azure for Students allows only five Asian/UAE regions) | 1 vCPU, 2 GiB, 0–1 replica: scales to zero when idle, never more than one copy (builds live on its disk) |
+| Registry `kilnwatch1114.azurecr.io` | same group, Basic tier | about US$5/month from student credits; the app itself stays inside the Container Apps free monthly grant for a demo |
+| Image build | GitHub Actions, `.github/workflows/azure-image.yml` | Azure for Students blocks ACR Tasks, so GitHub builds the image on every push to `main` that touches the app (secrets `ACR_USERNAME`, `ACR_PASSWORD`) |
+| Environment `kiln-watch-env` | same group | logs off (Log Analytics is billed) |
+
+Checked after deploy: health answers with `serverless: false`, the Vercel origin gets CORS, and a live 1°×1° build
+(northern Thailand) finished in about 5 minutes with the same Aqua drift onset (2023-01) as the prebuilt areas.
+That build read the 26 yearly files one at a time. They are now read four at a time (`KW_FETCH_WORKERS`; eight was slower on a
+local test), which took a full 27-year fetch on a development machine from an estimated 3.5 minutes (27 years at about 8 s) to 90 s, with identical rows. The Azure timing after this change has
+not been measured yet, so the site promises 5 to 10 minutes.
+
+Limits: the first request after idle waits a few seconds while a replica starts; an area built live lasts until the
+replica stops (the nine prebuilt areas are in the image). The workflow pushes images but does not roll them out; after
+it finishes run
+`az containerapp update -n kiln-watch -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<commit sha>`.
+Hugging Face Spaces would also run this `Dockerfile`, but Docker Spaces now need a PRO account.
+
+</details>
+
+---
 
 ## Data used
 
-Every fire number comes from NASA data, read in place with DuckDB from the public GeoParquet mirror of NASA FIRMS.
+Every fire number in Kiln Watch comes from NASA data. The kiln map is the one outside number, and it is labelled as such.
 
-| NASA dataset | How we used it |
-|---|---|
-| [FIRMS](https://earthdata.nasa.gov/firms) MODIS C6.1 (Terra, Aqua) | Every MODIS detection 2000–today; Aqua is the reference scale |
-| [FIRMS](https://earthdata.nasa.gov/firms) VIIRS 375 m C2 (Suomi-NPP, NOAA-20, NOAA-21) | Calibrated to Aqua; end dates read from the data |
-| [GIBS](https://gibs.earthdata.nasa.gov) thermal anomalies and true colour | Daily fire layer and base map for the chosen day |
-| [Black Marble](https://blackmarble.gsfc.nasa.gov) and [Blue Marble](https://visibleearth.nasa.gov/collection/1484/blue-marble) | Night-lights base map, kiln-season night lights, the 3D Earth |
-| [EONET](https://eonet.gsfc.nasa.gov) | Wildfire events beside the record and as a witness |
-| [MCD64A1](https://lpdaac.usgs.gov/products/mcd64a1v061/) burned area | An independent check of the record, and a witness per fire case |
-| [NASA 3D Resources](https://science.nasa.gov/3d-resources/) | The satellite models on the home page |
+### NASA data
 
-<details>
-<summary><b>Other space agency data and other datasets</b></summary>
+| Dataset | Link | How we used it |
+|---|---|---|
+| FIRMS MODIS Collection 6.1 active fire (Terra, Aqua) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Every MODIS detection 2000–today; Aqua is the reference scale for the whole record |
+| FIRMS VIIRS 375 m active fire, Collection 2 (Suomi-NPP) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Calibrated to Aqua on 2012–2020; Suomi-NPP's end date is read from the data |
+| FIRMS VIIRS 375 m active fire, Collection 2 (NOAA-20) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Chained to Suomi-NPP so the record carries on after it |
+| FIRMS VIIRS 375 m active fire, Collection 2 (NOAA-21) | [earthdata.nasa.gov/firms](https://earthdata.nasa.gov/firms) | Chained to NOAA-20 for the newest years |
+| FIRMS archive as GeoParquet (Portolan mirror, CC0) | [source.coop/portolan-mirrors/firms-catalog](https://source.coop/portolan-mirrors/firms-catalog) | The same FIRMS records, queried in place with DuckDB, only the area's rows |
+| GIBS Thermal Anomalies layers (MODIS combined; VIIRS SNPP, NOAA-20, NOAA-21 375 m) | [gibs.earthdata.nasa.gov](https://gibs.earthdata.nasa.gov) | Daily fire overlay on the map for the selected day |
+| GIBS Corrected Reflectance True Color (MODIS Terra, VIIRS NOAA-20) | [gibs.earthdata.nasa.gov](https://gibs.earthdata.nasa.gov) | Satellite base map to see the place on the chosen day |
+| Black Marble (VIIRS Day/Night Band) | [blackmarble.gsfc.nasa.gov](https://blackmarble.gsfc.nasa.gov) | Night-lights view on the globe; helps tell kilns and flares from wildfire |
+| Blue Marble (shaded relief and bathymetry, Earth textures) | [visibleearth.nasa.gov](https://visibleearth.nasa.gov/collection/1484/blue-marble) | Globe base map and the 3D Earth on the home page |
+| NASA 3D Resources: Aqua, Terra and Suomi-NPP models | [science.nasa.gov/3d-resources](https://science.nasa.gov/3d-resources/) | 3D satellites in the home-page story |
+| EONET (Earth Observatory Natural Event Tracker) | [eonet.gsfc.nasa.gov](https://eonet.gsfc.nasa.gov) | Wildfire events shown beside the data for a month or cell |
+| Worldview | [worldview.earthdata.nasa.gov](https://worldview.earthdata.nasa.gov) | "Open in Worldview" link for the same place and day |
+| FIRMS Fire Map | [firms.modaps.eosdis.nasa.gov/map](https://firms.modaps.eosdis.nasa.gov/map) | Link to the raw detections for the same place and day |
+| MODIS Burned Area MCD64A1, Collection 6.1 (500 m) | [lpdaac.usgs.gov/products/mcd64a1v061](https://lpdaac.usgs.gov/products/mcd64a1v061/) | Two uses: a burn-scar witness for every fire case (via Google Earth Engine), and an area-level independent check of the monthly record (via the public Planetary Computer catalogue) that shows the 2012 jump was an instrument change. It is guided by MODIS active fires, so it is not fully independent of the hotspot record |
+| Black Marble VNP46A2, daily gap-filled night lights (via Google Earth Engine) | [blackmarble.gsfc.nasa.gov](https://blackmarble.gsfc.nasa.gov) | Kiln-season against monsoon brightness at 717 mapped kilns and 600 random places in the Dhaka belt (a second witness for kilns) |
 
-<br>
+### Other space agency data
 
-ESA Copernicus Sentinel-1 and Sentinel-2 (through a published kiln map), ESA WorldCover cropland, WorldPop 2020,
-OpenStreetMap (Overpass, Nominatim, OpenFreeMap), the APAD Bangladesh kiln inventory, the Bangladesh brick-kiln map
-(deluair, CC BY-NC), BAMIS Boro calendars, GDACS, GDELT, Google News, Natural Earth. Full table with links and licences:
-[docs/DETAILS.md](docs/DETAILS.md).
+| Dataset | Link | How we used it |
+|---|---|---|
+| ESA Copernicus Sentinel-2 L2A, through the Bangladesh kiln map below | [sentinels.copernicus.eu](https://sentinels.copernicus.eu) | Kiln structures seen in 10 m imagery; Kiln Watch uses the published detections, not the imagery |
+| ESA WorldCover 10 m 2021 v200, class 40 (cropland) | [esa-worldcover.org](https://esa-worldcover.org) | Square kilometres of farmland in each fire cell (exposure; context, not impact), and the cropland share within 1 km of each of Bangladesh's 4,760 listed kilns |
+| ESA Copernicus Sentinel-1 GRD, IW, VV (via Google Earth Engine) | [sentinels.copernicus.eu](https://sentinels.copernicus.eu) | Radar contrast of each mapped kiln with its surroundings, dry season against monsoon (one orbit, 14 and 10 scenes): brick stacks in the yards |
 
-</details>
+NOAA-20 and NOAA-21 detections come through NASA FIRMS (listed above).
+
+### Other datasets
+
+| Dataset / API / library | Link | How we used it |
+|---|---|---|
+| Bangladesh brick kilns from space, dry season 2024-25 (Sentinel-2 detector trained on SentinelKilnDB; CC BY-NC 4.0, non-commercial) | [github.com/deluair/bangladesh-brick-kilns](https://github.com/deluair/bangladesh-brick-kilns) | The kiln inventory: 717 detections on human-labelled kilns and 1,615 in all inside the Dhaka box. Kiln structures, not kilns in operation; its own audit finds about 8 in 10 right inside labelled footprints and about 2 in 10 outside |
+| GDACS (EC JRC, UN OCHA) | [gdacs.org](https://www.gdacs.org) | Wildfire events of every alert level (2021 onward) beside the data and as a case witness |
+| GDELT DOC API | [gdeltproject.org](https://www.gdeltproject.org) | News reports for a place and month (2017+) |
+| Google News RSS | [news.google.com](https://news.google.com) | More news reports for a place and month |
+| ReliefWeb API (optional) | [reliefweb.int](https://reliefweb.int) | Humanitarian reports, when a key is set |
+| WorldPop Global 2000-2020 population grid, 1 km (CC BY 4.0) | [worldpop.org](https://www.worldpop.org) | Modelled 2020 population in the 0.1° cells where the record shows fire (context, not impact) |
+| APAD / IGP asset-data-igp Bangladesh brick-kiln inventory (CC BY 4.0) | [registry.opendata.aws/asset-data-igp-brick-kilns-ban](https://registry.opendata.aws/asset-data-igp-brick-kilns-ban/) | Independent cross-check of the published persistent-heat cells against 4,760 operating kilns, with a random-placement baseline; and the kilns near each field in the farmer check on the Bangladesh page, with APAD's modelled PM2.5 and SO2 per kiln |
+| BAMIS crop-weather calendars, Boro (Bangladesh Agromet Information System) | [bamis.gov.bd](https://bamis.gov.bd) | Boro stages by month (December–May, 150–155 days) on the farmer check's season strip |
+| Natural Earth 1:50m admin-0 countries (public domain) | [naturalearthdata.com](https://www.naturalearthdata.com) | The Bangladesh outline: a place outside it never reads "0 kilns" |
+| OpenStreetMap via the Overpass API (ODbL) | [openstreetmap.org](https://www.openstreetmap.org/copyright) | Hospitals and major roads in those cells (context, not impact); for "Is fire near you?", the schools, kindergartens, colleges, hospitals, clinics, care homes and fire stations within 25 km of any place, live |
+| OpenFreeMap | [openfreemap.org](https://openfreemap.org) | Vector base map |
+| OpenStreetMap, Nominatim | [nominatim.org](https://nominatim.org) | Place search and place names |
+| DuckDB | [duckdb.org](https://duckdb.org) | Reads remote GeoParquet in place |
+| FastAPI, Uvicorn | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) | API server |
+| MCP Python SDK | [modelcontextprotocol.io](https://modelcontextprotocol.io) | MCP server for Claude, Cursor and n8n (35 read-only tools online, 40 locally) |
+| Google Earth Engine | [earthengine.google.com](https://earthengine.google.com) | Build time only: reads MCD64A1 and Black Marble for the committed witness files; the live demo needs no Earth Engine |
+| Groq API | [groq.com](https://groq.com) | Optional in-app analyst: picks which algorithm answers a question |
+| Google Gemini API | [ai.google.dev](https://ai.google.dev) | Fallback for the in-app analyst |
+| React, Vite, TypeScript | [react.dev](https://react.dev) | Web app |
+| MapLibre GL JS | [maplibre.org](https://maplibre.org) | Map and globe |
+| three.js, GSAP, Lenis | [threejs.org](https://threejs.org) | 3D home page, animation, smooth scroll |
+| iso-kit (MIT) | `web/src/lib/` | Isometric drawing helpers |
 
 We acknowledge the use of data and imagery from NASA's Fire Information for Resource Management System (FIRMS)
 (https://earthdata.nasa.gov/firms), part of NASA's Earth Observing System Data and Information System (EOSDIS).
-Kiln Watch is an independent project, not an official NASA product.
+
+Detections are not fires and not burned area. Kiln Watch is an independent project, not an official NASA product.
+
+---
 
 ## Use of AI
 
 | Tool | Used for | Data it worked on |
 |---|---|---|
-| Claude Fable 5.2 (Anthropic) | Planning: brief, literature and rules review, method design; a pre-submission review of the site | Public challenge page, papers, NASA/NOAA docs; our site and code |
-| Gemini Argon (Google) | Planning: research briefs and the first technical specification | Public challenge page, papers, NASA/NOAA docs |
-| Claude Opus via Claude Code (Anthropic) | Development: pipeline, statistics, API, MCP server, web app; builds and tests | Our source code; public FIRMS data |
-| MiniMax M3 via OpenCode | Development: audit triage, scientific corrections, the two independent validation scripts, submission text | Our source code; FIRMS, MCD64A1 and the APAD kiln inventory |
-| Gemini Flash (Google) | Writing and reviewing code | Our source code |
-| Groq `gpt-oss-120b`, Gemini Flash as fallback (optional, at run time) | In-app analyst: picks which deterministic algorithm answers a question; the algorithm writes the answer | The question, screen state and algorithm list only; never pipeline data |
-| Microsoft neural voice via `edge-tts` (at run time) | Reads the farmer check aloud in Bangla on browsers that have no Bangla voice | The sentences shown on screen |
+| Claude Fable 5.2, Gemini Argon | Planning: brief, literature and rules review, method design | Public challenge page, papers, NASA/NOAA docs |
+| Claude Opus (Claude Code), Gemini Flash | Developing and writing code, running builds and tests | Our source code; public FIRMS data |
+| Groq `gpt-oss-120b`, Gemini Flash as fallback (optional, at run time) | In-app analyst: picks which deterministic algorithms answer a question; the algorithms write the answer | The question, screen state and algorithm list only (~1K tokens); never pipeline data. Every algorithm run is shown |
 
 No AI system produces any number in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
+
+---
+
+## References
+
+<details>
+<summary><b>Papers, NASA documentation and challenge sources</b></summary>
+
+<br>
+
+**Challenge**
+- [Harmonization of MODIS and VIIRS Hot Spots, challenge page](https://www.spaceappschallenge.org/2026/challenges/modis-and-viirs-hot-spots/?tab=details)
+
+**Sensor status**
+- [Transitioning from Suomi NPP VIIRS & OMPS: What FIRMS Users Need to Know](https://www.earthdata.nasa.gov/news/blog/transitioning-from-suomi-npp-viirs-omps-what-firms-users-need-know) (NASA Earthdata)
+- [MODIS to VIIRS Transition](https://ladsweb.modaps.eosdis.nasa.gov/learn/modis-to-viirs-transition) (LAADS DAAC)
+- [Aqua MODIS Acquisition Plan Through August 2026](https://lpdaac.usgs.gov/news/aqua-modis-acquisition-plan-through-august-2026/) (LP DAAC)
+- [Terra orbital drift](https://modis-land.gsfc.nasa.gov/news.html) (MODIS Land)
+- [VIIRS Instruments Become More Essential As Terra and Aqua Drift](https://www.earthdata.nasa.gov/news/feature-articles/viirs-instruments-become-more-essential-terra-aqua-drift-traditional-orbits) (NASA Earthdata)
+- [NASA continuity workshop slides](https://www.earthdata.nasa.gov/s3fs-public/2023-03/RFI_TAA_continuity_workshop.pdf)
+- [Drifting away from MODIS in the CAMS Global Fire Assimilation System](https://atmosphere.copernicus.eu/drifting-away-modis-cams-global-fire-assimilation-system)
+- [NOAA-21 Active Fires provisional readme](https://www.star.nesdis.noaa.gov/JPSS/documents/AMM/N21/NOAA-21_Active_Fires_Provisional_Readme.pdf) · [NOAA-20 Active Fire maturity review](https://www.star.nesdis.noaa.gov/JPSS/documents/AMM/N20/Land_ActiveFires_Iband_Beta_Provisional.pdf)
+
+**FIRMS data**
+- [Active Fire Data Attributes for MODIS and VIIRS](https://www.earthdata.nasa.gov/data/tools/firms/active-fire-data-attributes-modis-viirs) · [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq)
+- [VIIRS Collection 2 375 m Active Fire User Guide](https://ladsweb.modaps.eosdis.nasa.gov/archive/Document%20Archive/Science%20Data%20Product%20Documentation/VIIRS_C2_AF-375m_User_Guide_1.0.pdf)
+- [MODIS Fire User Guide, Collection 6.1](https://lpdaac.usgs.gov/documents/1005/MOD14_User_Guide_V61.pdf)
+- [Systematic Absence of Low-Confidence Nighttime Fire Detections in VIIRS (preprint)](https://arxiv.org/pdf/2510.26816)
+
+**Harmonization science**
+- [Observation operator and detection limits for MODIS and VIIRS FRP products (GMD, 2026)](https://gmd.copernicus.org/articles/19/10123/2026/)
+- [Li et al. 2018, Comparison of FRP estimates from VIIRS and MODIS](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2017jd027823)
+- [FRP correction and spatiotemporal fusion of MYD14 and VNP14IMG (Remote Sensing, 2026)](https://doi.org/10.3390/rs18101650)
+- [MODIS versus VIIRS in Northeast Asia](https://doi.org/10.3390/rs12182870) · [FRP missed by MODIS in Africa](https://www.mdpi.com/2072-4292/12/10/1561) · [MODIS Aqua versus VIIRS in Punjab](https://pmc.ncbi.nlm.nih.gov/articles/PMC6108185/)
+- [VFEIv0 VIIRS-based emission inventory](https://gmd.copernicus.org/articles/15/8085/2022/gmd-15-8085-2022.html) · [GFED5NRT (ESSD, 2026)](https://essd.copernicus.org/articles/18/7535/2026/)
+- [Prior-based mask for persistent heat sources (Remote Sensing, 2026)](https://www.mdpi.com/2072-4292/18/6/904) · [GOFC-GWIS global static thermal anomalies](https://gofcgold.umd.edu/sites/default/files/2024-11/GOFC_GWIS_2024_Roberts_short.pdf)
+- [ESA CCI Soil Moisture ATBD (CDF matching, triple collocation)](https://admin.climate.esa.int/media/documents/ESA_CCI_SM_RD_D2.1_v2_ATBD_v06.1_issue_1.1.pdf) · [Harmonized DMSP–VIIRS night lights](https://www.nature.com/articles/s41597-020-0510-y)
+
+**Fire products and statistical methods behind the calibration**
+- [Schroeder et al. 2014, The New VIIRS 375 m active fire detection data product (RSE 143)](https://doi.org/10.1016/j.rse.2013.12.008) · [Giglio et al. 2016, The collection 6 MODIS active fire detection algorithm (RSE 178)](https://doi.org/10.1016/j.rse.2016.02.054)
+- [Frost & Thompson 2000, Correcting for regression dilution bias (JRSS A)](https://doi.org/10.1111/1467-985X.00164) · [Efron & Morris 1975, Stein's estimator and its generalizations (JASA)](https://doi.org/10.1080/01621459.1975.10479864) · [DerSimonian & Laird 1986, Meta-analysis in clinical trials](https://doi.org/10.1016/0197-2456(86)90046-2)
+- [Lei et al. 2018, Distribution-free predictive inference for regression (JASA)](https://doi.org/10.1080/01621459.2017.1307116) · [Sen 1968, Regression coefficient based on Kendall's tau (JASA)](https://doi.org/10.1080/01621459.1968.10480934)
+
+**Related tools**
+- [NASA FEDS / fireatlas](https://earth-information-system.github.io/fireatlas/docs) · [Global Forest Watch fire data](https://blog.globalforestwatch.org/fires/wildfire-trends-gfw-fire-data/) · [Our World in Data, GWIS record](https://ourworldindata.org/grapher/annual-number-of-fires)
+
+</details>
 
 ---
 
