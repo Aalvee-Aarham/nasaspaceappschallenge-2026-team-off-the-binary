@@ -26,7 +26,7 @@
   <img src="https://img.shields.io/badge/cost-%240%2C%20no%20paid%20services-success" alt="No paid services">
 </p>
 
-<p align="center"><img src="docs/readme/stats.svg" alt="26 years, raw jump 3.5 to 10.6 times, harmonized step 0.93 to 1.19 times, 7.3 million detections processed" width="100%"></p>
+<p align="center"><img src="docs/readme/stats.svg" alt="26 years, raw jump 3.5 to 10.6 times (median 5.6), harmonized step 0.93 to 1.18 times (median 1.01), 7.3 million detections processed" width="100%"></p>
 
 <h3 align="center">Demo video</h3>
 
@@ -60,7 +60,7 @@
 
 Satellites have recorded fire from space since 2000, but not with the same instruments. In 2012 a sharper sensor (VIIRS)
 joined the older one (MODIS) and began counting small fires the older one could not see. In our nine study areas the raw
-count jumped 3.5 to 10.6 times, with no change on the ground. Anyone who compares 2024 with 2005 on the raw numbers is
+count jumped 3.5 to 10.6 times (median ×5.6), with no change on the ground; in our record the same step is 0.93 to 1.18 (median ×1.01). Anyone who compares 2024 with 2005 on the raw numbers is
 comparing two instruments, not two fire seasons.
 
 Kiln Watch puts every satellite on one scale, so all 26 years can be compared, and shows the result as a burning
@@ -123,7 +123,7 @@ We test the record the way the future will: by taking satellites away.
 
 **How to read the two charts.** Top: the record rebuilt from VIIRS alone, against what Aqua MODIS really saw; the
 closer the two, the better the method. Bottom: how much the record moves when a new satellite arrives, where 1 means
-no jump. Raw counts move 3.5 to 10.6 times; the harmonized record stays near 1 in all nine areas.
+no jump. Raw counts move 3.5 to 10.6 times (median ×5.6); the harmonized record moves 0.93 to 1.18 times (median ×1.01), near 1 in all nine areas.
 
 <details>
 <summary><b>Full results table, nine regions</b></summary>
@@ -204,7 +204,7 @@ We publish these, not hide them. Every alternative we tested and every check the
   ratio per area (mean total bias 9.3%, 9.4% and 13.0%), so the chain is kept (same file).
 - **NOAA-21 steps are wider than Suomi-NPP's**: 0.63 (Rondônia) to 1.34 (La Rioja), against 0.93–1.18. NOAA-21 arrived in
   2024, when Aqua was already drifting, so its step mixes the new satellite with Aqua's change.
-- Five of nine regions land inside their no-change range. Punjab clearly misses: it still under-corrects by about 6%.
+- Five of nine regions land inside their no-change range. Punjab clearly misses: its step is ×0.93, so it still under-corrects by about 7%.
 - Paraná Delta is off by +27%. Its record 2020 fire year is unlike anything the calibration years saw.
 - Northern California's out-of-sample interval coverage is 79%: its intervals are too narrow for years unlike 2017–2018.
 - No cloud-cover correction yet. The early-warning rule is now backtested per area (Warning page), but in sparse areas the
@@ -335,7 +335,7 @@ people who are not used to maps.
 | **Schools, hospitals, clinics, care homes and fire stations** nearby, each with its distance to the nearest fire this week, red when it is within 5 km | OpenStreetMap |
 | A one-click alert for the place | Email or n8n |
 
-**How long it takes, honestly.** The fire answer usually comes in 5 to 20 seconds (up to a minute when NASA's data server is
+**How long it takes, honestly.** The fire answer usually comes in about 5 to 10 seconds (measured 5 to 12 s on 15 November; up to a few minutes when NASA's data server is
 slow). The list of schools and hospitals comes from OpenStreetMap's free public servers: usually 20 to 45 seconds, and the
 page says so and offers a retry if they do not answer within about a minute. Places already looked up are instant for a week.
 
@@ -492,7 +492,7 @@ uvicorn kw.api:app --port 8000        # built regions are committed: calendars w
 cd web && npm install && npm run dev  # http://localhost:5173
 ```
 
-Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. Any-place builds in about 20 s once `python -m kw.globe` has run (one-off, 1.8 GB). Without it, as on the hosted server, the first build of a drawn area takes 5 to 10 minutes: it reads 26 yearly files, 4 at a time (`KW_FETCH_WORKERS`; 8 measured slower). The time depends on the years, not the box size.
+Rebuild from NASA data: `python -m kw.firms && python -m kw.build`. The first build of a drawn area takes 5 to 10 minutes, on the hosted server and locally (faster on a machine that has run the one-off `python -m kw.globe`, 1.8 GB): it reads 26 yearly files, 4 at a time (`KW_FETCH_WORKERS`; 8 measured slower). The time depends on the years, not the box size.
 Casebook witnesses (build time only; needs `pip install earthengine-api`, `earthengine authenticate` and `EE_PROJECT` in a git-ignored `.env`):
 `python scripts/build_burned.py && python -m kw.cases` (burned area), `python scripts/build_kilns.py` (Dhaka kiln evidence, needs `python -m kw.firms` first).
 The outlook (`python -m kw.outlook`) needs the global aggregate from `python -m kw.globe`.
@@ -528,10 +528,11 @@ test suites and the type check (`.github/workflows/tests.yml`).
 
 | Piece | Where | Notes |
 |---|---|---|
-| Container App `kiln-watch` | resource group `kiln-watch-rg`, East Asia (Azure for Students allows only five Asian/UAE regions) | 1 vCPU, 2 GiB, 0–1 replica: scales to zero when idle, never more than one copy (builds live on its disk) |
+| Container App `kiln-watch-jp` | resource group `kiln-watch-rg`, Japan East (Azure for Students allows only five Asian/UAE regions; the AI analyst's providers refuse East Asia) | 1 vCPU, 2 GiB, 0–1 replica: scales to zero when idle, never more than one copy (builds live on its disk) |
 | Registry `kilnwatch1114.azurecr.io` | same group, Basic tier | about US$5/month from student credits; the app itself stays inside the Container Apps free monthly grant for a demo |
 | Image build | GitHub Actions, `.github/workflows/azure-image.yml` | Azure for Students blocks ACR Tasks, so GitHub builds the image on every push to `main` that touches the app (secrets `ACR_USERNAME`, `ACR_PASSWORD`) |
-| Environment `kiln-watch-env` | same group | logs off (Log Analytics is billed) |
+| Environment `kiln-watch-env-jp` | same group, Japan East | logs off (Log Analytics is billed) |
+| Alert store | Azure Blob storage `kilnwatchstate`, Japan East | the alert list survives the server sleeping (`KW_STATE_URL`) |
 
 Checked after deploy: health answers with `serverless: false`, the Vercel origin gets CORS, and a live 1°×1° build
 (northern Thailand) finished in about 5 minutes with the same Aqua drift onset (2023-01) as the prebuilt areas.
@@ -542,7 +543,7 @@ not been measured yet, so the site promises 5 to 10 minutes.
 Limits: the first request after idle waits a few seconds while a replica starts; an area built live lasts until the
 replica stops (the nine prebuilt areas are in the image). The workflow pushes images but does not roll them out; after
 it finishes run
-`az containerapp update -n kiln-watch -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<commit sha>`.
+`az containerapp update -n kiln-watch-jp -g kiln-watch-rg --image kilnwatch1114.azurecr.io/kiln-watch:<commit sha>`.
 Hugging Face Spaces would also run this `Dockerfile`, but Docker Spaces now need a PRO account.
 
 </details>
@@ -621,9 +622,13 @@ Detections are not fires and not burned area. Kiln Watch is an independent proje
 
 | Tool | Used for | Data it worked on |
 |---|---|---|
-| Claude Fable 5.2, Gemini Argon | Planning: brief, literature and rules review, method design | Public challenge page, papers, NASA/NOAA docs |
-| Claude Opus (Claude Code), Gemini Flash | Developing and writing code, running builds and tests | Our source code; public FIRMS data |
-| Groq `gpt-oss-120b`, Gemini Flash as fallback (optional, at run time) | In-app analyst: picks which deterministic algorithms answer a question; the algorithms write the answer | The question, screen state and algorithm list only (~1K tokens); never pipeline data. Every algorithm run is shown |
+| Claude Fable 5.2 (Anthropic) | Planning: brief, literature and rules review, method design; a pre-submission review of the site | Public challenge page, papers, NASA/NOAA docs; our site and code |
+| Gemini Argon (Google) | Planning: research briefs and the first technical specification | Public challenge page, papers, NASA/NOAA docs |
+| Claude Opus via Claude Code (Anthropic) | Development: pipeline, statistics, API, MCP server, web app; builds and tests | Our source code; public FIRMS data |
+| MiniMax M3 via OpenCode | Development: audit triage, scientific corrections, the two independent validation scripts, submission text | Our source code; FIRMS, MCD64A1 and the APAD kiln inventory |
+| Gemini Flash (Google) | Writing and reviewing code | Our source code |
+| Groq `gpt-oss-120b` (then `gpt-oss-20b`, `qwen3.8-27b`), Gemini Flash as last fallback (optional, at run time) | In-app analyst: picks which deterministic algorithms answer a question; the algorithms write the answer | The question, screen state and algorithm list only (~1K tokens); never pipeline data. Every algorithm run is shown |
+| Microsoft neural voices via `edge-tts` (at run time) | Reads the Bangla farmer check aloud on browsers with no Bangla voice | The sentences already shown on screen |
 
 No AI system produces any number in the calendar, charts or downloads. Details: [AI_USE.md](AI_USE.md).
 

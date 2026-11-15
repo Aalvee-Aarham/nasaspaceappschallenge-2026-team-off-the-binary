@@ -7,7 +7,7 @@ import Loader from "./Loader";
 
 // "Is fire near you?": any place on Earth, in plain words and pictures, for families, students, fire managers and
 // safety officers. Every number comes from /api/place-risk. The answer comes in two steps: the fire check first
-// (measured 5-20 s: a live read of NASA's newest FIRMS file; up to a minute when that server is slow), then the
+// (measured 5-12 s on 15 Nov: a live read of NASA's newest FIRMS file; up to a minute when that server is slow), then the
 // schools and hospitals from OpenStreetMap (measured 27-46 s on its shared public servers; instant once cached).
 
 export const LEVEL: Record<PlaceLevel, { word: string; icon: string; color: string; say: string }> = {
@@ -119,7 +119,7 @@ export default function PlaceRiskCheck({ online, onArea, initialQ }: { online: b
 
       <div ref={out} className="pr-out" aria-live="polite">
         {err && <p className="pr-err" role="alert">{err}{target && !busy && <> <button className="link" onClick={() => run(target)}>Try again</button></>}</p>}
-        {busy && <Loader steps={STEPS} expected={30} title="Checking for fire" eta="usually under a minute; it can take 2 to 3 minutes when NASA's data server is busy" />}
+        {busy && <Loader steps={STEPS} expected={30} title="Checking for fire" eta="usually about 5 to 10 seconds; it can take 2 to 3 minutes when NASA's data server is busy" />}
         {data && <Result d={data} fac={fac} facBusy={facBusy} facErr={facErr} retryFac={() => loadFac(data)}
           onPick={(c) => { setQ(c.display_name); run({ lat: c.lat, lon: c.lon, label: c.name }); }} onArea={onArea} />}
       </div>

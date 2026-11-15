@@ -32,7 +32,8 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function summarize(ms: Meta[]) {
   const first = (k: string) => ms.map((m) => m.sensors[k]?.first).filter(Boolean).sort()[0];
   const through = ms.map((m) => m.data_through).sort().pop()!;
-  const step = (f: "raw_all_sensors_excess" | "harmonized_excess") => median(ms.map((m) => m.steps.VIIRS_SNPP?.[f]).filter(num));
+  const steps = (f: "raw_all_sensors_excess" | "harmonized_excess") => ms.map((m) => m.steps.VIIRS_SNPP?.[f]).filter(num);
+  const step = (f: "raw_all_sensors_excess" | "harmonized_excess") => median(steps(f));
   const den = ms.map((m) => m.denial.modis_ends_2016).filter((d) => num(d?.ours_seasonal_eb.spearman));
   return {
     statics: ms.reduce((a, m) => a + m.totals.static_detections, 0),
@@ -40,6 +41,8 @@ function summarize(ms: Meta[]) {
     sats: new Set(ms.flatMap((m) => Object.keys(m.sensors)).filter((k) => k !== "MODIS")).size,
     since: first("MODIS"), through, snpp: first("VIIRS_SNPP"),
     raw: step("raw_all_sensors_excess"), harm: step("harmonized_excess"),
+    rawLo: Math.min(...steps("raw_all_sensors_excess")), rawHi: Math.max(...steps("raw_all_sensors_excess")),
+    harmLo: Math.min(...steps("harmonized_excess")), harmHi: Math.max(...steps("harmonized_excess")),
     nStep: ms.filter((m) => num(m.steps.VIIRS_SNPP?.harmonized_excess)).length,
     rho: median(den.map((d) => d.ours_seasonal_eb.spearman as number)), rhoN: den[0]?.n, rhoTest: den[0]?.test,
   };
@@ -312,7 +315,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               <p className="kicker" data-in>NASA Space Apps 2026 · Harmonization of MODIS and VIIRS Hot Spots</p>
               <H tag="h1" cls="xl" lines={["Every fire.", "One record."]} at={0.1} />
               <p className="h3d-lead big" data-in="0.6">NASA satellites have watched Earth's fires from space <em>since {y0}</em>. We turn their mismatched counts into <em>one record you can trust</em>.</p>
-              <p className="h3d-proof" data-in="0.8">When a sharper satellite joined in {y1}, raw counts jumped <b>×{fx(s?.raw, 1)}</b>. Our record moves <b>×{fx(s?.harm)}</b> (1.00 = no jump; median of {s?.nStep ?? "…"} areas). <button className="linkish" onClick={() => go("method")}>See the proof ›</button></p>
+              <p className="h3d-proof" data-in="0.8">When a sharper satellite joined in {y1}, raw counts jumped <b>×{fx(s?.raw, 1)}</b> (×{fx(s?.rawLo, 1)} to ×{fx(s?.rawHi, 1)}). Our record moves <b>×{fx(s?.harm)}</b> (×{fx(s?.harmLo)} to ×{fx(s?.harmHi)}; 1.00 = no jump; median and range of {s?.nStep ?? "…"} areas). <button className="linkish" onClick={() => go("method")}>See the proof ›</button></p>
               <p className="firechip" data-in="0.9"><i /><b>{events?.count ?? "…"}</b> wildfires reported to NASA in the last 30 days</p>
             </div>
           </div>
@@ -385,7 +388,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               <p className="idx">04 · The fix</p>
               <p className="h3d-big"><W>Now:</W> <em><W>{`×${fx(snppStep?.harmonized_excess)}`}</W></em></p>
               <p className="h3d-line">We measure how much more each camera sees and <em>convert</em> all {s?.sats ?? "…"} to one scale. Like converting currencies.</p>
-              <p className="fine">1.00 means no jump. Median of {s?.nStep ?? "…"} areas: ×{fx(s?.raw)} raw, ×{fx(s?.harm)} calibrated.</p>
+              <p className="fine">1.00 means no jump. Across {s?.nStep ?? "…"} areas: raw ×{fx(s?.rawLo, 1)} to ×{fx(s?.rawHi, 1)} (median ×{fx(s?.raw, 1)}), calibrated ×{fx(s?.harmLo)} to ×{fx(s?.harmHi)} (median ×{fx(s?.harm)}).</p>
             </div>
             <div className="chartwrap" data-in="0.1"><JumpChart m={area?.monthly ?? null} meta={sm ?? null} fixBeat={B.fix} /></div>
           </div>
@@ -430,7 +433,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             </div>
             <div className="c-say r cw" data-b={B.warn} data-in="0.3">
               <p className="kicker">02 · Early warning</p>
-              <p>Burning <em className="f">more than usual</em>? Your phone hears first.</p>
+              <p>Burning <em className="f">more than usual</em>? An email tells you within a few hours.</p>
               <p className="who">For fire services, NGOs and farmers. An outlook from past years, not a forecast.</p>
             </div>
             <div className="c-say l" data-b={B.cases} data-in="0.3">
@@ -441,7 +444,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
             <div className="c-say r" data-b={B.ask} data-in="0.3">
               <p className="kicker">04 · AI analyst</p>
               <p>Ask in plain words. Answers from <em>real numbers</em>.</p>
-              <p className="who">For anyone. It reads the data and never makes numbers up.</p>
+              <p className="who">For anyone. The AI only picks the calculation; the calculation writes every number.</p>
             </div>
             <div className="c-say l" data-b={B.farm} data-in="0.3">
               <p className="kicker">05 · For farmers, in Bangla</p>
@@ -489,16 +492,16 @@ export default function Home({ regions, go, openRegion }: PageProps) {
               </div>
             </div>
             <div className="term" data-in="0.4">
-              <p className="bar"><i /><i /><i /><span>claude_desktop_config.json</span></p>
+              <p className="bar"><i /><i /><i /><span>.mcp.json · public server, read-only</span></p>
               <pre>{`{
   "mcpServers": {
     "kiln-watch": {
-      "command": "python",
-      "args": ["-m", "kw.mcp_server"]
+      "type": "http",
+      "url": "https://kiln-watch-seven.vercel.app/mcp"
     }
   }
 }`}</pre>
-              <p className="tools"><span>tools</span>get_harmonized_calendar · get_early_warning · find_anomalies · search_fire_reports · create_alert · get_active_wildfire_events …</p>
+              <p className="tools"><span>tools</span>get_harmonized_calendar · get_early_warning · check_place_fire_risk · find_anomalies · search_fire_reports · get_active_wildfire_events …</p>
             </div>
           </div>
 
@@ -547,7 +550,7 @@ export default function Home({ regions, go, openRegion }: PageProps) {
         <section className="h3d-flat wall">
           <div className="head" data-reveal>
             <h2 className="h3d-h">Fire regimes<br />on one scale</h2>
-            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes a few minutes (about 6 on the hosted server).</p>
+            <p>Open a built area, or make your own: any box on Earth up to 4° × 4°. The first build reads every detection since {y0} and takes 5 to 10 minutes.</p>
           </div>
           <ul className="cells" data-reveal>
             {presets.map((r) => (
